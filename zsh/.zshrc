@@ -19,8 +19,10 @@ alias cd="z"
 alias cat="bat"
 alias pn="pnpm"
 alias vc="code"
+
 alias lg="lazygit"
-alias ld='eza -lD'  # lists only directories (no files)
+alias ld="lazydocker"
+
 alias lf='eza -lfh'  # lists only files (no directories) with column headers
 alias lh='eza -dl .* --group-directories-first'  # lists hidden files and directories
 alias ls='eza -alh --group-directories-first'  # lists everything with directories first with column headers
