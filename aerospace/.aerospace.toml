@@ -47,11 +47,6 @@ run = ['move-node-to-workspace 8']
 [[on-window-detected]]
 if.app-id = 'com.tinyspeck.slackmacgap'
 check-further-callbacks = true
-run = ['move-node-to-workspace 8']
-
-[[on-window-detected]]
-if.app-id = 'com.gitbutler.app'
-check-further-callbacks = true
 run = ['move-node-to-workspace 9']
 
 [[on-window-detected]]
