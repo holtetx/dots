@@ -1,8 +1,9 @@
 keybind = ctrl+shift+r=reload_config
 
+command = /opt/homebrew/bin/fish
+
 window-decoration = false
-window-height = 200
-window-width = 300
+maximize = true
 
 font-family = "FiraCode Nerd Font Mono"
 
