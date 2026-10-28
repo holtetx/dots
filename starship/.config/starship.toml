@@ -1,3 +1,22 @@
 
 [gcloud]
 disabled = true
+
+# Warp needs a single-line prompt with fish
+[line_break]
+disabled = true
+
+[docker_context]
+disabled = true
+
+[package]
+disabled = true
+
+# no kotlin binary; Gradle sets the version
+[kotlin]
+disabled = true
+
+[git_status]
+ahead = '⇡${count}'
+behind = '⇣${count}'
+diverged = '⇕⇡${ahead_count}⇣${behind_count}'
