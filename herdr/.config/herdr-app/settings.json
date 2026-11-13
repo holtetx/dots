@@ -1,0 +1,11 @@
+{
+  "zoom": 0.9,
+  "sounds": {
+    "enabled": true
+  },
+  "font": "MonoLisa",
+  "font_ligatures": false,
+  "telemetry": false,
+  "minimum_contrast": 1.0,
+  "option_as_alt": "off"
+}

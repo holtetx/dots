@@ -1,0 +1,9 @@
+# Herdr writes everything else (state, bundled mods, icons, socket)
+/*
+!/.gitignore
+!/settings.json
+!/keys.json
+!/programs.json
+!/layouts/
+!/themes/
+/layouts/.state/
