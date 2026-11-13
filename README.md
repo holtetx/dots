@@ -25,6 +25,12 @@ Copy public keys from 1Password to local `.ssh` folder:
 - `~/.ssh/personal_git.pub` - Personal GitHub key
 - `~/.ssh/entur_git.pub` - Work GitHub key
 
+### Herdr
+Install Herdr from herdr.dev (not in the Brewfile). Stow it before the first launch, or quit Herdr and move `~/.config/herdr-app` away first. The whole folder is linked because Herdr writes its own state next to the config. The `.gitignore` in `herdr/.config/herdr-app` lists the tracked files.
+```zsh
+stow herdr --target ~
+```
+
 ### Directory Structure
 Initialize Git repositories for conditional includes to work:
 ```zsh
