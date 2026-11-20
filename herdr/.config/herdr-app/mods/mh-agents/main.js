@@ -565,7 +565,10 @@ export default class Agents extends View {
       const tab = tabs.get(a.tab);
       // A session in a worktree (Claude moves there on its own, the tab stays in the main folder) names it, in place of the space: the sidebar is narrow.
       const worktree = term?.labels?.["claude.cwd"]?.match(/\/\.claude\/worktrees\/([^/]+)/)?.[1];
-      const where = [worktree ? `\u203a ${worktree}` : full ? a.space_name : null, tab?.named && tab.name !== desc ? tab.name : null].filter(Boolean).join(" · ");
+      // A session whose project folder is not the space's (Claude was started from another folder) names that folder.
+      const project = term?.labels?.["claude.cwd"]?.replace(/\/+$/, "").split("/").pop();
+      const elsewhere = project && project.toLowerCase() !== (a.space_name ?? "").toLowerCase() ? project : null;
+      const where = [worktree ? `\u203a ${worktree}` : elsewhere ? `in ${elsewhere}` : full ? a.space_name : null, tab?.named && tab.name !== desc ? tab.name : null].filter(Boolean).join(" · ");
       const update = clean(term?.report?.msg) || null;
       const under = line2 === "space" ? (desc ? where : null) : line2 === "update" ? update : null;
       const tip = [desc, desc && under !== where ? where : null, under !== update ? update : null].filter(Boolean);
