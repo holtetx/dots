@@ -61,7 +61,7 @@
         }
       ],
       "size": {
-        "px": 268
+        "px": 308
       },
       "min": 44,
       "max": 480,
@@ -151,7 +151,7 @@
   ],
   "background": "canvas",
   "terminal_padding": [
-    0,
+    6,
     0
   ],
   "divider": {
