@@ -31,6 +31,14 @@ Install Herdr from herdr.dev (not in the Brewfile). Stow it before the first lau
 stow herdr --target ~
 ```
 
+The Herdr mods read labels that Claude Code sets. Stow `claude` for the hooks, the `herdr-link` skill and the scroll keys. It needs `jq`.
+```zsh
+stow claude --target ~
+```
+Then add to `~/.claude/settings.json` (not in this repo):
+- `statusLine`: `{"type": "command", "command": "\"$HOME/.claude/hooks/statusline.sh\""}`
+- A hook with command `bash "$HOME/.claude/hooks/herdr-activity.sh"` on `SessionStart`, `SubagentStart`, `SubagentStop` and `Stop`, and with matcher `Bash` on `PreToolUse`, `PostToolUse` and `PostToolUseFailure`.
+
 ### Directory Structure
 Initialize Git repositories for conditional includes to work:
 ```zsh
