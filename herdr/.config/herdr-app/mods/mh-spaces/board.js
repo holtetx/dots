@@ -338,6 +338,7 @@ function prRow(view, p, i, on, t, dark) {
     .child(div().w(150).flex_none().truncate().text_size(11.5).text_color(t.dim).child(`${p.repo.split("/").pop()}#${p.number}`))
     .child(div().flex_1().min_w(0).truncate().text_color(t.foreground).when(p.state === "draft", (el) => el.text_color(t.muted)).child(p.title))
     .when(asks(p), (el) => el.child(div().flex_none().px(5).rounded(4).text_size(10.5).text_color(t.ansi3).border_1().border_color(t.ansi3).child("review")))
+    .when(Boolean(p.behind), (el) => el.child(div().flex_none().px(5).rounded(4).text_size(10.5).text_color(t.ansi3).border_1().border_color(t.ansi3).child("behind")))
     .child(reviews(p, t, dark))
     .child(div().flex_none().max_w(130).truncate().text_size(11.5).text_color(t.dim).child(p.mine ? "you" : p.author))
     .child(h_flex().w(34).flex_none().gap(4).items_center().text_size(11).text_color(t.dim).when(Boolean(check), (el) => el.child("CI").child(

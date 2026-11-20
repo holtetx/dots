@@ -2,6 +2,7 @@
 
 import { exec, shared } from "herdr";
 import { PR, ISSUE, githubRepo, graphql, itemOf } from "./github.js";
+import { offHead, worktreesOf } from "./stack.js";
 
 export const BOARD_DEFAULTS = { repos: [], skip: [], hide: [] };
 export const boardSettings = () => ({ ...BOARD_DEFAULTS, ...(shared("mh-board") ?? {}) });
@@ -16,7 +17,7 @@ export function boardRepos() {
   });
 }
 
-const PR_FIELDS = `${PR} body updatedAt headRefName baseRefName isCrossRepository author { login } totalCommentsCount latestReviews(first: 30) { nodes { state } } closingIssuesReferences(first: 10) { nodes { url } } commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }`;
+const PR_FIELDS = `${PR} body updatedAt headRefName headRefOid baseRefName isCrossRepository author { login } totalCommentsCount latestReviews(first: 30) { nodes { state } } closingIssuesReferences(first: 10) { nodes { url } } commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }`;
 const ISSUE_FIELDS = `${ISSUE} body updatedAt author { login } assignees(first: 3) { nodes { login } } labels(first: 6) { nodes { name color } } closedByPullRequestsReferences(first: 5) { nodes { url } }`;
 const repoArgs = (repo) => {
   const [owner, name] = repo.split("/");
@@ -52,6 +53,7 @@ function prOf(n, at, login) {
     checks: n.commits?.nodes?.[0]?.commit?.statusCheckRollup?.state ?? null,
     branch: n.headRefName ?? null,
     base: n.baseRefName ?? null,
+    oid: n.headRefOid ?? null,
     fork: Boolean(n.isCrossRepository),
   };
 }
@@ -84,7 +86,29 @@ export async function fetchPrs(repos) {
   for (const n of r.head.rr?.nodes ?? []) add(n, "rr");
   for (const n of r.head.inv?.nodes ?? []) add(n, "inv");
   for (const d of r.data) for (const n of d.pullRequests?.nodes ?? []) add(n);
+  await markBehind(Object.values(prs));
   return { login, prs: Object.values(prs), missing: r.missing, partial: r.failed };
+}
+
+// Sets `behind` on the PRs with a checkout here that does not have the PR's newest commit (new commits or a force-push).
+async function markBehind(prs) {
+  const places = shared("board.places") ?? {};
+  await Promise.all(
+    Object.entries(places).map(async ([repo, at]) => {
+      const mine = prs.filter((p) => p.repo.toLowerCase() === repo.toLowerCase());
+      for (const { path, machine } of mine.length ? at : []) {
+        const git = (args) => exec("git", args, { cwd: path, on: machine ?? null, timeout: 20000 }).catch(() => null);
+        const list = await git(["worktree", "list", "--porcelain"]);
+        if (list?.code !== 0) continue;
+        const worktrees = worktreesOf(list.stdout);
+        for (const p of mine)
+          for (const w of offHead(p, worktrees)) {
+            // A checkout that has the PR's commit and more is ahead, not behind.
+            if ((await git(["merge-base", "--is-ancestor", p.oid, w.head]))?.code !== 0) p.behind = true;
+          }
+      }
+    }),
+  );
 }
 
 // { login, issues, missing }: every open issue in `repos`.
