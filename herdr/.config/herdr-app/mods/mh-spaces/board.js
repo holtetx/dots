@@ -311,6 +311,17 @@ function rowBase(id, on, t) {
     .when(!on, (el) => el.hover((s) => s.bg(t.hover)));
 }
 
+// Approvals, change requests and comments, as GitHub counts them.
+function reviews(p, t, dark) {
+  const chip = (icon, n, color) => (n ? [h_flex().flex_none().gap(3).items_center().text_color(color).child(svg(icon).size(11)).child(String(n))] : []);
+  return h_flex()
+    .flex_none()
+    .gap(8)
+    .items_center()
+    .text_size(11)
+    .children([...chip(ICON("check"), p.approvals, pick(GREEN, dark)), ...chip("mods/mh-spaces/file-diff.svg", p.changes, pick(RED, dark)), ...chip("mods/mh-spaces/comment.svg", p.comments, t.dim)]);
+}
+
 function prRow(view, p, i, on, t, dark) {
   const unread = shared("github")?.unread?.[prKey(p)];
   const check = CHECKS[p.checks];
@@ -322,7 +333,7 @@ function prRow(view, p, i, on, t, dark) {
     .child(div().w(150).flex_none().truncate().text_size(11.5).text_color(t.dim).child(`${p.repo.split("/").pop()}#${p.number}`))
     .child(div().flex_1().min_w(0).truncate().text_color(t.foreground).when(p.state === "draft", (el) => el.text_color(t.muted)).child(p.title))
     .when(asks(p), (el) => el.child(div().flex_none().px(5).rounded(4).text_size(10.5).text_color(t.ansi3).border_1().border_color(t.ansi3).child("review")))
-    .when(p.reviewers > 0, (el) => el.child(div().flex_none().px(5).rounded(4).text_size(10.5).text_color(t.muted).border_1().border_color(t.dim).child(p.reviewers === 1 ? "1 review" : `${p.reviewers} reviews`)))
+    .child(reviews(p, t, dark))
     .child(div().flex_none().max_w(130).truncate().text_size(11.5).text_color(t.dim).child(p.mine ? "you" : p.author))
     .child(h_flex().w(14).flex_none().justify_center().child(
       !check ? div() : check[0] ? svg(ICON(check[0])).size(12).text_color(pick(check[1], dark)) : div().size(7).rounded(4).bg(pick(check[1], dark))))

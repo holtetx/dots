@@ -19,7 +19,7 @@ export function boardRepos() {
   });
 }
 
-const PR_FIELDS = `${PR} body updatedAt headRefName isCrossRepository author { login } latestReviews(first: 20) { nodes { author { login } } } closingIssuesReferences(first: 10) { nodes { url } } commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }`;
+const PR_FIELDS = `${PR} body updatedAt headRefName isCrossRepository author { login } totalCommentsCount latestReviews(first: 30) { nodes { state } } closingIssuesReferences(first: 10) { nodes { url } } commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }`;
 const ISSUE_FIELDS = `${ISSUE} body updatedAt author { login } assignees(first: 3) { nodes { login } } labels(first: 6) { nodes { name color } } closedByPullRequestsReferences(first: 5) { nodes { url } }`;
 const repoArgs = (repo) => {
   const [owner, name] = repo.split("/");
@@ -48,8 +48,10 @@ function prOf(n, at, login) {
     author: n.author?.login ?? "",
     mine: Boolean(login) && n.author?.login === login,
     updated: Date.parse(n.updatedAt) || 0,
-    // How many others reviewed it (approved, asked for changes or commented).
-    reviewers: new Set((n.latestReviews?.nodes ?? []).map((r) => r.author?.login).filter((l) => l && l !== n.author?.login)).size,
+    // Each reviewer's latest review, and every comment on the PR.
+    approvals: (n.latestReviews?.nodes ?? []).filter((r) => r.state === "APPROVED").length,
+    changes: (n.latestReviews?.nodes ?? []).filter((r) => r.state === "CHANGES_REQUESTED").length,
+    comments: n.totalCommentsCount ?? 0,
     checks: n.commits?.nodes?.[0]?.commit?.statusCheckRollup?.state ?? null,
     branch: n.headRefName ?? null,
     fork: Boolean(n.isCrossRepository),
