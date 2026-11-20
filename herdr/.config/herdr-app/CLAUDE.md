@@ -27,7 +27,30 @@ Read these first. They are in `~/.config/herdr-app`:
 
 A badge on an agent comes from a `pr-link` line in the session's transcript (Claude Code writes it when it opens a PR) or from herdr-link. A URL typed in a prompt reaches only the tasks list (`ctrl-a t`). Both need the `claude.session` label.
 
+A space takes its git info from the folder of its first tab. A space made in the wrong folder shows the wrong badges.
+
+## Board (`ctrl-a T`)
+
+Choices the owner made. Do not change them without a question.
+
+- Repos: those found in the sidebar folders, plus `mh-board.repos` in `mh-settings.json`. A `git@<host>:owner/repo` remote counts as GitHub (ssh host aliases).
+- Some repos are hidden (`HIDDEN` in `mods/mh-spaces/board-data.js`).
+- PRs are asked for in three separate `gh` calls. One combined query gives HTTP 502.
+- Both tabs are grouped by repo. There are no status groups.
+- A yellow `review` label marks a PR where GitHub says the owner's review is requested. PRs with the label come first in their repo.
+- Each PR row shows `N approved`, `N changes`, a comment count (GitHub `totalCommentsCount`) and `CI` with its state. Use words, not icons alone.
+- Not tested: start a session on a PR from the board, and worktree recreate on resume.
+
+## Decided against
+
+- No `cmd-s` key, no tmux split, rename or layout keys.
+- `review-pr` (a shared team skill) does not call herdr-link. A rule in `~/.claude/CLAUDE.md` does that.
+- The worktree options stay (`alt-shift-c`, picker, board and tasks rows).
+
 ## More windows
+
+A second window closes with `cmd-q`.
+
 
 `new-window.sh` (`cmd-shift-n`) makes `~/.config/herdr-app-2`, `-3` and so on, with this setup's files linked in. To ask one window: `HERDR_APP_HOME=~/.config/herdr-app-2 herdr-app status`.
 
