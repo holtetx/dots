@@ -54,6 +54,8 @@ function prOf(n, at, login) {
   };
 }
 
+// Repos never shown on the board: my team is the requested reviewer but I do not work on them.
+const HIDDEN = /\/hidden-/;
 const search = (q) => `search(query: ${JSON.stringify(q)}, type: ISSUE, first: 100) { nodes { ... on PullRequest { ${PR_FIELDS} } } }`;
 
 // { login, prs, missing }: every open PR in `repos` and on GitHub involving you, each
@@ -73,7 +75,7 @@ export async function fetchPrs(repos) {
   const at = Date.now();
   const prs = {};
   const add = (n, flag) => {
-    if (!n?.url) return;
+    if (!n?.url || HIDDEN.test(n.repository?.nameWithOwner ?? "")) return;
     prs[n.url] ??= prOf(n, at, login);
     if (flag) prs[n.url][flag] = true;
   };
