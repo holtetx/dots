@@ -59,10 +59,17 @@ const search = (q) => `search(query: ${JSON.stringify(q)}, type: ISSUE, first: 1
 // { login, prs, missing }: every open PR in `repos` and on GitHub involving you, each
 // with rr (your review is asked for), inv (it involves you) and mine.
 export async function fetchPrs(repos) {
-  const head = `viewer { login } rr: ${search("is:pr is:open archived:false review-requested:@me")} inv: ${search("is:pr is:open archived:false involves:@me")}`;
-  const r = await perRepo(repos, 20, `pullRequests(states: OPEN, first: 50, orderBy: {field: UPDATED_AT, direction: DESC}) { nodes { ${PR_FIELDS} } }`, head);
-  if (!r.head) throw new Error("Couldn't ask GitHub about PRs: is gh logged in?");
-  const login = r.head.viewer?.login ?? "";
+  // One gh call each: together GitHub answers 502 when the searches are large.
+  const ask = (fields) => graphql(fields).catch(() => null);
+  const [rr, inv, r] = await Promise.all([
+    ask(`viewer { login } rr: ${search("is:pr is:open archived:false review-requested:@me")}`),
+    ask(`viewer { login } inv: ${search("is:pr is:open archived:false involves:@me")}`),
+    perRepo(repos, 20, `pullRequests(states: OPEN, first: 50, orderBy: {field: UPDATED_AT, direction: DESC}) { nodes { ${PR_FIELDS} } }`),
+  ]);
+  if (!rr && !inv && (r.failed || !repos.length)) throw new Error("Couldn't ask GitHub about PRs: is gh logged in?");
+  if (!rr || !inv) r.failed = true;
+  r.head = { rr: rr?.rr, inv: inv?.inv };
+  const login = (rr ?? inv)?.viewer?.login ?? "";
   const at = Date.now();
   const prs = {};
   const add = (n, flag) => {
