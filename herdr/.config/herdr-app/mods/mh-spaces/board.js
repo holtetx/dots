@@ -130,13 +130,17 @@ function graphOf(items) {
   return { links, sessions };
 }
 
-// Both tabs: one section per repo, the repo and the item updated last first.
+// A PR that asks for your review.
+const asks = (p) => Boolean(p.rr && !p.mine);
+
+// Both tabs: one section per repo, the repo and the item updated last first. In a repo,
+// the PRs that ask for your review come first.
 function sectionsOf(tab) {
   const by = new Map();
   for (const i of (tab.id === "prs" ? memory.data.prs?.prs : memory.data.issues?.issues) ?? []) by.set(i.repo, [...(by.get(i.repo) ?? []), i]);
   return [...by]
-    .map(([name, items]) => ({ name, items: items.sort((a, b) => b.updated - a.updated) }))
-    .sort((a, b) => b.items[0].updated - a.items[0].updated);
+    .map(([name, items]) => ({ name, items: items.sort((a, b) => asks(b) - asks(a) || b.updated - a.updated) }))
+    .sort((a, b) => Math.max(...b.items.map((i) => i.updated)) - Math.max(...a.items.map((i) => i.updated)));
 }
 
 function listAt(tab, rows) {
@@ -317,6 +321,7 @@ function prRow(view, p, i, on, t, dark) {
       .when(Boolean(unread), (el) => el.child(div().absolute().top(-2).right(-3).size(6).rounded(3).bg(pick(["#0969da", "#4493f8"], dark)))))
     .child(div().w(150).flex_none().truncate().text_size(11.5).text_color(t.dim).child(`${p.repo.split("/").pop()}#${p.number}`))
     .child(div().flex_1().min_w(0).truncate().text_color(t.foreground).when(p.state === "draft", (el) => el.text_color(t.muted)).child(p.title))
+    .when(asks(p), (el) => el.child(div().flex_none().px(5).rounded(4).text_size(10.5).text_color(t.ansi3).border_1().border_color(t.ansi3).child("review")))
     .child(div().flex_none().max_w(130).truncate().text_size(11.5).text_color(t.dim).child(p.mine ? "you" : p.author))
     .child(h_flex().w(14).flex_none().justify_center().child(
       !check ? div() : check[0] ? svg(ICON(check[0])).size(12).text_color(pick(check[1], dark)) : div().size(7).rounded(4).bg(pick(check[1], dark))))
