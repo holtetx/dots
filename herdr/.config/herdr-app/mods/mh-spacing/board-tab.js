@@ -109,7 +109,8 @@ export function boardTab(view, t) {
   list.forEach((r, i) => children.push(row(r, i)));
   return {
     body: v_flex().id("board-list").flex_1().min_h(0).gap(2).overflow_y_scrollbar().children(children),
-    reset: Object.keys(shared(KEY) ?? {}).length ? () => setShared(KEY, {}) : null,
+    // hide has no row here, so a reset keeps it.
+    reset: Object.keys(shared(KEY) ?? {}).some((k) => k !== "hide") ? () => setShared(KEY, shared(KEY).hide ? { hide: shared(KEY).hide } : {}) : null,
     resetLabel: "Reset to defaults",
     hint: view.editing === "add-repo" ? "↵ add · esc close" : "↑↓ choose · space toggle · a add repo · tab sidebar · esc close",
   };

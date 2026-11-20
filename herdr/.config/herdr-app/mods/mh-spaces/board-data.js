@@ -1,7 +1,4 @@
-// What the board (ctrl-a T, board.js) shows, asked of GitHub: the open PRs in its repos
-// and those involving you, and the open issues in its repos. Its repos: those added in
-// the spacing dialog's Board tab and those in the sidebar's folders (shared("board.repos"),
-// found by discoverRepos), less those turned off there. Its settings: shared("mh-board").
+// The board's data, asked of GitHub with gh. Settings: shared("mh-board").
 
 import { exec, shared } from "herdr";
 import { PR, ISSUE, githubRepo, graphql, itemOf } from "./github.js";
@@ -15,7 +12,7 @@ export function boardRepos() {
   const seen = new Set();
   return [...cfg.repos, ...(shared("board.repos") ?? []).filter((r) => !skip.has(r.toLowerCase()))].filter((r) => {
     const k = r.toLowerCase();
-    return !seen.has(k) && seen.add(k);
+    return !hidden(r) && !seen.has(k) && seen.add(k);
   });
 }
 
@@ -59,7 +56,7 @@ function prOf(n, at, login) {
   };
 }
 
-// Repos never shown on the board: my team is the requested reviewer but I do not work on them.
+// mh-board.hide: parts of owner/repo names never shown, for repos where my team is the reviewer but I do not work.
 const hidden = (repo) => boardSettings().hide.some((h) => repo.toLowerCase().includes(h.toLowerCase()));
 const search = (q) => `search(query: ${JSON.stringify(q)}, type: ISSUE, first: 100) { nodes { ... on PullRequest { ${PR_FIELDS} } } }`;
 
