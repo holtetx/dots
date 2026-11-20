@@ -14,6 +14,8 @@
     "cmd-alt-[": "mh-tabs.space-prev",
     "cmd-]": "mh-tabs.agent-next",
     "cmd-[": "mh-tabs.agent-prev",
+    "cmd-ctrl-[": { "command": "tab.move", "args": { "by": -1 } },
+    "cmd-ctrl-]": { "command": "tab.move", "args": { "by": 1 } },
     "cmd-shift-l": "layout.switch",
     "cmd-n": "space.new",
     "cmd-p": "mod.open:mh-picker",
