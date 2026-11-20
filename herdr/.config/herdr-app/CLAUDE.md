@@ -39,7 +39,7 @@ Choices the owner made. Do not change them without a question.
 - Both tabs are grouped by repo. There are no status groups.
 - A yellow `review` label marks a PR where GitHub says the owner's review is requested. PRs with the label come first in their repo.
 - Each PR row shows `N approved`, `N changes`, a comment count (GitHub `totalCommentsCount`) and `CI` with its state. Use words, not icons alone.
-- Not tested: start a session on a PR from the board, and worktree recreate on resume.
+- Not tested: worktree recreate on resume.
 
 ## Decided against
 
