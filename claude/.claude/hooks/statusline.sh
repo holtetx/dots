@@ -1,20 +1,19 @@
 #!/usr/bin/env bash
-# Claude Code status line that prints nothing. It hands Herdr what Claude passes
-# it: the plan's rate limits as a cache file, and this session's context use,
-# id and folder as labels on its herdr-core terminal.
+# Claude Code status line that prints nothing: it gives Herdr the rate limits (a cache file) and this session's context use, id and project folder (labels on its herdr-core terminal).
 set -u
 PATH="$HOME/.local/bin:$PATH:/usr/bin:/opt/homebrew/bin"
 
 input=$(cat)
-dir="${XDG_CACHE_HOME:-$HOME/.cache}/herdr-claude"
+dir="$HOME/.cache/herdr-claude"
 mkdir -p "$dir"
 
+# project_dir, not cwd: `claude --resume` finds a session by its project folder.
 fields=$(jq -r '
   (.rate_limits // null | tojson),
   (.context_window.used_percentage // "" | tostring),
   (.context_window.context_window_size // "" | tostring),
   (.session_id // ""),
-  (.cwd // "")
+  (.workspace.project_dir // .cwd // "")
 ' <<<"$input" 2>/dev/null) || exit 0
 { read -r limits; read -r used; read -r size; read -r session; IFS= read -r cwd; } <<<"$fields"
 

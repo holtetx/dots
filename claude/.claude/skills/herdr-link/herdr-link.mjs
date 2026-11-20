@@ -1,7 +1,4 @@
-// Links a URL (a GitHub PR or issue) to the agent in this terminal, as
-// the link dialog does; Herdr shows it on the agent and on its space. Kept in
-// herdr-core's `mh-links` document on this machine (herdr/.config/herdr-app/mods/
-// mh-spaces/docs.js in dots). Outside Herdr it does nothing.
+// Links a GitHub PR or issue URL to the agent in this terminal (herdr-core doc `mh-links`, see mods/mh-spaces/docs.js). Outside Herdr it does nothing.
 import { execFileSync } from "node:child_process";
 
 const url = process.argv[2];

@@ -10,7 +10,7 @@ Read these first. They are in `~/.config/herdr-app`:
 - `~/.config/herdr-app` is a link to `~/dots/herdr/.config/herdr-app`. The `.gitignore` there lists the tracked files. All other files are Herdr's.
 - Do not edit Herdr's own mods and layouts. Clone them (`mod.clone`, `layout.clone`).
 - The `mh-*` mods are forks of jnatten's `jj-*` mods (github.com/jnatten/dots), changed to git only, no Trello, no 1Password.
-- Claude Code side: stow package `claude` in dots. `hooks/statusline.sh` sets the `claude.session`, `claude.cwd`, `claude.context` and `claude.context_size` labels and writes `~/.cache/herdr-claude/limits.json`. `hooks/herdr-activity.sh` sets `claude.subagents` and `claude.shells`. `~/.claude/settings.json` (not in dots) runs both.
+- Claude Code side: stow package `claude` in dots. `hooks/statusline.sh` sets the `claude.session`, `claude.cwd`, `claude.context` and `claude.context_size` labels and writes `~/.cache/herdr-claude/limits.json`. `hooks/herdr-activity.sh` sets `claude.subagents` and `claude.shells`, and removes all `claude.*` labels at SessionEnd. `claude.cwd` is the project folder. `~/.claude/settings.json` (not in dots) runs both.
 
 ## Where state lives
 
