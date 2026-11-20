@@ -132,15 +132,23 @@ export async function startNew({ path, machine, worktree: own, name, branch, url
   if (own) {
     // Made where `claude --worktree` makes its own, so Claude takes it over.
     cwd = `${path}/.claude/worktrees/${branch ? branch.replace(/[^\w.-]/g, "-") : name}`;
-    if (branch) await git(["branch", "--track", branch, `origin/${branch}`]);
-    const r = await git(branch ? ["worktree", "add", cwd, branch] : ["worktree", "add", "-b", `worktree-${base(cwd)}`, cwd]);
-    if (r.code !== 0) return `Couldn't make the worktree: ${why(r)}`;
+    // One that is there already (kept at the end of an earlier session) is used again.
+    if ((await missing([cwd], on)).size) {
+      if (branch) await git(["branch", "--track", branch, `origin/${branch}`]);
+      const r = await git(branch ? ["worktree", "add", cwd, branch] : ["worktree", "add", "-b", `worktree-${base(cwd)}`, cwd]);
+      if (r.code !== 0) return `Couldn't make the worktree: ${why(r)}`;
+    }
     const common = await git(["rev-parse", "--path-format=absolute", "--git-common-dir"]);
     if (common.code === 0) await exec("sh", ["-c", 'grep -qxF "$2" "$1" 2>/dev/null || echo "$2" >>"$1"', "sh", `${common.stdout.trim()}/info/exclude`, "/.claude/worktrees/"], { on });
   }
   if (branch && !own) {
     const r = await git(["switch", branch]);
     if (r.code !== 0) return `Couldn't move to ${branch}: ${why(r)}`;
+  }
+  if (branch) {
+    // A local branch from before does not follow the fetch: without this, the session reads old code.
+    const r = await exec("git", ["merge", "--ff-only", `origin/${branch}`], { cwd, on, timeout: 600_000 });
+    if (r.code !== 0) return `Couldn't update ${branch} to origin: ${why(r)}`;
   }
   const known = terminals().map((t) => t.address);
   const argv = own ? ["claude", "--worktree", base(cwd)] : ["claude"];
