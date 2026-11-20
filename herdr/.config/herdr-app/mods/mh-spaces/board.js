@@ -1,5 +1,5 @@
-// The board (ctrl-a T): the open PRs in its repos and those involving you, grouped as
-// GitHub's inbox does; and the open issues in its repos, by repo. Each item shows how many
+// The board (ctrl-a T): the open PRs in its repos and those involving you, and the open
+// issues in its repos, both by repo. Each item shows how many
 // Claude sessions, PRs and issues it's linked to: GitHub's own links and the other links
 // of the sessions that had it.
 // hjkl moves (^D/^U half a page, ^J/^K five); ↵ picks one of its sessions or
@@ -19,16 +19,6 @@ const GREEN = ["#1a7f37", "#3fb950"], RED = ["#cf222e", "#f85149"], YELLOW = ["#
 const CHECKS = { SUCCESS: ["check", GREEN, "Checks passed"], FAILURE: ["x", RED, "Checks failed"], ERROR: ["x", RED, "Checks failed"], PENDING: [null, YELLOW, "Checks running"], EXPECTED: [null, YELLOW, "Checks expected"] };
 const REVIEW = { APPROVED: ["check", GREEN, "Approved"], CHANGES_REQUESTED: ["mods/mh-spaces/file-diff.svg", RED, "Changes requested"] };
 const KIND_ORDER = { pr: 0, issue: 1 };
-
-const PR_GROUPS = [
-  ["Needs your review", (p) => p.rr && !p.mine],
-  ["Changes requested", (p) => p.mine && p.review === "CHANGES_REQUESTED"],
-  ["Ready to merge", (p) => p.mine && (p.review === "APPROVED" || p.state === "queued")],
-  ["Waiting for review", (p) => p.mine && p.state !== "draft"],
-  ["Drafts", (p) => p.mine],
-  ["Involving you", (p) => p.inv],
-  ["Everything else in your repos", () => true],
-];
 
 // What was fetched, the tab shown and each tab's selection ({ url, i }),
 // kept between openings (copies share this module).
@@ -140,15 +130,10 @@ function graphOf(items) {
   return { links, sessions };
 }
 
+// Both tabs: one section per repo, the repo and the item updated last first.
 function sectionsOf(tab) {
-  if (tab.id === "prs") {
-    const groups = PR_GROUPS.map(([name]) => ({ name, items: [] }));
-    for (const p of memory.data.prs?.prs ?? []) groups[PR_GROUPS.findIndex(([, test]) => test(p))].items.push(p);
-    for (const g of groups) g.items.sort((a, b) => b.updated - a.updated);
-    return groups.filter((g) => g.items.length);
-  }
   const by = new Map();
-  for (const i of memory.data.issues?.issues ?? []) by.set(i.repo, [...(by.get(i.repo) ?? []), i]);
+  for (const i of (tab.id === "prs" ? memory.data.prs?.prs : memory.data.issues?.issues) ?? []) by.set(i.repo, [...(by.get(i.repo) ?? []), i]);
   return [...by]
     .map(([name, items]) => ({ name, items: items.sort((a, b) => b.updated - a.updated) }))
     .sort((a, b) => b.items[0].updated - a.items[0].updated);
