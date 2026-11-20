@@ -1,6 +1,6 @@
 // Run: node mods/mh-spaces/stack.test.mjs
 import assert from "node:assert";
-import { stacked } from "./stack.js";
+import { offHead, stacked, worktreesOf } from "./stack.js";
 
 const P = (n, branch, base, updated, x = {}) => ({ n, branch, base, updated, ...x });
 const show = (l) => l.map((p) => `${p.n}:${p.depth}`).join(" ");
@@ -18,4 +18,11 @@ assert.equal(show(stacked([P(1, "a", "main", 1), P(2, "b", "a", 1, { rr: true })
 assert.equal(stacked([P(1, "a", "b", 1), P(2, "b", "a", 2)]).length, 2);
 // A PR based on its own branch is a root.
 assert.equal(show(stacked([P(1, "a", "a", 1)])), "1:0");
+// Checkouts of a PR that are not at its newest commit: its branch, or a review-<number> folder.
+const wts = worktreesOf("worktree /r\nHEAD aaa\nbranch refs/heads/feat\n\nworktree /r/.claude/worktrees/review-7\nHEAD bbb\ndetached\n\nworktree /r/.claude/worktrees/other\nHEAD ccc\nbranch refs/heads/other\n");
+assert.deepEqual(wts[1], { path: "/r/.claude/worktrees/review-7", head: "bbb", branch: null });
+assert.deepEqual(offHead({ number: 7, branch: "feat", oid: "new" }, wts).map((w) => w.head), ["aaa", "bbb"]);
+assert.deepEqual(offHead({ number: 7, branch: "feat", oid: "aaa" }, wts).map((w) => w.head), ["bbb"]);
+assert.deepEqual(offHead({ number: 8, branch: "feat", oid: "new", fork: true }, wts), []);
+assert.deepEqual(offHead({ number: 9, branch: "none", oid: "new" }, wts), []);
 console.log("ok");

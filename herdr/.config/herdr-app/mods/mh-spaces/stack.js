@@ -35,3 +35,14 @@ export function stacked(items) {
   const rest = items.filter((p) => !stacks.some((s) => s.rows.includes(p))).map((p) => ({ key: [asks(p), p.updated], rows: [Object.assign(p, { depth: 0 })] }));
   return [...stacks, ...rest].sort((a, b) => b.key[0] - a.key[0] || b.key[1] - a.key[1]).flatMap((s) => s.rows);
 }
+
+// `git worktree list --porcelain` as [{ path, head, branch }] (branch null when detached).
+export const worktreesOf = (text) =>
+  text.split("\n\n").filter((b) => b.startsWith("worktree ")).map((b) => {
+    const line = (key) => b.split("\n").find((l) => l.startsWith(`${key} `))?.slice(key.length + 1) ?? null;
+    return { path: line("worktree"), head: line("HEAD"), branch: line("branch")?.replace(/^refs\/heads\//, "") ?? null };
+  });
+
+// The checkouts that hold this PR (on its branch, or a review-<number> folder as the review-pr skill makes) and are not at its newest commit.
+export const offHead = (p, worktrees) =>
+  worktrees.filter((w) => ((!p.fork && w.branch === p.branch) || w.path.split("/").pop() === `review-${p.number}`) && p.oid && w.head !== p.oid);

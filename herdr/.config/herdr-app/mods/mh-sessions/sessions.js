@@ -147,8 +147,15 @@ export async function startNew({ path, machine, worktree: own, name, branch, url
   }
   if (branch) {
     // A local branch from before does not follow the fetch: without this, the session reads old code.
-    const r = await exec("git", ["merge", "--ff-only", `origin/${branch}`], { cwd, on, timeout: 600_000 });
-    if (r.code !== 0) return `Couldn't update ${branch} to origin: ${why(r)}`;
+    const at = (args) => exec("git", args, { cwd, on, timeout: 600_000 });
+    if ((await at(["merge", "--ff-only", `origin/${branch}`])).code !== 0) {
+      // Force-pushed. Moved to origin only when nothing here is lost: HEAD is an old tip of origin (fork-point reads its reflog) and there are no changes.
+      const [fork, head, dirty] = await Promise.all([at(["merge-base", "--fork-point", `origin/${branch}`, "HEAD"]), at(["rev-parse", "HEAD"]), at(["status", "--porcelain"])]);
+      if (fork.code !== 0 || head.code !== 0 || dirty.code !== 0 || fork.stdout.trim() !== head.stdout.trim() || dirty.stdout.trim())
+        return `${branch} differs from origin and has commits or changes of its own in ${tilde(cwd)}. Update it by hand.`;
+      const r = await at(["reset", "--hard", `origin/${branch}`]);
+      if (r.code !== 0) return `Couldn't move ${branch} to origin: ${why(r)}`;
+    }
   }
   const known = terminals().map((t) => t.address);
   const argv = own ? ["claude", "--worktree", base(cwd)] : ["claude"];
