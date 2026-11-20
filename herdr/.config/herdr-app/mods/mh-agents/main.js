@@ -563,7 +563,9 @@ export default class Agents extends View {
       const name = full ? a.space_name || label(a) : more ?? (/^\d+$/.test(label(a)) ? a.program?.name || label(a) : label(a));
       // Under a description: its space and named tab, or the agent's latest update. What isn't shown goes in the tooltip.
       const tab = tabs.get(a.tab);
-      const where = [full ? a.space_name : null, tab?.named && tab.name !== desc ? tab.name : null].filter(Boolean).join(" · ");
+      // A session in a worktree (Claude moves there on its own, the tab stays in the main folder) names it, in place of the space: the sidebar is narrow.
+      const worktree = term?.labels?.["claude.cwd"]?.match(/\/\.claude\/worktrees\/([^/]+)/)?.[1];
+      const where = [worktree ? `\u203a ${worktree}` : full ? a.space_name : null, tab?.named && tab.name !== desc ? tab.name : null].filter(Boolean).join(" · ");
       const update = clean(term?.report?.msg) || null;
       const under = line2 === "space" ? (desc ? where : null) : line2 === "update" ? update : null;
       const tip = [desc, desc && under !== where ? where : null, under !== update ? update : null].filter(Boolean);
