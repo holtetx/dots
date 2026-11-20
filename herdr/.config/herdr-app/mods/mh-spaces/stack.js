@@ -1,11 +1,8 @@
 // Board PR order, with no Herdr imports so node can test it (stack.test.mjs).
 
-// A PR that asks for your review.
 export const asks = (p) => Boolean(p.rr && !p.mine);
 
-// A repo's PRs with each stacked PR (its base is the branch of another open PR here) under
-// its parent, `depth` deep, `last` on the last child of a parent. A stack sorts as one: by a review asked of you in it, then by
-// its newest update.
+// A stack (a PR whose base is the branch of another open PR here) sorts as one row group, so a review asked in a child lifts the whole stack.
 export function stacked(items) {
   const heads = new Map(items.filter((p) => p.branch && !p.fork).map((p) => [p.branch, p]));
   const kids = new Map();

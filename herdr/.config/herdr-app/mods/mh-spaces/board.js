@@ -130,8 +130,6 @@ function graphOf(items) {
   return { links, sessions };
 }
 
-// Both tabs: one section per repo, the repo and the item updated last first. PRs are
-// stacked (above); the stacks that ask for your review come first.
 function sectionsOf(tab) {
   const by = new Map();
   for (const i of (tab.id === "prs" ? memory.data.prs?.prs : memory.data.issues?.issues) ?? []) by.set(i.repo, [...(by.get(i.repo) ?? []), i]);
@@ -323,7 +321,7 @@ function reviews(p, t, dark) {
     ]);
 }
 
-// The stack mark as lines: the font draws the └ and ├ characters with different weight.
+// Lines, not text: the font draws the └ and ├ characters with different weight.
 const branchMark = (last, t) =>
   div().relative().w(10).h(14).flex_none()
     .child(div().absolute().left(2).top(0).w(1).h(last ? 7 : 14).bg(t.dim))

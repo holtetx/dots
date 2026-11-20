@@ -153,7 +153,7 @@ export default class Worktree extends View {
         this.repo = repo;
         cx.notify();
         // The list (and with it the filter input) only mounts once loading is
-        // done, so the keyboard must move there now — a focus call made while
+        // done, so the keyboard must move there now: a focus call made while
         // loading lands on nothing and the dialog stays keyboard-dead.
         this.handle.focus();
         if (props().action !== "remove") cx.timer.after(100, () => this.input.focus());
