@@ -1184,12 +1184,14 @@ export default class Spaces extends View {
     });
   }
 
-  // Only what's unusual, after the name: "spike \u21912 \u21931". The branch goes when the
-  // name already says it (a worktree is named after its branch), and master/main go:
-  // nearly every space is on one.
-  gitTail(g, name, t) {
-    const raw = g.branch ?? "detached";
-    const where = pref("branch") === "hidden" || raw.toLowerCase() === name.toLowerCase() || raw === "master" || raw === "main" ? "" : raw;
+  // The branch, on a line of its own under the name. Not when the name already says it (a
+  // worktree is named after its branch) or on master/main: nearly every space is on one.
+  branchOf(g, name) {
+    const raw = g?.branch ?? "";
+    return pref("branch") === "hidden" || !raw || raw.toLowerCase() === name.toLowerCase() || raw === "master" || raw === "main" ? "" : raw;
+  }
+
+  gitTail(g, t) {
     return h_flex()
       .flex_1()
       .min_w(0)
@@ -1198,7 +1200,6 @@ export default class Spaces extends View {
       .items_center()
       .text_size(11.5)
       .text_color(t.dim)
-      .when(Boolean(where), (el) => el.child(div().min_w(0).truncate().child(where)))
       .when(g.ahead > 0, (el) => el.child(div().flex_none().text_color(t.ansi2).child(`\u2191${g.ahead}`)))
       .when(g.behind > 0, (el) => el.child(div().flex_none().text_color(t.ansi1).child(`\u2193${g.behind}`)));
   }
@@ -1212,11 +1213,12 @@ export default class Spaces extends View {
     const colors = shared("space.colors") ?? {};
     const color = colors[w.id] ?? "ansi6";
     const fill = color.startsWith("#") ? color : (MARK[color] ?? t[color]);
+    const branch = this.branchOf(g, w.name);
     return v_flex()
       .relative()
       .id(`space-${w.id}`)
       .px(8)
-      .h(30)
+      .h(branch ? 44 : 30)
       .flex_none()
       .justify_center()
       .rounded(8)
@@ -1270,12 +1272,13 @@ export default class Spaces extends View {
           .gap(9)
           .items_center()
           .when(pref("icon") !== "hidden", (el) => el.child(h_flex().size(18).flex_none().rounded(5).bg(fill).items_center().justify_center().text_size(10.5).font_bold().text_color("#ffffff").child([...w.name][0]?.toUpperCase() ?? "?")))
-          .child(div().flex_shrink(1).min_w(48).when(pref("branch") !== "hidden", (el) => el.max_w(150)).truncate().text_color(t.foreground).child(w.name))
+          .child(div().flex_shrink(1).min_w(48).truncate().text_color(t.foreground).child(w.name))
           .when(Boolean(w.machine), (el) => el.child(div().id(`space-machine-${w.id}`).flex_none().text_color(t.dim).tooltip(w.machine)
             .child(svg("mods/workspace-chrome/server.svg").size(11))))
-          .child(g ? this.gitTail(g, w.name, t) : div().flex_1())
+          .child(g ? this.gitTail(g, t) : div().flex_1())
           .when(this.links?.get(w.id)?.length > 0, (el) => el.child(kinds(this.links.get(w.id), this.items, t, `gh-${w.id}`, () => openLinks(w.id)))),
-      );
+      )
+      .when(Boolean(branch), (el) => el.child(div().truncate().text_size(10.5).text_color(t.dim).when(pref("icon") !== "hidden", (b) => b.pl(27)).child(branch)));
   }
 
   compact({ w, n }, t) {
