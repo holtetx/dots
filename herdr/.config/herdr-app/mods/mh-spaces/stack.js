@@ -4,7 +4,7 @@
 export const asks = (p) => Boolean(p.rr && !p.mine);
 
 // A repo's PRs with each stacked PR (its base is the branch of another open PR here) under
-// its parent, `depth` deep. A stack sorts as one: by a review asked of you in it, then by
+// its parent, `depth` deep, `last` on the last child of a parent. A stack sorts as one: by a review asked of you in it, then by
 // its newest update.
 export function stacked(items) {
   const heads = new Map(items.filter((p) => p.branch && !p.fork).map((p) => [p.branch, p]));
@@ -21,7 +21,9 @@ export function stacked(items) {
     p.depth = depth;
     out.push(p);
     let key = [asks(p), p.updated];
-    for (const k of (kids.get(p) ?? []).sort((a, b) => b.updated - a.updated)) {
+    const mine = (kids.get(p) ?? []).sort((a, b) => b.updated - a.updated);
+    for (const k of mine) {
+      k.last = k === mine.at(-1);
       const [ask, at] = walk(k, depth + 1);
       key = [key[0] || ask, Math.max(key[1], at)];
     }

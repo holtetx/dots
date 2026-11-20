@@ -328,7 +328,7 @@ function prRow(view, p, i, on, t, dark) {
   const check = CHECKS[p.checks];
   return rowBase(`pr-${p.url}`, on, t)
     .on_click((e, cx) => select(view, "prs", { url: p.url, i }, e, cx, p))
-    .when(p.depth > 0, (el) => el.child(div().w(p.depth * 14).flex_none().text_right().text_color(t.dim).child("└")))
+    .when(p.depth > 0, (el) => el.child(div().w(p.depth * 14).flex_none().text_right().text_color(t.dim).child(p.last ? "└" : "├")))
     .child(div().relative().w(14).flex_none().flex().justify_center().child(stateIcon(p, dark, t))
       .when(Boolean(unread), (el) => el.child(div().absolute().top(-2).right(-3).size(6).rounded(3).bg(pick(["#0969da", "#4493f8"], dark)))))
     .child(div().w(150).flex_none().truncate().text_size(11.5).text_color(t.dim).child(`${p.repo.split("/").pop()}#${p.number}`))
