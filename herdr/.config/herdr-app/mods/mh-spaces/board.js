@@ -17,7 +17,6 @@ const FRESH = 2 * 60000;
 const ICON = (name) => `mods/workspace-chrome/${name}.svg`;
 const GREEN = ["#1a7f37", "#3fb950"], RED = ["#cf222e", "#f85149"], YELLOW = ["#9a6700", "#d29922"];
 const CHECKS = { SUCCESS: ["check", GREEN, "Checks passed"], FAILURE: ["x", RED, "Checks failed"], ERROR: ["x", RED, "Checks failed"], PENDING: [null, YELLOW, "Checks running"], EXPECTED: [null, YELLOW, "Checks expected"] };
-const REVIEW = { APPROVED: ["check", GREEN, "Approved"], CHANGES_REQUESTED: ["mods/mh-spaces/file-diff.svg", RED, "Changes requested"] };
 const KIND_ORDER = { pr: 0, issue: 1 };
 
 // What was fetched, the tab shown and each tab's selection ({ url, i }),
@@ -313,19 +312,22 @@ function rowBase(id, on, t) {
 
 // Approvals, change requests and comments, as GitHub counts them.
 function reviews(p, t, dark) {
-  const chip = (icon, n, color) => (n ? [h_flex().flex_none().gap(3).items_center().text_color(color).child(svg(icon).size(11)).child(String(n))] : []);
+  const word = (n, text, color) => (n ? [div().flex_none().text_color(color).child(`${n} ${text}`)] : []);
   return h_flex()
     .flex_none()
     .gap(8)
     .items_center()
     .text_size(11)
-    .children([...chip(ICON("check"), p.approvals, pick(GREEN, dark)), ...chip("mods/mh-spaces/file-diff.svg", p.changes, pick(RED, dark)), ...chip("mods/mh-spaces/comment.svg", p.comments, t.dim)]);
+    .children([
+      ...word(p.approvals, "approved", pick(GREEN, dark)),
+      ...word(p.changes, "changes", pick(RED, dark)),
+      ...(p.comments ? [h_flex().flex_none().gap(3).items_center().text_color(t.dim).child(svg("mods/mh-spaces/comment.svg").size(11)).child(String(p.comments))] : []),
+    ]);
 }
 
 function prRow(view, p, i, on, t, dark) {
   const unread = shared("github")?.unread?.[prKey(p)];
   const check = CHECKS[p.checks];
-  const review = p.state !== "draft" ? REVIEW[p.review] : null;
   return rowBase(`pr-${p.url}`, on, t)
     .on_click((e, cx) => select(view, "prs", { url: p.url, i }, e, cx, p))
     .child(div().relative().w(14).flex_none().flex().justify_center().child(stateIcon(p, dark, t))
@@ -335,9 +337,8 @@ function prRow(view, p, i, on, t, dark) {
     .when(asks(p), (el) => el.child(div().flex_none().px(5).rounded(4).text_size(10.5).text_color(t.ansi3).border_1().border_color(t.ansi3).child("review")))
     .child(reviews(p, t, dark))
     .child(div().flex_none().max_w(130).truncate().text_size(11.5).text_color(t.dim).child(p.mine ? "you" : p.author))
-    .child(h_flex().w(14).flex_none().justify_center().child(
-      !check ? div() : check[0] ? svg(ICON(check[0])).size(12).text_color(pick(check[1], dark)) : div().size(7).rounded(4).bg(pick(check[1], dark))))
-    .child(h_flex().w(14).flex_none().justify_center().child(review ? svg(review[0].includes("/") ? review[0] : ICON(review[0])).size(12).text_color(pick(review[1], dark)) : div()))
+    .child(h_flex().w(34).flex_none().gap(4).items_center().text_size(11).text_color(t.dim).when(Boolean(check), (el) => el.child("CI").child(
+      check[0] ? svg(ICON(check[0])).size(12).text_color(pick(check[1], dark)) : div().size(7).rounded(4).bg(pick(check[1], dark)))))
     .child(counts(p.url, view, t))
     .child(div().w(30).flex_none().text_right().text_size(11).text_color(t.dim).child(ago(p.updated)));
 }
