@@ -19,7 +19,7 @@ export function boardRepos() {
   });
 }
 
-const PR_FIELDS = `${PR} body updatedAt headRefName isCrossRepository author { login } totalCommentsCount latestReviews(first: 30) { nodes { state } } closingIssuesReferences(first: 10) { nodes { url } } commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }`;
+const PR_FIELDS = `${PR} body updatedAt headRefName baseRefName isCrossRepository author { login } totalCommentsCount latestReviews(first: 30) { nodes { state } } closingIssuesReferences(first: 10) { nodes { url } } commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }`;
 const ISSUE_FIELDS = `${ISSUE} body updatedAt author { login } assignees(first: 3) { nodes { login } } labels(first: 6) { nodes { name color } } closedByPullRequestsReferences(first: 5) { nodes { url } }`;
 const repoArgs = (repo) => {
   const [owner, name] = repo.split("/");
@@ -54,6 +54,7 @@ function prOf(n, at, login) {
     comments: n.totalCommentsCount ?? 0,
     checks: n.commits?.nodes?.[0]?.commit?.statusCheckRollup?.state ?? null,
     branch: n.headRefName ?? null,
+    base: n.baseRefName ?? null,
     fork: Boolean(n.isCrossRepository),
   };
 }

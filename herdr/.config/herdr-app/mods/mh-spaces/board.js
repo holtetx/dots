@@ -7,6 +7,7 @@
 // it, ⌥↵ lists what it's linked to. What was fetched is kept for the next opening.
 // A mh-spaces overlay with props { board: true }.
 
+import { asks, stacked } from "./stack.js";
 import { div, svg } from "gpui-kit";
 import { v_flex, h_flex, ScrollHandle } from "gpui-base";
 import { props, closeOverlay, openOverlay, theme, settings, shared, terminals, exec } from "herdr";
@@ -129,16 +130,13 @@ function graphOf(items) {
   return { links, sessions };
 }
 
-// A PR that asks for your review.
-const asks = (p) => Boolean(p.rr && !p.mine);
-
-// Both tabs: one section per repo, the repo and the item updated last first. In a repo,
-// the PRs that ask for your review come first.
+// Both tabs: one section per repo, the repo and the item updated last first. PRs are
+// stacked (above); the stacks that ask for your review come first.
 function sectionsOf(tab) {
   const by = new Map();
   for (const i of (tab.id === "prs" ? memory.data.prs?.prs : memory.data.issues?.issues) ?? []) by.set(i.repo, [...(by.get(i.repo) ?? []), i]);
   return [...by]
-    .map(([name, items]) => ({ name, items: items.sort((a, b) => asks(b) - asks(a) || b.updated - a.updated) }))
+    .map(([name, items]) => ({ name, items: tab.id === "prs" ? stacked(items) : items.sort((a, b) => b.updated - a.updated) }))
     .sort((a, b) => Math.max(...b.items.map((i) => i.updated)) - Math.max(...a.items.map((i) => i.updated)));
 }
 
@@ -330,6 +328,7 @@ function prRow(view, p, i, on, t, dark) {
   const check = CHECKS[p.checks];
   return rowBase(`pr-${p.url}`, on, t)
     .on_click((e, cx) => select(view, "prs", { url: p.url, i }, e, cx, p))
+    .when(p.depth > 0, (el) => el.child(div().w(p.depth * 14).flex_none().text_right().text_color(t.dim).child("└")))
     .child(div().relative().w(14).flex_none().flex().justify_center().child(stateIcon(p, dark, t))
       .when(Boolean(unread), (el) => el.child(div().absolute().top(-2).right(-3).size(6).rounded(3).bg(pick(["#0969da", "#4493f8"], dark)))))
     .child(div().w(150).flex_none().truncate().text_size(11.5).text_color(t.dim).child(`${p.repo.split("/").pop()}#${p.number}`))

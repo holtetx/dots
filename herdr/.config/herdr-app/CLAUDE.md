@@ -36,7 +36,7 @@ Choices the owner made. Do not change them without a question.
 - Repos: those found in the sidebar folders, plus `mh-board.repos` in `mh-settings.json`. A `git@<host>:owner/repo` remote counts as GitHub (ssh host aliases).
 - Some repos are hidden (`HIDDEN` in `mods/mh-spaces/board-data.js`).
 - PRs are asked for in three separate `gh` calls. One combined query gives HTTP 502.
-- Both tabs are grouped by repo. There are no status groups.
+- Both tabs are grouped by repo. There are no status groups. A stacked PR (its base is the branch of another open PR in the repo) sits under its parent with an indent (`mods/mh-spaces/stack.js`, test: `node mods/mh-spaces/stack.test.mjs`).
 - A yellow `review` label marks a PR where GitHub says the owner's review is requested. PRs with the label come first in their repo.
 - Each PR row shows `N approved`, `N changes`, a comment count (GitHub `totalCommentsCount`) and `CI` with its state. Use words, not icons alone.
 - Not tested: worktree recreate on resume.
