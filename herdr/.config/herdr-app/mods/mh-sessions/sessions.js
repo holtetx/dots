@@ -1,5 +1,5 @@
 // Claude sessions by folder, and resuming one: on the machine it ran on, in its space
-// or one for its folder there, its repo when the folder is gone; or brought from
+// or one for its folder there, its worktree made again when it's gone; or brought from
 // another machine to this one (bring) and resumed here. And starting a new one in a repo,
 // in a worktree or not, on a PR's branch (startNew).
 
@@ -59,6 +59,22 @@ export async function missing(dirs, on = null) {
   return new Set(r.stdout.split("\n").filter(Boolean));
 }
 
+// A removed .claude/worktrees worktree made again on its branch (Claude's
+// worktree-<name>, else <name>). null when there's no such branch or its repo is gone.
+async function revive(cwd, on) {
+  const w = worktree(cwd);
+  if (!w || (await missing([w.repo], on)).size) return null;
+  const git = (args) => exec("git", args, { cwd: w.repo, on, timeout: 600_000 });
+  await git(["worktree", "prune"]);
+  for (const b of [`worktree-${w.name}`, w.name]) {
+    if ((await git(["show-ref", "--verify", "--quiet", `refs/heads/${b}`])).code !== 0) continue;
+    if ((await git(["worktree", "add", w.root, b])).code !== 0) return null;
+    const inner = w.root + cwd.slice(w.root.length);
+    return (await missing([inner], on)).size ? w.root : inner;
+  }
+  return null;
+}
+
 // The repo a removed workspace was in, else the nearest folder above cwd that exists.
 async function nearest(cwd, on) {
   let dir = worktree(cwd)?.repo ?? cwd;
@@ -82,7 +98,7 @@ export async function resume(rec, here = false) {
   let cwd = rec.cwd;
   if ((await missing([cwd], on)).size) {
     try {
-      cwd = await nearest(cwd, on);
+      cwd = (!here && (await revive(cwd, on))) || (await nearest(cwd, on));
     } catch (error) {
       return error.message;
     }
@@ -99,7 +115,7 @@ export async function resume(rec, here = false) {
 }
 
 // A new Claude session in the repo at `path` on `machine` (null: this computer), in the
-// checkout itself or in a worktree of its own named `name`: made by the WorktreeCreate hook
+// checkout itself or in a worktree of its own named `name`: made with git worktree add
 // first, then taken over by Claude with --worktree. Moved to `branch` (a PR's) first when
 // there's one. The spaces sidebar links it to `url` once it runs (shared("board.link.ask")).
 // "" or what went wrong.
@@ -119,6 +135,8 @@ export async function startNew({ path, machine, worktree: own, name, branch, url
     if (branch) await git(["branch", "--track", branch, `origin/${branch}`]);
     const r = await git(branch ? ["worktree", "add", cwd, branch] : ["worktree", "add", "-b", `worktree-${base(cwd)}`, cwd]);
     if (r.code !== 0) return `Couldn't make the worktree: ${why(r)}`;
+    const common = await git(["rev-parse", "--path-format=absolute", "--git-common-dir"]);
+    if (common.code === 0) await exec("sh", ["-c", 'grep -qxF "$2" "$1" 2>/dev/null || echo "$2" >>"$1"', "sh", `${common.stdout.trim()}/info/exclude`, "/.claude/worktrees/"], { on });
   }
   if (branch && !own) {
     const r = await git(["switch", branch]);

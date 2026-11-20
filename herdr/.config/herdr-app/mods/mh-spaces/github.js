@@ -105,7 +105,7 @@ export function githubRepo(remote) {
 // A branch from the spaces list's label (git's branch), or null for main, master
 // and "(detached)".
 export function branchName(label) {
-  return label && !["main", "master", "(detached)"].includes(label) ? label : null;
+  return label && !["main", "master", "(detached)"].includes(label) && !/~\d+$|^@/.test(label) ? label : null;
 }
 
 // PR URLs Claude recorded in a session, first seen first.

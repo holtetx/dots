@@ -49,6 +49,16 @@ const railCell = (el) => h_flex().flex_none().justify_center().child(el);
 const where = (s, ps) => JSON.stringify([s.machine ?? null, place(s, ps)]);
 const base = (path) => path.replace(/\/+$/, "").split("/").pop();
 
+// A detached HEAD as the nearest branch or tag below it and the commits since:
+// "main", "origin/main~2", else "@a1b2c3d".
+async function detached(cwd, on) {
+  const r = await exec("git", ["describe", "--all", "--always"], { cwd, on });
+  if (r.code !== 0) return "(detached)";
+  const d = r.stdout.trim().replace(/^(heads|remotes|tags)\//, "");
+  const m = d.match(/^(.+)-(\d+)-g[0-9a-f]+$/);
+  return m ? `${m[1]}~${m[2]}` : /^[0-9a-f]{7,}$/.test(d) ? `@${d}` : d;
+}
+
 // Changes made outside Herdr (an editor's save, a commit in another app): looked
 // for this often, in repos the list shows, while the window is in front.
 const FALLBACK = 60000;
@@ -909,7 +919,7 @@ export default class Spaces extends View {
       ]);
       const name = repo.endsWith("/.git") ? base(repo.slice(0, -5)) : base(repo).replace(/\.git$/, "");
       const [ahead, behind] = counts.code === 0 ? counts.stdout.trim().split(/\s+/).map(Number) : [0, 0];
-      const info = { name, top, branch: branch.code === 0 ? branch.stdout.trim().replace(/^refs\/heads\//, "") : "(detached)", ahead, behind, repo: JSON.stringify([on, repo]), linked: repo !== `${top}/.git`, gh: origin.code === 0 ? githubRepo(origin.stdout) : null };
+      const info = { name, top, branch: branch.code === 0 ? branch.stdout.trim().replace(/^refs\/heads\//, "") : await detached(cwd, on), ahead, behind, repo: JSON.stringify([on, repo]), linked: repo !== `${top}/.git`, gh: origin.code === 0 ? githubRepo(origin.stdout) : null };
       this.git[key] = info;
       if (!on) this.watch(repo, cx);
     } catch {
