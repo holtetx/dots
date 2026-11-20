@@ -1,8 +1,4 @@
-// The shown Claude session's context (context.js; hover for its breakdown) and
-// Claude Code's plan limits as pies at the bottom of the sidebar, from what the
-// Claude status line writes (claude/.claude/hooks/statusline.sh in dots), then
-// the Spacing and Settings buttons. It also keeps the spacing dialog's settings in
-// mh-settings.json and what every window shows alike in mh-state.json (settings.js).
+// Sidebar footer: context and plan limit pies (from claude/.claude/hooks/statusline.sh), then the Spacing and Settings buttons. Also syncs mh-settings.json and mh-state.json (settings.js).
 
 import { View, div, svg, PathBuilder } from "gpui-kit";
 import { h_flex, HoverCard } from "gpui-base";
@@ -28,23 +24,19 @@ const WINDOWS = [
   ["seven_day", "7d", "Weekly limit"],
 ];
 
-const circle = (b, r) => b.move_to("50%", `${50 - r}%`).arc_to(`${r}%`, `${r}%`, 0, false, true, "50%", `${50 + r}%`).arc_to(`${r}%`, `${r}%`, 0, false, true, "50%", `${50 - r}%`);
-
+// The ring and a full pie are rounded divs: a circle made of two path arcs was drawn as an oval.
 function pie(fraction, size, fill, track) {
   const f = Math.max(0, Math.min(1, fraction));
-  const r = 32;
-  const at = (v) => `${(50 + v * r).toFixed(3)}%`;
+  const c = size / 2, r = size * 0.32;
   const a = f * 2 * Math.PI;
-  const wedge =
-    f >= 0.999
-      ? circle(PathBuilder.fill(), r).close().build()
-      : PathBuilder.fill().move_to("50%", "50%").line_to("50%", `${50 - r}%`).arc_to(`${r}%`, `${r}%`, 0, f > 0.5, true, at(Math.sin(a)), at(-Math.cos(a))).close().build();
+  const wedge = () => PathBuilder.fill().move_to(c, c).line_to(c, c - r).arc_to(r, r, 0, f > 0.5, true, c + Math.sin(a) * r, c - Math.cos(a) * r).close().build();
   return div()
     .relative()
     .size(size)
     .flex_none()
-    .child(window.paint_path(circle(PathBuilder.stroke(1.2), 46).build(), track).absolute().inset_0())
-    .when(f > 0, (el) => el.child(window.paint_path(wedge, fill).absolute().inset_0()));
+    .child(div().absolute().inset_0().rounded(c).border_1().border_color(track))
+    .when(f >= 0.999, (el) => el.child(div().absolute().top(c - r).left(c - r).size(2 * r).rounded(r).bg(fill)))
+    .when(f > 0 && f < 0.999, (el) => el.child(window.paint_path(wedge(), fill).absolute().inset_0()));
 }
 
 const until = (s) => {
@@ -124,7 +116,7 @@ export default class Footer extends View {
             .id(`limit-${key}`)
             .gap(6)
             .items_center()
-            .tooltip(stale ? `${long}: reset since Claude last reported` : `${long}: ${pct}% used, resets in ${until(w.resets_at)}`)
+            .tooltip(stale ? `${long}: reset since Claude last reported` : `${long}: ${pct}% used${w.resets_at ? `, resets in ${until(w.resets_at)}` : ""}`)
             .child(pie(pct / 100, 13, fill, t.dim))
             .when(!collapsed, (el) => el.child(div().text_color(pct >= 75 ? fill : t.muted).child(`${short} ${pct}%`)));
         }),

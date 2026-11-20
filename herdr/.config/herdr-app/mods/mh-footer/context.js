@@ -1,6 +1,4 @@
-// The shown Claude session's context, from the labels its status line sets on its
-// terminal (claude/.claude/hooks/statusline.sh in dots), and its breakdown by
-// category from Claude's own /context, run on a throwaway fork of the session.
+// The shown Claude session's context (labels from claude/.claude/hooks/statusline.sh) and its breakdown from Claude's own /context, run on a throwaway fork of the session.
 
 import { div } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
@@ -84,7 +82,7 @@ const breakdown = new Map(); // address -> { key, loading, data, error }: its la
 export function measure(s, cx) {
   const key = `${s.labels["claude.session"] ?? ""} ${s.labels["claude.context"] ?? ""}`;
   const prev = breakdown.get(s.address);
-  if (prev?.loading || (prev?.key === key && prev.data)) return;
+  if (prev?.loading || (prev?.key === key && prev.data && !prev.error)) return;
   breakdown.set(s.address, { ...prev, key, loading: true, error: "" });
   cx.spawn(async (cx) => {
     let sid = s.labels["claude.session"], cwd = s.labels["claude.cwd"];

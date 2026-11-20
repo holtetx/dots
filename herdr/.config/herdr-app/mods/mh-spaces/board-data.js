@@ -70,12 +70,12 @@ export async function fetchPrs(repos) {
   const [rr, inv, r] = await Promise.all([
     ask(`viewer { login } rr: ${search("is:pr is:open archived:false review-requested:@me")}`),
     ask(`viewer { login } inv: ${search("is:pr is:open archived:false involves:@me")}`),
-    perRepo(repos, 20, `pullRequests(states: OPEN, first: 50, orderBy: {field: UPDATED_AT, direction: DESC}) { nodes { ${PR_FIELDS} } }`),
+    perRepo(repos, 20, `pullRequests(states: OPEN, first: 50, orderBy: {field: UPDATED_AT, direction: DESC}) { nodes { ${PR_FIELDS} } }`, "viewer { login }"),
   ]);
   if (!rr && !inv && (r.failed || !repos.length)) throw new Error("Couldn't ask GitHub about PRs: is gh logged in?");
   if (!rr || !inv) r.failed = true;
+  const login = (rr ?? inv ?? r.head)?.viewer?.login ?? "";
   r.head = { rr: rr?.rr, inv: inv?.inv };
-  const login = (rr ?? inv)?.viewer?.login ?? "";
   const at = Date.now();
   const prs = {};
   const add = (n, flag) => {
