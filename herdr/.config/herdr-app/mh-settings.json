@@ -1,0 +1,19 @@
+{
+  "mh-copy.hints": {
+    "email": true
+  },
+  "mh-spacing.header": {
+    "content": {
+      "mod": "pane"
+    },
+    "reveal": "always",
+    "height": 26,
+    "position": "top"
+  },
+  "mh-agents": {
+    "icon": "hidden"
+  },
+  "mh-spaces": {
+    "icon": "hidden"
+  }
+}

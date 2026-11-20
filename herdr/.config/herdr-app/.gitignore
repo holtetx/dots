@@ -1,0 +1,17 @@
+# Herdr writes everything else (state, bundled mods, icons, socket)
+/*
+!/.gitignore
+!/settings.json
+!/keys.json
+!/programs.json
+!/layouts/
+!/themes/
+/layouts/.state/
+!/mh-settings.json
+!/new-window.sh
+!/CLAUDE.md
+!/mods/
+/mods/*
+!/mods/mh-*/
+/mods/**/gpui-kit.d.ts
+/mods/**/jsconfig.json
