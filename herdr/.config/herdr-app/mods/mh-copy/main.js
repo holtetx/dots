@@ -52,7 +52,7 @@ async function capture(cx, terminal, cwd, colors) {
 }
 
 const RUNNING = "mh-copy.fingers";
-const githubRepo = (remote) => (remote ?? "").trim().match(/github\.com[:/]([^/\s]+)\/([^/\s]+?)(?:\.git)?\/?$/)?.slice(1).join("/") ?? null;
+const githubRepo = (remote) => (remote ?? "").trim().match(/(?:github\.com[:/]|^git@[^:/\s]+:)([^/\s]+)\/([^/\s]+?)(?:\.git)?\/?$/)?.slice(1).join("/") ?? null;
 const short = (text) => (text.length > 80 ? `${text.slice(0, 79)}…` : text);
 
 // Where Ctrl+hint goes: { target } to `open`, or { why } it can't.

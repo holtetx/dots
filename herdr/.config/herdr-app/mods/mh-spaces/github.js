@@ -97,8 +97,9 @@ export function expand(urls, items, { related = true } = {}) {
 }
 
 // "owner/name" of a GitHub remote URL, or null.
+// shortcut: a git@<host>: remote counts as GitHub (ssh host aliases), upgrade if a non-GitHub ssh remote shows up
 export function githubRepo(remote) {
-  const m = (remote ?? "").trim().match(/github\.com[:/]([^/\s]+)\/([^/\s]+?)(?:\.git)?\/?$/);
+  const m = (remote ?? "").trim().match(/(?:github\.com[:/]|^git@[^:/\s]+:)([^/\s]+)\/([^/\s]+?)(?:\.git)?\/?$/);
   return m ? `${m[1]}/${m[2]}` : null;
 }
 
