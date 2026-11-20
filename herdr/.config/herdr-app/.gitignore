@@ -7,3 +7,10 @@
 !/layouts/
 !/themes/
 /layouts/.state/
+!/mh-settings.json
+!/new-window.sh
+!/mods/
+/mods/*
+!/mods/mh-*/
+/mods/**/gpui-kit.d.ts
+/mods/**/jsconfig.json
