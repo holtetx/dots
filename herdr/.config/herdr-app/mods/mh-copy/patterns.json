@@ -2,7 +2,7 @@
   {
     "id": "url",
     "label": "URLs",
-    "example": "https://github.com/NDLANO/ndla/pull/386",
+    "example": "https://github.com/owner/repo/pull/386",
     "on": true,
     "trim": ".,;:!?'\"`",
     "regex": "((?:https?|git|ssh|ftp|file)://[^\\s<>\\\"'`]+|git@[\\w.-]+:[\\w./~-]+)"
@@ -31,7 +31,7 @@
   {
     "id": "path",
     "label": "File paths",
-    "example": "~/dev/dots/keys.json:12",
+    "example": "~/dots/keys.json:12",
     "on": true,
     "trim": ".,;:!?'\"`",
     "regex": "((?:[.\\w\\-@~]+)?(?:/[.\\w\\-@\\[\\]]+)+(?::\\d+){0,2})"

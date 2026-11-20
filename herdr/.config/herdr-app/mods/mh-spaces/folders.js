@@ -5,7 +5,7 @@
 // Machines go by key here: "" for this computer, else their name.
 //
 // A folder on a machine without paths of its own is where it is on another machine,
-// moved to this one's home: ~/dev/ndla/ndla on both, whoever's home that is.
+// moved to this one's home: ~/dev/project on both, whoever's home that is.
 
 import { docOf, updateDoc } from "./docs.js";
 

@@ -16,8 +16,8 @@ Read these first. They are in `~/.config/herdr-app`:
 
 | What | Where | Writer |
 |---|---|---|
-| Spacing dialog settings, board repos | `mh-settings.json` (in dots) | `mods/mh-footer/settings.js`, synced with `shared()` |
-| Space colors, archived sessions, folded folders | `mh-state.json` (this Mac, not in dots) | same file. `new-window.sh` makes it. |
+| Spacing dialog settings | `mh-settings.json` (in dots) | `mods/mh-footer/settings.js`, synced with `shared()` |
+| Space colors, archived sessions, folded folders, board repos (`mh-board`) | `mh-state.json` (this Mac, not in dots) | same file. `new-window.sh` makes it. |
 | Links added by hand, the Waiting mark | herdr-core doc `mh-links` | `mods/mh-spaces/docs.js`, `~/.claude/skills/herdr-link/herdr-link.mjs` |
 | Which Claude session had which links | herdr-core doc `mh-tasks`, shared as `shared("tasks.sessions")` | mh-spaces (`history.mjs` reads the transcripts) |
 | Space folders | herdr-core doc `mh-folders` | mh-spaces only. Other mods ask through `shared("space-folders.ask")`. |
@@ -33,8 +33,8 @@ A space takes its git info from the folder of its first tab. A space made in the
 
 Choices the owner made. Do not change them without a question.
 
-- Repos: those found in the sidebar folders, plus `mh-board.repos` in `mh-settings.json`. A `git@<host>:owner/repo` remote counts as GitHub (ssh host aliases).
-- Some repos are hidden (`HIDDEN` in `mods/mh-spaces/board-data.js`).
+- Repos: those found in the sidebar folders, plus `mh-board.repos`. `mh-board` is in `mh-state.json`, not in dots: this repo is public and the repo names are internal. A `git@<host>:owner/repo` remote counts as GitHub (ssh host aliases).
+- Repos whose `owner/repo` name contains an entry of `mh-board.hide` are hidden.
 - PRs are asked for in three separate `gh` calls. One combined query gives HTTP 502.
 - Both tabs are grouped by repo. There are no status groups. A stacked PR (its base is the branch of another open PR in the repo) sits under its parent with an indent (`mods/mh-spaces/stack.js`, test: `node mods/mh-spaces/stack.test.mjs`).
 - A yellow `review` label marks a PR where GitHub says the owner's review is requested. PRs with the label come first in their repo.

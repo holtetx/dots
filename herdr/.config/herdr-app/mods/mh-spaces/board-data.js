@@ -6,7 +6,7 @@
 import { exec, shared } from "herdr";
 import { PR, ISSUE, githubRepo, graphql, itemOf } from "./github.js";
 
-export const BOARD_DEFAULTS = { repos: [], skip: [] };
+export const BOARD_DEFAULTS = { repos: [], skip: [], hide: [] };
 export const boardSettings = () => ({ ...BOARD_DEFAULTS, ...(shared("mh-board") ?? {}) });
 
 export function boardRepos() {
@@ -60,7 +60,7 @@ function prOf(n, at, login) {
 }
 
 // Repos never shown on the board: my team is the requested reviewer but I do not work on them.
-const HIDDEN = /\/hidden-/;
+const hidden = (repo) => boardSettings().hide.some((h) => repo.toLowerCase().includes(h.toLowerCase()));
 const search = (q) => `search(query: ${JSON.stringify(q)}, type: ISSUE, first: 100) { nodes { ... on PullRequest { ${PR_FIELDS} } } }`;
 
 // { login, prs, missing }: every open PR in `repos` and on GitHub involving you, each
@@ -80,7 +80,7 @@ export async function fetchPrs(repos) {
   const at = Date.now();
   const prs = {};
   const add = (n, flag) => {
-    if (!n?.url || HIDDEN.test(n.repository?.nameWithOwner ?? "")) return;
+    if (!n?.url || hidden(n.repository?.nameWithOwner ?? "")) return;
     prs[n.url] ??= prOf(n, at, login);
     if (flag) prs[n.url][flag] = true;
   };
