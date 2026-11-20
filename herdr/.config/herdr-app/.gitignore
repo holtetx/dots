@@ -9,6 +9,7 @@
 /layouts/.state/
 !/mh-settings.json
 !/new-window.sh
+!/CLAUDE.md
 !/mods/
 /mods/*
 !/mods/mh-*/
