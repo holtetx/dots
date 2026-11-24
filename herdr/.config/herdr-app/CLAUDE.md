@@ -23,6 +23,10 @@ Read these first. They are in `~/.config/herdr-app`:
 | Space folders | herdr-core doc `mh-folders` | mh-spaces only. Other mods ask through `shared("space-folders.ask")`. |
 | Session title | label `mh.description` | skills, with `hc label` |
 
+## Key list (`cmd-/`, `ctrl-a ?`)
+
+`mods/mh-help` lists every binding in `keys.json` with words from its `DESCRIBE` table. When you add or change a key, give it a line there. A key without a line shows Herdr's text and "no description". Keys inside lists (board, tasks, copy mode) are not in it: each list shows them in its footer. `cmd-shift-/` is Herdr's raw list.
+
 ## Sidebar
 
 One list: folders (projects), then spaces. A space is one session. Its row shows its name when someone renamed it, else its most urgent agent's `mh.description` label or title (`mods/mh-spaces/title.js`), and that agent's status. The folder `+` and `cmd-shift-c` start a space with `claude`. `cmd-[` / `cmd-]` (`mh-tabs`) go through the agents of the spaces the sidebar shows, in its order.

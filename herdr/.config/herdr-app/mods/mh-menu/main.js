@@ -129,7 +129,7 @@ function items(p, git) {
     default:
       return [
         ["New space", "space.new", {}],
-        ["Keybinds", "app.help", {}],
+        ["Keybinds", "mod.open", { name: "mh-help" }],
         ["Theme: graphite", "app.theme", { name: "graphite" }],
         ["Theme: ink", "app.theme", { name: "ink" }],
         ["Theme: moss", "app.theme", { name: "moss" }],
@@ -142,7 +142,7 @@ function menuIcon(command, args) {
   if (command === "mh-spaces") return "mods/mh-spaces/git-pull-request.svg";
   if (command === "folder-dialog") return `mods/workspace-chrome/${args?.id ? "folder" : "folder-plus"}.svg`;
   if (command === "folder-op") return `mods/workspace-chrome/${args?.op === "delete" ? "x" : "folder"}.svg`;
-  const name = command === "waiting" ? "clock" : command.endsWith(".close") ? "x" : command.endsWith(".rename") ? "square-pen" : command.endsWith(".new") ? "plus" : command === "worktree" ? "git-branch" : command === "mh-panes" ? "layers" : command === "mh-copy" ? "file-text" : command === "app.help" ? "terminal" : command === "app.theme" ? "settings" : command === "pane.split" ? "panel-right" : command === "pane.zoom" ? "square" : "terminal";
+  const name = command === "waiting" ? "clock" : command.endsWith(".close") ? "x" : command.endsWith(".rename") ? "square-pen" : command.endsWith(".new") ? "plus" : command === "worktree" ? "git-branch" : command === "mh-panes" ? "layers" : command === "mh-copy" ? "file-text" : command === "app.theme" ? "settings" : command === "pane.split" ? "panel-right" : command === "pane.zoom" ? "square" : "terminal";
   return `mods/workspace-chrome/${name}.svg`;
 }
 
@@ -209,7 +209,7 @@ export default class Menu extends View {
       .children(
         list.map((it, i) =>
           v_flex()
-            .when(i > 0 && (it[1].endsWith(".close") || it[1] === "app.help" || (it[1] === "app.theme" && list[i - 1][1] !== "app.theme") || (props()?.tab !== "space" && it[1] === "folder-dialog" && !it[2].id) || it[2]?.op === "delete"), el => el.child(div().mx(7).my(4).h(1).bg(t.border)))
+            .when(i > 0 && (it[1].endsWith(".close") || it[2]?.name === "mh-help" || (it[1] === "app.theme" && list[i - 1][1] !== "app.theme") || (props()?.tab !== "space" && it[1] === "folder-dialog" && !it[2].id) || it[2]?.op === "delete"), el => el.child(div().mx(7).my(4).h(1).bg(t.border)))
             .child(h_flex()
             .id(`mi-${i}`)
             .h(31)
