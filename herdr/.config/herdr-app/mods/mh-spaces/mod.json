@@ -4,5 +4,17 @@
   "cloned_from": {
     "name": "spaces",
     "version": "0.1.17"
-  }
+  },
+  "palette": [
+    {
+      "title": "Pull request board",
+      "command": "mh-spaces.board",
+      "words": "prs github review"
+    },
+    {
+      "title": "Tasks",
+      "command": "mh-spaces.tasks",
+      "words": "sessions links prs"
+    }
+  ]
 }

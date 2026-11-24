@@ -21,7 +21,7 @@ except Exception:
 state = {k: shared[k] for k in ("space.colors", "space-folders.folded", "mh-board") if shared.get(k) is not None}
 open(sys.argv[2], "w").write(json.dumps(state, indent=2) + "\n")
 EOF
-for f in keys.json mh-settings.json mh-state.json CLAUDE.md; do ln -sfn "$main/$f" "$dir/$f"; done
+for f in keys.json mh-settings.json mh-state.json CLAUDE.md AGENTS.local.md; do ln -sfn "$main/$f" "$dir/$f"; done
 ln -sfn "$main/layouts/mh.json" "$dir/layouts/mh.json"
 for m in "$main"/mods/mh-*; do ln -sfn "$m" "$dir/mods/$(basename "$m")"; done
 

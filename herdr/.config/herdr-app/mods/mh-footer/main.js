@@ -2,7 +2,7 @@
 
 import { View, div, svg, PathBuilder } from "gpui-kit";
 import { h_flex, HoverCard } from "gpui-base";
-import { theme, home, readTextFile, watchFolder, layout, run } from "herdr";
+import { theme, home, readTextFile, watchFolder, layout, run, window as appWindow } from "herdr";
 import { syncSettings } from "./settings.js";
 import { contextPanel, measure, shownSession } from "./context.js";
 
@@ -50,7 +50,7 @@ export default class Footer extends View {
     this.limits = null;
     syncSettings(cx);
     this.read(cx);
-    cx.timer.every(60000, (cx) => this.read(cx));
+    cx.timer.every(60000, (cx) => appWindow()?.visible !== false && this.read(cx));
     cx.spawn(async (cx) => {
       for (;;) {
         try {
