@@ -25,6 +25,7 @@ import { linkInit, linkRender } from "./links.js";
 import { MARK, applyChange, empty, folderOf, foldersOf, live, matchOf, merge, nextRank, ownPaths, pathsOn, tidy, tilde, updateFolders, writeChange } from "./folders.js";
 import { folderInit, folderRender } from "./folder-dialog.js";
 import { boardInit, boardRender } from "./board.js";
+import { previewInit, previewRender } from "./preview.js";
 import { telling } from "./title.js";
 import { discoverRepos } from "./board-data.js";
 
@@ -156,6 +157,7 @@ export default class Spaces extends View {
     if (props()?.link) return linkInit(this, cx);
     if (props()?.folder) return folderInit(this, cx);
     if (props()?.board) return boardInit(this, cx);
+    if (props()?.preview) return previewInit(this, cx);
     this.git = {}; // where() -> { name, branch, ahead, behind, repo, linked, gh: "owner/repo" }, null: not a repo
     this.checked = {}; // where() -> when it was last looked at
     this.unsure = new Set(); // where()s git couldn't answer for (a machine away)
@@ -239,6 +241,7 @@ export default class Spaces extends View {
 
   close() {
     if (props()?.board) boardOverlay = null;
+    if (props()?.preview) setShared(props().back, Date.now());
   }
 
   // The GitHub repos in the sidebar folders on every machine that answers (one that doesn't
@@ -1398,6 +1401,7 @@ export default class Spaces extends View {
     if (props()?.link) return linkRender(this);
     if (props()?.folder) return folderRender(this);
     if (props()?.board) return boardRender(this);
+    if (props()?.preview) return previewRender(this);
     const t = theme();
     const collapsed = narrow();
     const palette = ["ansi6", "ansi3", "ansi4", "ansi5", "ansi2", "ansi1"];

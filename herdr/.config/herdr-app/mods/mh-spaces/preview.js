@@ -1,0 +1,169 @@
+import { div, svg, image } from "gpui-kit";
+import { v_flex, h_flex, ScrollHandle, TextView } from "gpui-base";
+import { props, closeOverlay, theme, settings, exec } from "herdr";
+import { GH, FINAL } from "./github.js";
+import { ago } from "./board.js";
+import { REVIEW_WORD, canCache, cacheImage, fetchPreview, pruneCache } from "./preview-data.js";
+
+const GREEN = ["#1a7f37", "#3fb950"], RED = ["#cf222e", "#f85149"], YELLOW = ["#9a6700", "#d29922"];
+const CHECK_COLOR = { failed: RED, running: YELLOW, passed: GREEN };
+const REVIEW_COLOR = { APPROVED: GREEN, CHANGES_REQUESTED: RED };
+const MERGE_COLOR = { conflicts: RED, "checks failing": RED, "ready to merge": GREEN };
+const pick = (c, dark) => c[dark ? 1 : 0];
+// The last answer per URL: shown at once on the next opening while it asks again.
+const memory = {};
+
+const open = (url, cx) => /^https:\/\//.test(url ?? "") && cx.spawn(async () => { await exec("open", [url]).catch(() => null); });
+
+export function previewInit(view, cx) {
+  view.handle = cx.focus_handle();
+  view.handle.focus();
+  view.scroll = ScrollHandle.new();
+  view.url = props().preview;
+  view.images = {};
+  pruneCache();
+  load(view, cx);
+}
+
+function load(view, cx) {
+  const url = view.url;
+  view.at = 0;
+  view.busy = true;
+  view.error = "";
+  cx.spawn(async (cx) => {
+    try {
+      memory[url] = await fetchPreview(url);
+    } catch (e) {
+      view.error = String(e?.message ?? e);
+    }
+    view.busy = false;
+    cx.notify();
+    const d = memory[url];
+    const parts = d ? [...d.body, ...d.posts.flatMap((p) => [...p.parts, ...(p.replies ?? []).flatMap((r) => r.parts)])] : [];
+    await Promise.all(parts.filter((p) => p.img && canCache(p.img)).map(async (p) => {
+      view.images[p.img] = await cacheImage(p.img);
+      cx.notify();
+    }));
+  });
+}
+
+function go(view, i) {
+  view.at = Math.max(0, Math.min((view.blocks?.length ?? 1) - 1, i));
+  view.scroll.scroll_to_item(view.at);
+}
+
+function key(view, e, cx) {
+  const m = e.modifiers;
+  if (e.key === "escape" || e.key === "space") return closeOverlay(props().overlay), true;
+  if (e.key === "enter" && m.control) return open(view.blocks?.[view.at]?.url ?? view.url, cx), true;
+  if (m.control && (e.key === "d" || e.key === "u")) return go(view, view.at + (e.key === "d" ? 3 : -3)), true;
+  if (m.control || m.alt || m.platform) return false;
+  if (e.key === "j" || e.key === "down") return go(view, view.at + 1), true;
+  if (e.key === "k" || e.key === "up") return go(view, view.at - 1), true;
+  if (e.key === "g" || e.key === "G") return go(view, m.shift || e.key === "G" ? Infinity : 0), true;
+  if (e.key === "r") return load(view, cx), true;
+  return false;
+}
+
+const tag = (text, color) => div().flex_none().px(5).rounded(4).text_size(10.5).text_color(color).border_1().border_color(color).child(text);
+
+function parts(id, list, view, t) {
+  return v_flex().gap(6).children(list.map((p, i) => {
+    if (p.md) return TextView.markdown(`${id}-${i}`, p.md).selectable(true).on_link_click((url, cx) => open(url, cx));
+    const got = p.img && view.images[p.img];
+    if (got) {
+      const scale = Math.min(1, 900 / got.w, 320 / got.h);
+      return div().id(`${id}-${i}`).cursor_pointer().on_click((_e, cx) => open(p.link, cx)).child(image(got.path).w(got.w * scale).h(got.h * scale));
+    }
+    const loading = p.img && canCache(p.img) && view.images[p.img] === undefined;
+    return div().id(`${id}-${i}`).text_size(12).text_color(t.accent).cursor_pointer().on_click((_e, cx) => open(p.link ?? p.video, cx))
+      .child(p.video ? "Video: opens in the browser" : loading ? "Image: loading" : "Image: opens in the browser");
+  }));
+}
+
+function header(d, view, t, dark) {
+  const s = GH[d.state];
+  const live = !FINAL.has(d.state);
+  const tags = [
+    ...(live && d.merge ? [tag(d.merge, MERGE_COLOR[d.merge] ? pick(MERGE_COLOR[d.merge], dark) : t.ansi3)] : []),
+    ...(props().behind && view.url === props().preview ? [tag("behind", t.ansi3)] : []),
+    ...d.labels.map((l) => tag(l, t.dim)),
+  ];
+  return v_flex().gap(6)
+    .child(h_flex().gap(8).items_center().text_size(11.5)
+      .child(svg(s.icon).size(14).text_color(pick(s.color, dark)))
+      .child(div().text_color(pick(s.color, dark)).child(s.label))
+      .child(div().text_color(t.dim).child(d.ref)))
+    .child(div().text_size(16).font_semibold().text_color(t.foreground).child(d.title))
+    .child(div().text_size(11.5).text_color(t.dim).child([`${d.author}, ${ago(d.created)} ago`, d.branch, d.size, d.people.length && `assigned: ${d.people.join(", ")}`].filter(Boolean).join(" · ")))
+    .when(tags.length > 0, (el) => el.child(h_flex().gap(6).flex_wrap().children(tags)))
+    .children(d.linked.map((l) => h_flex().id(`pv-link-${l.url}`).gap(6).text_size(12).cursor_pointer()
+      .on_click((_e, cx) => { view.url = l.url; load(view, cx); })
+      .child(div().text_color(t.dim).child(d.pr ? "Closes" : "Closed by"))
+      .child(div().text_color(t.accent).child(`#${l.number} ${l.title}`))));
+}
+
+function status(d, t, dark) {
+  const count = (state) => d.checks.filter((c) => c.state === state).length;
+  const sum = ["failed", "running", "passed", "skipped"].map((s) => count(s) && `${count(s)} ${s}`).filter(Boolean).join(", ");
+  return v_flex().gap(6)
+    .child(h_flex().gap(10).flex_wrap().text_size(12)
+      .child(div().text_color(t.dim).child("Reviews"))
+      .children(d.reviewers.length
+        ? d.reviewers.map((r) => div().text_color(REVIEW_COLOR[r.state] ? pick(REVIEW_COLOR[r.state], dark) : t.foreground).child(`${r.who} ${REVIEW_WORD[r.state] ?? r.state.toLowerCase()}`))
+        : [div().text_color(t.muted).child("none yet")]))
+    .child(h_flex().gap(10).text_size(12).child(div().text_color(t.dim).child("CI")).child(div().text_color(t.foreground).child(sum || "no checks")))
+    .children(d.checks.filter((c) => c.state === "failed" || c.state === "running").map((c) => h_flex().id(`pv-check-${c.name}-${c.url}`).gap(8).pl(22).text_size(12).cursor_pointer()
+      .on_click((_e, cx) => open(c.url, cx))
+      .child(div().w(52).flex_none().text_color(pick(CHECK_COLOR[c.state], dark)).child(c.state))
+      .child(div().flex_1().min_w(0).truncate().text_color(t.foreground).child(c.name))));
+}
+
+function post(p, i, view, t) {
+  const who = (name, what) => h_flex().gap(8).text_size(11.5).child(div().font_medium().text_color(t.foreground).child(name)).child(div().text_color(t.dim).child(what));
+  return v_flex().gap(6).when(Boolean(p.bot), (el) => el.opacity(0.5))
+    .child(who(p.who, `${p.what}, ${ago(p.at)} ago`))
+    .child(parts(`pv-post-${i}`, p.parts, view, t))
+    .children((p.replies ?? []).map((r, j) => v_flex().gap(4).pl(12).border_l_1().border_color(t.border)
+      .child(who(r.who, "replied"))
+      .child(parts(`pv-post-${i}-${j}`, r.parts, view, t))));
+}
+
+export function previewRender(view) {
+  const t = theme();
+  const dark = Boolean(settings()?.dark);
+  const d = memory[view.url];
+  view.blocks = d
+    ? [
+        { url: d.url, el: header(d, view, t, dark) },
+        ...(d.pr ? [{ url: `${d.url}/checks`, el: status(d, t, dark) }] : []),
+        { url: d.url, el: parts("pv-body", d.body, view, t) },
+        ...d.posts.map((p, i) => ({ url: p.url, el: post(p, i, view, t) })),
+      ]
+    : [];
+  const note = view.busy ? "loading" : view.error;
+  const hint = ["j k move", "^D ^U 3 blocks", "g G top, end", "⌃↵ open on GitHub", "r refresh", "space close"].join(" · ");
+  return v_flex()
+    .id("preview")
+    .track_focus(view.handle)
+    .on_key_down((e, cx) => {
+      if (!key(view, e, cx)) return;
+      cx.stop_propagation();
+      cx.notify();
+    })
+    .size_full()
+    .min_h(0)
+    .p(16)
+    .gap(10)
+    .bg(t.popover)
+    .text_size(13)
+    .child(v_flex().id("pv-list").flex_1().min_h(0).overflow_y_scrollbar().track_scroll(view.scroll).gap(4)
+      .children(view.blocks.map((b, i) => v_flex().id(`pv-block-${i}`).p(10).rounded(8).border_1()
+        .border_color(i === view.at ? t.accent : t.popover)
+        .on_click((_e, cx) => { view.at = i; cx.notify(); })
+        .child(b.el)))
+      .when(!d, (el) => el.child(div().p(10).text_color(view.error ? t.blocked : t.dim).child(note || "Nothing to show."))))
+    .child(h_flex().flex_none().gap(12).items_center().text_size(11).text_color(t.dim)
+      .child(div().flex_1().min_w(0).truncate().text_color(view.error ? t.blocked : t.dim).child(d ? note : ""))
+      .child(div().flex_none().child(hint)));
+}
