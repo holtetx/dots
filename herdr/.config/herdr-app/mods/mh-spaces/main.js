@@ -207,6 +207,8 @@ export default class Spaces extends View {
         // "link": the focused agent's, else the space's; "link-space": the space's.
         const command = await nextCommand();
         if (command === "board") boardOverlay = boardOverlay ? closeOverlay(boardOverlay) : openOverlay({ mod: "mh-spaces", kind: "dialog", width: 0.92, height: 0.88, props: { board: true } });
+        // The tasks list (mh-sessions) clears shared("tasks.overlay") when it closes.
+        if (command === "tasks") setShared("tasks.overlay", shared("tasks.overlay") ? closeOverlay(shared("tasks.overlay")) : openOverlay({ mod: "mh-sessions", kind: "dialog", width: 680, height: 0.7, props: { tasks: true } }));
         if (command !== "link" && command !== "link-space") continue;
         const space = focused()?.space ?? spaces().find((s) => s.active)?.id;
         openLinks(space, command === "link" ? agents().find((a) => a.focused && a.space === space)?.address : null);

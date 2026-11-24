@@ -4,7 +4,7 @@
 //   descriptions). The file wins at start and whenever it changes on disk (a pull); changes
 //   made here are written back.
 // - mh-state.json (this Mac's, linked into each window's home by new-window.sh): what
-//   every window on this Mac shows alike (space colors, archived sessions, folded folders). A key it
+//   every window on this Mac shows alike (space colors, folded folders). A key it
 //   doesn't have yet is taken from the window that looks first, and an emptied one is
 //   kept, so a window coming back can't bring old values with it.
 // Without a file (dots not stowed there yet, no second window yet) it isn't synced.
@@ -13,7 +13,7 @@ import { appHome, readTextFile, writeTextFile, shared, setShared } from "herdr";
 
 const FILES = [
   { name: "mh-settings.json", keys: ["mh-copy.hints", "mh-links", "mh-spacing.header", "mh-agents", "mh-spaces"], fill: false, keepEmpty: false },
-  { name: "mh-state.json", keys: ["space.colors", "mh-sessions.archived", "space-folders.folded", "mh-board"], fill: true, keepEmpty: true },
+  { name: "mh-state.json", keys: ["space.colors", "space-folders.folded", "mh-board"], fill: true, keepEmpty: true },
 ];
 
 const empty = (v) => v == null || (typeof v === "object" && !Array.isArray(v) && Object.keys(v).length === 0);

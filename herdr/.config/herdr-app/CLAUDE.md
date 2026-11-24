@@ -17,7 +17,7 @@ Read these first. They are in `~/.config/herdr-app`:
 | What | Where | Writer |
 |---|---|---|
 | Spacing dialog settings | `mh-settings.json` (in dots) | `mods/mh-footer/settings.js`, synced with `shared()` |
-| Space colors, archived sessions, folded folders, board repos (`mh-board`) | `mh-state.json` (this Mac, not in dots) | same file. `new-window.sh` makes it. |
+| Space colors, folded folders, board repos (`mh-board`) | `mh-state.json` (this Mac, not in dots) | same file. `new-window.sh` makes it. |
 | Links added by hand, the Waiting mark | herdr-core doc `mh-links` | `mods/mh-spaces/docs.js`, `~/.claude/skills/herdr-link/herdr-link.mjs` |
 | Which Claude session had which links | herdr-core doc `mh-tasks`, shared as `shared("tasks.sessions")` | mh-spaces (`history.mjs` reads the transcripts) |
 | Space folders | herdr-core doc `mh-folders` | mh-spaces only. Other mods ask through `shared("space-folders.ask")`. |
@@ -46,6 +46,7 @@ Choices the owner made. Do not change them without a question.
 ## Decided against
 
 - No `cmd-s` key, no tmux split, rename or layout keys.
+- No session archive in the sidebar.
 - `review-pr` (a shared team skill) does not call herdr-link. A rule in `~/.claude/CLAUDE.md` does that.
 - The worktree options stay (`alt-shift-c`, picker, board and tasks rows).
 

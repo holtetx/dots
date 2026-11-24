@@ -1,7 +1,7 @@
 // Context menus (Herdr's items). Opened as a popup with
 // props { tab: "pane" | "agent" | "tab" | "space" | "folder" | "new" | "global", target }.
 // ↑/↓ move, Enter runs, Esc closes. An item is [label, command, args];
-// a command "worktree", "mh-sessions", "mh-panes", "mh-copy", "mh-spaces" (its link dialog) or
+// a command "worktree", "mh-panes", "mh-copy", "mh-spaces" (its link dialog) or
 // "mh-agents" (an agent's description) opens that mod instead,
 // "folder-dialog" the folder dialog and "folder-op" asks mh-spaces for a folder change.
 
@@ -47,7 +47,6 @@ const folderDialog = (folder) => {
 };
 const connected = () => (shared("space-folders")?.machines ?? []).filter((m) => m.state === "connected").map((m) => m.name);
 
-const claude = (a) => !a.address.includes("/") && (a.app === "claude-code" || a.program?.key === "claude");
 
 function items(p, git) {
   p = p ?? {};
@@ -89,7 +88,6 @@ function items(p, git) {
               ["Open in Neovim with colours", "mh-copy", { action: "nvim", colors: true, terminal: term.address, cwd: panes().find((pane) => pane.pane === tg.pane)?.cwd }],
             ]
           : []),
-        ...(inTab && agents().some((a) => a.address === tg.terminal && claude(a)) ? [["Archive session", "mh-sessions", { action: "archive", terminals: [tg.terminal] }]] : []),
         ...agents().filter((a) => a.address === tg.terminal).flatMap((a) => [
           ["Description\u2026", "mh-agents", { describe: a.address }],
           ["Link PR or issue\u2026", "mh-spaces", { link: a.space, agent: a.address }],
@@ -123,7 +121,6 @@ function items(p, git) {
         ["New folder from here\u2026", "folder-dialog", { from: tg.id }],
         ...(tg.id in (shared("space-folders")?.pins ?? {}) ? [["Back to its own folder", "folder-op", { op: "unpin", space: tg.id }]] : []),
         waitingItem(tg.id, ""),
-        ...(agents().some((a) => a.space === tg.id && claude(a)) ? [["Archive sessions & close", "mh-sessions", { action: "archive", space: tg.id }]] : []),
         ["Close", "space.close", { id: tg.id }],
       ];
     case "new":
@@ -160,7 +157,7 @@ function menuIcon(command, args) {
   if (command === "mh-spaces") return "mods/mh-spaces/git-pull-request.svg";
   if (command === "folder-dialog") return `mods/workspace-chrome/${args?.id ? "folder" : "folder-plus"}.svg`;
   if (command === "folder-op") return `mods/workspace-chrome/${args?.op === "delete" ? "x" : "folder"}.svg`;
-  const name = command === "terminal.pin" ? "pin" : command === "waiting" ? "clock" : command.endsWith(".close") ? "x" : command.endsWith(".rename") ? "square-pen" : command.endsWith(".new") ? "plus" : command === "worktree" ? "git-branch" : command === "mh-sessions" ? "archive" : command === "mh-panes" ? "layers" : command === "mh-copy" ? "file-text" : command === "mh-agents" ? "square-pen" : command === "app.help" ? "terminal" : command === "app.theme" ? "settings" : command === "pane.split" ? "panel-right" : command === "pane.zoom" ? "square" : "terminal";
+  const name = command === "terminal.pin" ? "pin" : command === "waiting" ? "clock" : command.endsWith(".close") ? "x" : command.endsWith(".rename") ? "square-pen" : command.endsWith(".new") ? "plus" : command === "worktree" ? "git-branch" : command === "mh-panes" ? "layers" : command === "mh-copy" ? "file-text" : command === "mh-agents" ? "square-pen" : command === "app.help" ? "terminal" : command === "app.theme" ? "settings" : command === "pane.split" ? "panel-right" : command === "pane.zoom" ? "square" : "terminal";
   return `mods/workspace-chrome/${name}.svg`;
 }
 
@@ -199,7 +196,6 @@ export default class Menu extends View {
     else if (it[1] === "folder-op") askFolders(it[2]);
     else if (it[1] === "mh-agents") openOverlay({ mod: "mh-agents", kind: "dialog", width: 420, height: 164, props: it[2] });
     else if (it[1] === "mh-spaces") openOverlay({ mod: "mh-spaces", kind: "dialog", width: 560, height: 0.7, props: it[2] });
-    else if (it[1] === "mh-sessions") openOverlay({ mod: "mh-sessions", kind: "dialog", width: 440, height: 220, props: it[2] });
     else if (it[1] === "mh-copy" && it[2].action === "copy") openOverlay({ mod: "mh-copy", kind: "dialog", width: 0.92, height: 0.88, props: it[2] });
     else if (it[1] === "mh-copy") openOverlay({ mod: "mh-copy", kind: "window", frame: "none", width: 1, height: 1, at: { x: 0, y: 0 }, props: it[2] });
     else if (it[1] === "mh-panes" && it[2].action === "space") openOverlay({ mod: "mh-panes", kind: "dialog", width: 420, height: 360, props: it[2] });
