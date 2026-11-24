@@ -1011,27 +1011,31 @@ export default class Spaces extends View {
     openOverlay({ mod: "mh-menu", kind: "popup", width: 220, height: 380, props: { tab: "space", target: { id: w.id } } });
   }
 
-  // Where each space goes: a folder (by hand, else by path), Other, or Waiting.
-  tree(sp, ps) {
+  // Where each space goes: Waiting, SSH (mh-ssh labels its ssh terminal), a folder
+  // (by hand, else by path), or Other.
+  tree(sp, ps, ts) {
     const st = this.folderState;
     const list = live(st);
     const parked = new Set(shared("spaces.waiting") ?? []);
+    const remote = new Set(ts.filter((k) => k.labels?.["mh.ssh"]).map((k) => k.labels["herdr.space"]));
     const inside = new Map(list.map((f) => [f.id, []]));
     const other = [];
+    const ssh = [];
     const waiting = [];
     sp.forEach((w, i) => {
       const g = this.git[where(w, ps)] ?? null;
       const r = { w, i, g, folder: null, waiting: parked.has(w.id) };
       if (r.waiting) return waiting.push(r);
+      if (!w.machine && remote.has(w.id)) return ssh.push({ ...r, ssh: true });
       r.folder = folderOf(st, this.homes, w.machine ?? "", split(w.id)[1], [place(w, ps), rootOf(g)]);
       const bucket = inside.get(r.folder);
       if (!bucket) r.folder = null;
       (bucket ?? other).push(r);
     });
-    return { list, inside, other, waiting };
+    return { list, inside, other, ssh, waiting };
   }
 
-  // Folders, each with its spaces (folded: only the shown one), then Other, machines
+  // Folders, each with its spaces (folded: only the shown one), then Other, SSH, machines
   // that need you, and Waiting. Publishes the order next/prev and ctrl-1..9 go by
   // (shared("spaces.order")) and every space in list order (shared("spaces.listed")).
   grouped(t, collapsed) {
@@ -1040,10 +1044,10 @@ export default class Spaces extends View {
     const ts = terminals();
     claudeCwd.clear();
     for (const k of ts) if (k.labels?.["claude.cwd"]) claudeCwd.set(k.address, k.labels["claude.cwd"]);
-    const tree = this.tree(sp, ps);
+    const tree = this.tree(sp, ps, ts);
     this.panesOf = new Map();
     for (const p of ps) this.panesOf.set(p.tab, [...(this.panesOf.get(p.tab) ?? []), p]);
-    this.rowsById = new Map([...tree.inside.values(), tree.other, tree.waiting].flat().map((r) => [r.w.id, r]));
+    this.rowsById = new Map([...tree.inside.values(), tree.other, tree.ssh, tree.waiting].flat().map((r) => [r.w.id, r]));
     this.filed = tree.list.length > 0;
     this.agentsOf = new Map();
     // A title a skill gave the session (hc label <terminal> mh.description=<title>).
@@ -1080,6 +1084,10 @@ export default class Spaces extends View {
       out.push(collapsed ? this.railHead("other", "Other", t.border, folded.has("other"), tree.other, t) : this.otherHead(tree.other, folded.has("other"), t));
       rows(tree.other, folded.has("other"));
     } else rows(tree.other, false);
+    if (tree.ssh.length) {
+      out.push(collapsed ? this.railHead("ssh", "SSH", t.border, folded.has("ssh"), tree.ssh, t) : this.sshHead(tree.ssh, folded.has("ssh"), t));
+      rows(tree.ssh, folded.has("ssh"));
+    }
     if (!sp.length) out.push(machines().find((m) => m.name === null)?.layout === "loading" ? this.loadingRow(t, collapsed) : this.emptyRow(t, collapsed));
     out.push(...this.machineRows(t, collapsed));
     const open = Boolean(shared("waiting.open"));
@@ -1102,7 +1110,7 @@ export default class Spaces extends View {
   // A header under a dragged space (it would go in there) or a dragged folder.
   overHead(id, cx) {
     let changed = false;
-    if (this.pressed !== null && (this.overFolder !== id || this.over !== null)) {
+    if (this.pressed !== null && !this.rowsById?.get(this.pressed)?.ssh && (this.overFolder !== id || this.over !== null)) {
       this.overFolder = id;
       this.over = null;
       changed = true;
@@ -1118,7 +1126,7 @@ export default class Spaces extends View {
   upOnHead(id, cx) {
     const { pressed, moving, overMove } = this;
     this.endDrag();
-    if (pressed !== null) this.dropSpace(pressed, id === "other" ? "" : id);
+    if (pressed !== null) { if (!this.rowsById?.get(pressed)?.ssh) this.dropSpace(pressed, id === "other" ? "" : id); }
     else if (moving === id) this.fold(id);
     else if (moving && moving !== "other" && id !== "other" && overMove === id) this.reorder(moving, id);
     cx.notify();
@@ -1172,6 +1180,17 @@ export default class Spaces extends View {
       .on_mouse_up("left", (_e, cx) => this.upOnHead("other", cx))
       .child(svg(`mods/workspace-chrome/chevron-${folded ? "right" : "down"}.svg`).size(11).flex_none())
       .child(div().flex_1().child("Other"))
+      .child(div().flex_none().text_color(folded && top ? t[top] : t.dim).child(String(members.length)));
+  }
+
+  // Spaces mh-ssh opened (ctrl-a s): click folds.
+  sshHead(members, folded, t) {
+    const top = urgent(members);
+    return h_flex().id("ssh-head").h(26).mt(6).flex_none().px(8).gap(7).items_center().rounded(6)
+      .text_size(11).text_color(t.dim).cursor_pointer().hover((st) => st.bg(t.hover).text_color(t.foreground))
+      .on_click(() => this.fold("ssh"))
+      .child(svg(`mods/workspace-chrome/chevron-${folded ? "right" : "down"}.svg`).size(11).flex_none())
+      .child(div().flex_1().child("SSH"))
       .child(div().flex_none().text_color(folded && top ? t[top] : t.dim).child(String(members.length)));
   }
 
@@ -1349,7 +1368,7 @@ export default class Spaces extends View {
           const source = spaces().find(s => s.id === this.pressed);
           const same = Boolean(source) && (source.machine ?? null) === (w.machine ?? null);
           const over = same ? w.id : null;
-          const overFolder = same || !this.filed || r.waiting ? null : (r.folder ?? "other");
+          const overFolder = same || !this.filed || r.waiting || r.ssh ? null : (r.folder ?? "other");
           if (this.over !== over || this.overFolder !== overFolder) {
             this.over = over;
             this.overFolder = overFolder;
@@ -1363,7 +1382,7 @@ export default class Spaces extends View {
         this.endDrag();
         if (from !== null && over === w.id && from !== w.id) {
           const source = this.rowsById?.get(from);
-          if (this.filed && source && !source.waiting && !r.waiting && source.folder !== r.folder) this.dropSpace(from, r.folder ?? "");
+          if (this.filed && source && !source.waiting && !r.waiting && !source.ssh && !r.ssh && source.folder !== r.folder) this.dropSpace(from, r.folder ?? "");
           const index = spaces().findIndex(s => s.id === w.id);
           if (index !== -1) run("space.move", { id: from, index: index + 1 });
         } else if (from === w.id) run("space.select", { id: w.id });
