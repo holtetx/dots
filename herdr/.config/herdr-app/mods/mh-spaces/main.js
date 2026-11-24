@@ -45,8 +45,11 @@ const narrow = () => (find(layout(), "sidebar")?.size?.px ?? Infinity) < 160;
 // `ps`: panes(), read once by the caller (each read copies every pane).
 function place(s, ps) {
   const tabs = new Set((s.tabs ?? []).map((c) => c.id));
-  return ps.find((p) => tabs.has(p.tab) && p.cwd)?.cwd || s.folder;
+  const p = ps.find((p) => tabs.has(p.tab) && p.cwd);
+  return claudeCwd.get(p?.terminal) || p?.cwd || s.folder;
 }
+// claude --worktree works in claude.cwd, not in its terminal's folder. Set on each render.
+const claudeCwd = new Map();
 const RAIL_CELL = 32;
 const railCell = (el) => h_flex().flex_none().justify_center().child(el);
 const where = (s, ps) => JSON.stringify([s.machine ?? null, place(s, ps)]);
@@ -1034,6 +1037,9 @@ export default class Spaces extends View {
   grouped(t, collapsed) {
     const sp = spaces();
     const ps = panes();
+    const ts = terminals();
+    claudeCwd.clear();
+    for (const k of ts) if (k.labels?.["claude.cwd"]) claudeCwd.set(k.address, k.labels["claude.cwd"]);
     const tree = this.tree(sp, ps);
     this.panesOf = new Map();
     for (const p of ps) this.panesOf.set(p.tab, [...(this.panesOf.get(p.tab) ?? []), p]);
@@ -1041,7 +1047,7 @@ export default class Spaces extends View {
     this.filed = tree.list.length > 0;
     this.agentsOf = new Map();
     // A title a skill gave the session (hc label <terminal> mh.description=<title>).
-    this.titles = new Map(terminals().filter((k) => k.labels?.["mh.description"]?.trim()).map((k) => [k.address, k.labels["mh.description"].trim()]));
+    this.titles = new Map(ts.filter((k) => k.labels?.["mh.description"]?.trim()).map((k) => [k.address, k.labels["mh.description"].trim()]));
     for (const a of agents()) this.agentsOf.set(a.space, [...(this.agentsOf.get(a.space) ?? []), a]);
     const folded = new Set(shared("space-folders.folded") ?? []);
     const out = [];
