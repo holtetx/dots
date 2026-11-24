@@ -777,10 +777,11 @@ export default class Spaces extends View {
     const hidden = shared("github.hidden") ?? {};
     const agentKept = shared("github.agent-links") ?? {};
     const branches = {};
-    for (const s of sp) {
-      const k = this.branchKey(s, ps);
-      if (k && this.branchPrs[k]?.url) branches[s.id] = this.branchPrs[k].url;
-    }
+    const keyOf = new Map(sp.map((s) => [s.id, this.branchKey(s, ps)]));
+    const count = {};
+    for (const k of keyOf.values()) if (k) count[k] = (count[k] ?? 0) + 1;
+    // Spaces that share a checkout share its branch, which says nothing about which of them works on its PR.
+    for (const [id, k] of keyOf) if (count[k] === 1 && this.branchPrs[k]?.url) branches[id] = this.branchPrs[k].url;
     // Kept whatever the Links tab says, so turning something back on shows it at once.
     const direct = [...Object.values(kept).flat(), ...Object.values(agentKept).flat(), ...Object.values(this.agentLinks).flat(), ...Object.values(branches), ...this.historyLinks()];
     const used = new Set(expand([...new Set(direct)], this.items).map((e) => e.url));
