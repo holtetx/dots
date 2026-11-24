@@ -27,7 +27,7 @@ Read these first. They are in `~/.config/herdr-app`:
 
 ## Key list (`cmd-/`, `ctrl-a ?`)
 
-`mods/mh-help` lists every binding in `keys.json` with words from its `DESCRIBE` table. When you add or change a key, give it a line there. A key without a line shows Herdr's text and "no description". Keys inside lists (board, tasks, copy mode) are not in it: each list shows them in its footer. `cmd-shift-/` is Herdr's raw list.
+`mods/mh-help` lists every binding in `keys.json` with words from its `DESCRIBE` table. When you add or change a key, give it a line there. A key without a line shows Herdr's text and "no description". Keys inside lists (board, tasks, copy mode) are not in it: each list shows them in its own key hints. `cmd-shift-/` is Herdr's raw list.
 
 ## Sidebar
 
@@ -57,7 +57,10 @@ Choices the owner made. Do not change them without a question.
 - PRs are asked for in three separate `gh` calls. One combined query gives HTTP 502.
 - Both tabs are grouped by repo. There are no status groups. A stacked PR (its base is the branch of another open PR in the repo) sits under its parent with an indent (`mods/mh-spaces/stack.js`, test: `node mods/mh-spaces/stack.test.mjs`).
 - A yellow `review` label marks a PR where GitHub says the owner's review is requested. PRs with the label come first in their repo.
-- Each PR row shows `N approved`, `N changes`, a comment count (GitHub `totalCommentsCount`) and `CI` with its state. Use words, not icons alone.
+- Each PR row, left to right: `#number`, title, labels, comment count (GitHub `totalCommentsCount`), links, author, `+added -deleted`, age, one review word (`needs review`, `approved`, `changes`, `draft`, `queued`; GitHub's `reviewDecision`, else the latest reviews; a change request shows unless GitHub says approved) and `CI` with its state. Use words, not icons alone.
+- The title line is the shown tab ("Open pull requests"), the other tab, the refresh state and the main keys. Hover the keys for all of them. A line under the list shows only when there is a note.
+- `/` opens a search field under the title line. It filters the shown tab by ref, title, repo, author, branch, assignees and labels; every word must match. `↵` keeps the filter, `esc` clears it.
+- Dependabot PRs are hidden each time the mod loads. `b`, or the `Dependabot hidden N` button on the title line, shows them until the next load.
 - A board session on a PR branch moves the local branch to origin: fast-forward, or after a force-push a reset when the branch has no commits or changes of its own. Otherwise it stops with an error.
 - A yellow `behind` label marks a PR with a checkout here that does not have the PR's newest commit (new commits or a force-push). A checkout is a worktree on the PR's branch, or a `review-<number>` folder as the `review-pr` skill makes. Only repos with a space or a sidebar folder are checked.
 - Not tested: worktree recreate on resume.

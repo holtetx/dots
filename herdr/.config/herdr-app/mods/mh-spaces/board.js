@@ -4,12 +4,13 @@
 // of the sessions that had it.
 // hjkl moves (^D/^U half a page, ^J/^K five); ↵ picks one of its sessions or
 // starts one in its repo (mh-sessions' tasks list for that item), ⌃↵ opens
-// it, ⌥↵ lists what it's linked to, space previews it (preview.js). What was fetched is kept for the next opening.
+// it, ⌥↵ lists what it's linked to, space previews it (preview.js), / searches the tab shown.
+// What was fetched is kept for the next opening.
 // A mh-spaces overlay with props { board: true }.
 
 import { asks, stacked } from "./stack.js";
 import { div, svg } from "gpui-kit";
-import { v_flex, h_flex, ScrollHandle } from "gpui-base";
+import { v_flex, h_flex, ScrollHandle, InputState, Input } from "gpui-base";
 import { props, closeOverlay, openOverlay, theme, settings, shared, terminals, exec } from "herdr";
 import { GH, FINAL, markRead, prKey, unknown } from "./github.js";
 import { boardRepos, fetchIssues, fetchPrs } from "./board-data.js";
@@ -19,10 +20,15 @@ const ICON = (name) => `mods/workspace-chrome/${name}.svg`;
 const GREEN = ["#1a7f37", "#3fb950"], RED = ["#cf222e", "#f85149"], YELLOW = ["#9a6700", "#d29922"];
 const CHECKS = { SUCCESS: ["check", GREEN, "Checks passed"], FAILURE: ["x", RED, "Checks failed"], ERROR: ["x", RED, "Checks failed"], PENDING: [null, YELLOW, "Checks running"], EXPECTED: [null, YELLOW, "Checks expected"] };
 const KIND_ORDER = { pr: 0, issue: 1 };
+const ROW = 28;
 
 // What was fetched, the tab shown and each tab's selection ({ url, i }),
 // kept between openings (copies share this module).
-const memory = { tab: "prs", sel: {}, data: {}, at: {}, errors: {}, stamps: {} };
+const memory = { tab: "prs", sel: {}, data: {}, at: {}, errors: {}, stamps: {}, bots: false };
+
+// GraphQL gives the login "dependabot", REST "dependabot[bot]". Hidden until `b` shows them.
+const isBot = (it) => it.author?.startsWith("dependabot") ?? false;
+const shown = (it) => memory.bots || !isBot(it);
 
 export const ago = (ms) => {
   const d = (Date.now() - ms) / 1000;
@@ -44,7 +50,30 @@ export function boardInit(view, cx) {
   cx.timer.every(150, () => {
     if (shared("board.focus") === view.focusAsk) return;
     view.focusAsk = shared("board.focus");
+    (view.searching ? view.input : view.handle).focus();
+  });
+  view.text = "";
+  view.searching = false;
+  view.input = InputState.new({ placeholder: "Search this tab…" });
+  view.input.on("change", (_e, cx) => {
+    if (view.input.value() === view.text) return;
+    view.text = view.input.value();
+    memory.sel[memory.tab] = { i: 0 };
+    view.reveal = true;
+    cx.notify();
+  });
+  view.input.on("submit", (_e, cx) => {
+    view.searching = false;
     view.handle.focus();
+    cx.notify();
+  });
+  view.input.on("focus", (_e, cx) => {
+    view.searching = true;
+    cx.notify();
+  });
+  view.input.on("blur", (_e, cx) => {
+    view.searching = false;
+    cx.notify();
   });
   view.busy = {};
   view.note = "";
@@ -130,9 +159,15 @@ function graphOf(items) {
   return { links, sessions };
 }
 
-function sectionsOf(tab) {
+const matches = (it, words) => {
+  const text = [refOf(it), it.title, it.repo, it.author, it.branch, ...(it.assignees ?? []), ...(it.labels ?? []).map((l) => l.name)].join(" ").toLowerCase();
+  return words.every((w) => text.includes(w));
+};
+
+function sectionsOf(tab, text) {
+  const words = text.trim().toLowerCase().split(/\s+/).filter(Boolean);
   const by = new Map();
-  for (const i of (tab.id === "prs" ? memory.data.prs?.prs : memory.data.issues?.issues) ?? []) by.set(i.repo, [...(by.get(i.repo) ?? []), i]);
+  for (const i of (tab.id === "prs" ? memory.data.prs?.prs : memory.data.issues?.issues) ?? []) if (shown(i) && matches(i, words)) by.set(i.repo, [...(by.get(i.repo) ?? []), i]);
   return [...by]
     .map(([name, items]) => ({ name, items: tab.id === "prs" ? stacked(items) : items.sort((a, b) => b.updated - a.updated) }))
     .sort((a, b) => Math.max(...b.items.map((i) => i.updated)) - Math.max(...a.items.map((i) => i.updated)));
@@ -206,12 +241,12 @@ function linked(view, it) {
 
 // The tab and selection that show `url`, or null when the board doesn't have it.
 function find(url) {
-  if ((memory.data.prs?.prs ?? []).some((p) => p.url === url)) return { tab: "prs", sel: { url } };
+  if ((memory.data.prs?.prs ?? []).some((p) => p.url === url && shown(p))) return { tab: "prs", sel: { url } };
   if ((memory.data.issues?.issues ?? []).some((i) => i.url === url)) return { tab: "issues", sel: { url } };
   return null;
 }
 
-const preview = (it) => it?.url && openOverlay({ mod: "mh-spaces", kind: "dialog", width: 0.8, height: 0.86, props: { preview: it.url, behind: Boolean(it.behind), back: "board.focus" } });
+const preview = (it) => it?.url && openOverlay({ mod: "mh-spaces", kind: "dialog", width: 0.8, height: 0.76, props: { preview: it.url, behind: Boolean(it.behind), back: "board.focus" } });
 
 function pickerKey(view, e, cx) {
   const rows = linkedRows(view, view.picker.it.url);
@@ -225,6 +260,7 @@ function pickerKey(view, e, cx) {
     if (!row) return true;
     const at = !m.control && find(row.url);
     if (!at) return openUrl(row.it, cx), true;
+    clearSearch(view);
     memory.sel[at.tab] = at.sel;
     showTab(view, at.tab);
     view.picker = null;
@@ -233,14 +269,38 @@ function pickerKey(view, e, cx) {
   return true;
 }
 
+// Keeps the selected item selected when the full list comes back.
+function clearSearch(view) {
+  const it = view.model.item;
+  if (it) memory.sel[view.model.tab.id] = { url: it.url };
+  view.text = "";
+  view.input.set_value("");
+  view.searching = false;
+  view.handle.focus();
+  view.reveal = true;
+}
+
+// While the field has the keyboard: ↵ (its submit) keeps the filter, esc clears it, other keys type.
+function searchKey(view, e) {
+  const m = e.modifiers;
+  const ctrl = m.control && !m.alt && !m.platform;
+  if (e.key === "escape") clearSearch(view);
+  else if (e.key === "down" || (ctrl && e.key === "j")) move(view, "down");
+  else if (e.key === "up" || (ctrl && e.key === "k")) move(view, "up");
+  else return false;
+  return true;
+}
+
 function key(view, e, cx) {
   if (view.picker) return pickerKey(view, e, cx);
+  if (view.searching) return searchKey(view, e);
   const m = e.modifiers;
   const plain = !m.control && !m.alt && !m.platform;
   const tabs = tabsOf();
   const it = view.model.item;
   view.note = "";
-  if (e.key === "escape") return closeOverlay(props().overlay), true;
+  if (e.key === "escape") return view.text ? clearSearch(view) : closeOverlay(props().overlay), true;
+  if (e.key === "/" && plain) return (view.searching = true), view.input.focus(), true;
   if (e.key === "space" && plain) return preview(it), true;
   if (e.key === "enter") {
     if (m.control) it && openUrl(it, cx);
@@ -253,13 +313,14 @@ function key(view, e, cx) {
     return showTab(view, tabs[(i + (m.shift ? tabs.length - 1 : 1)) % tabs.length].id), true;
   }
   if (m.control && !m.alt && !m.platform) {
-    const half = Math.max(1, Math.floor((view.listHeight ?? 340) / 2 / 34));
+    const half = Math.max(1, Math.floor((view.listHeight ?? 340) / 2 / ROW));
     const by = { d: half, u: half, j: 5, k: 5 }[e.key];
     if (by) return move(view, e.key === "d" || e.key === "j" ? "down" : "up", by), true;
   }
   if (!plain) return false;
   if (/^[1-9]$/.test(e.key) && tabs[Number(e.key) - 1]) return showTab(view, tabs[Number(e.key) - 1].id), true;
   if (e.key === "r") return refresh(view, cx, true), true;
+  if (e.key === "b") return (memory.bots = !memory.bots), (view.reveal = true), true;
   if (e.key === "g" || e.key === "G") return edge(view, m.shift || e.key === "G"), true;
   const dir = { h: "left", left: "left", j: "down", down: "down", k: "up", up: "up", l: "right", right: "right" }[e.key];
   if (!dir) return false;
@@ -299,31 +360,27 @@ function select(view, tabId, sel, e, cx, it) {
 function rowBase(id, on, t) {
   return h_flex()
     .id(id)
-    .h(34)
+    .h(ROW)
     .flex_none()
     .px(10)
     .gap(10)
     .items_center()
-    .rounded(7)
+    .rounded(6)
     .cursor_pointer()
     .when(on, (el) => el.bg(t.selected))
     .when(!on, (el) => el.hover((s) => s.bg(t.hover)));
 }
 
-// Approvals, change requests and comments, as GitHub counts them.
-function reviews(p, t, dark) {
-  const word = (n, text, color) => (n ? [div().flex_none().text_color(color).child(`${n} ${text}`)] : []);
-  return h_flex()
-    .flex_none()
-    .gap(8)
-    .items_center()
-    .text_size(11)
-    .children([
-      ...word(p.approvals, "approved", pick(GREEN, dark)),
-      ...word(p.changes, "changes", pick(RED, dark)),
-      ...(p.comments ? [h_flex().flex_none().gap(3).items_center().text_color(t.dim).child(svg("mods/mh-spaces/comment.svg").size(11)).child(String(p.comments))] : []),
-    ]);
+// One word for the review state: GitHub's review decision, else the latest reviews. A change request shows unless GitHub says approved.
+function verdict(p, t, dark) {
+  if (p.state === "draft") return ["draft", t.dim];
+  if (p.state === "queued") return ["queued", pick(YELLOW, dark)];
+  if (p.review === "CHANGES_REQUESTED" || (p.changes && p.review !== "APPROVED")) return ["changes", pick(RED, dark)];
+  if (p.review === "APPROVED" || (!p.review && p.approvals)) return ["approved", pick(GREEN, dark)];
+  return ["needs review", pick(YELLOW, dark)];
 }
+
+const tag = (text, t) => div().flex_none().px(5).rounded(4).text_size(10.5).text_color(t.ansi3).border_1().border_color(t.ansi3).child(text);
 
 // Lines, not text: the font draws the └ and ├ characters with different weight.
 const branchMark = (last, t) =>
@@ -334,21 +391,25 @@ const branchMark = (last, t) =>
 function prRow(view, p, i, on, t, dark) {
   const unread = shared("github")?.unread?.[prKey(p)];
   const check = CHECKS[p.checks];
+  const [word, color] = verdict(p, t, dark);
   return rowBase(`pr-${p.url}`, on, t)
     .on_click((e, cx) => select(view, "prs", { url: p.url, i }, e, cx, p))
     .when(p.depth > 0, (el) => el.child(h_flex().w(p.depth * 14).flex_none().justify_end().child(branchMark(p.last, t))))
-    .child(div().relative().w(14).flex_none().flex().justify_center().child(stateIcon(p, dark, t))
-      .when(Boolean(unread), (el) => el.child(div().absolute().top(-2).right(-3).size(6).rounded(3).bg(pick(["#0969da", "#4493f8"], dark)))))
-    .child(div().w(150).flex_none().truncate().text_size(11.5).text_color(t.dim).child(`${p.repo.split("/").pop()}#${p.number}`))
+    .child(div().size(6).flex_none().rounded(3).when(Boolean(unread), (el) => el.bg(pick(["#0969da", "#4493f8"], dark))))
+    .child(div().w(52).flex_none().text_size(11.5).text_color(t.dim).child(`#${p.number}`))
     .child(div().flex_1().min_w(0).truncate().text_color(t.foreground).when(p.state === "draft", (el) => el.text_color(t.muted)).child(p.title))
-    .when(asks(p), (el) => el.child(div().flex_none().px(5).rounded(4).text_size(10.5).text_color(t.ansi3).border_1().border_color(t.ansi3).child("review")))
-    .when(Boolean(p.behind), (el) => el.child(div().flex_none().px(5).rounded(4).text_size(10.5).text_color(t.ansi3).border_1().border_color(t.ansi3).child("behind")))
-    .child(reviews(p, t, dark))
-    .child(div().flex_none().max_w(130).truncate().text_size(11.5).text_color(t.dim).child(p.mine ? "you" : p.author))
-    .child(h_flex().w(34).flex_none().gap(4).items_center().text_size(11).text_color(t.dim).when(Boolean(check), (el) => el.child("CI").child(
-      check[0] ? svg(ICON(check[0])).size(12).text_color(pick(check[1], dark)) : div().size(7).rounded(4).bg(pick(check[1], dark)))))
+    .when(asks(p), (el) => el.child(tag("review", t)))
+    .when(Boolean(p.behind), (el) => el.child(tag("behind", t)))
+    .when(p.comments > 0, (el) => el.child(h_flex().flex_none().gap(3).items_center().text_size(11).text_color(t.dim).child(svg("mods/mh-spaces/comment.svg").size(11)).child(String(p.comments))))
     .child(counts(p.url, view, t))
-    .child(div().w(30).flex_none().text_right().text_size(11).text_color(t.dim).child(ago(p.updated)));
+    .child(div().w(140).flex_none().truncate().text_size(11.5).text_color(t.dim).child(p.mine ? "you" : p.author))
+    .child(h_flex().w(84).flex_none().justify_end().gap(4).text_size(11)
+      .child(div().text_color(pick(GREEN, dark)).child(`+${p.additions ?? 0}`))
+      .child(div().text_color(pick(RED, dark)).child(`-${p.deletions ?? 0}`)))
+    .child(div().w(30).flex_none().text_right().text_size(11).text_color(t.dim).child(ago(p.updated)))
+    .child(div().w(80).flex_none().text_size(11.5).text_color(color).child(word))
+    .child(h_flex().w(34).flex_none().gap(4).items_center().text_size(11).text_color(t.dim).when(Boolean(check), (el) => el.child("CI").child(
+      check[0] ? svg(ICON(check[0])).size(12).text_color(pick(check[1], dark)) : div().size(7).rounded(4).bg(pick(check[1], dark)))));
 }
 
 function issueRow(view, it, i, on, t, dark, login) {
@@ -356,7 +417,6 @@ function issueRow(view, it, i, on, t, dark, login) {
   const me = who.includes(login);
   return rowBase(`is-${it.url}`, on, t)
     .on_click((e, cx) => select(view, "issues", { url: it.url, i }, e, cx, it))
-    .child(h_flex().w(14).flex_none().justify_center().child(stateIcon(it, dark, t)))
     .child(div().w(52).flex_none().text_size(11.5).text_color(t.dim).child(`#${it.number}`))
     .child(div().flex_1().min_w(0).truncate().text_color(t.foreground).child(it.title))
     .children(it.labels.slice(0, 2).map((l) => h_flex().flex_none().max_w(140).gap(4).items_center().text_size(11).text_color(t.muted)
@@ -373,8 +433,13 @@ function listBody(view, t, dark) {
   const childOf = [];
   const login = memory.data[tab.id]?.login ?? "";
   let n = 0;
+  const short = (name) => name.split("/").pop();
   for (const sec of sections) {
-    children.push(h_flex().h(28).px(10).pt(8).flex_none().items_center().text_size(11).text_color(t.dim).child(`${sec.name} · ${sec.items.length}`));
+    // The owner only when two repos share a name.
+    const name = sections.filter((s) => short(s.name) === short(sec.name)).length > 1 ? sec.name : short(sec.name);
+    children.push(h_flex().h(28).px(10).pt(8).gap(6).flex_none().items_center().text_size(11)
+      .child(div().text_color(t.muted).child(name))
+      .child(div().text_color(t.dim).child(String(sec.items.length))));
     for (const it of sec.items) {
       childOf[n] = children.length;
       const on = n === view.model.at;
@@ -385,6 +450,7 @@ function listBody(view, t, dark) {
   view.model.childOf = childOf;
   const none = !boardRepos().length
     ? "No repos yet: put repos in a sidebar folder, or add them in the spacing dialog's Board tab."
+    : view.text.trim() ? "Nothing matches the search."
     : tab.id === "prs" ? "No open PRs." : "No open issues.";
   return v_flex()
     .id(`list-${tab.id}`)
@@ -421,7 +487,7 @@ function pickerPanel(view, t, dark) {
       .bg(t.popover)
       .shadow_lg()
       .child(div().flex_none().truncate().font_semibold().text_color(t.foreground).child(`Linked to ${refOf(it)} ${it.title ?? ""}`))
-      .child(v_flex().id("linked-list").h(Math.min(360, rows.length * 34)).flex_none().overflow_y_scrollbar().track_scroll(view.pickScroll)
+      .child(v_flex().id("linked-list").h(Math.min(360, rows.length * ROW)).flex_none().overflow_y_scrollbar().track_scroll(view.pickScroll)
         .children(rows.map((r, i) => rowBase(`ln-${r.url}`, i === at, t)
           .on_click((e, cx) => {
             view.picker.at = i;
@@ -444,7 +510,7 @@ export function boardRender(view) {
   memory.tab = tab.id;
   const items = known();
   const model = { tab, items, graph: graphOf(items) };
-  model.sections = sectionsOf(tab);
+  model.sections = sectionsOf(tab, view.text);
   model.rows = model.sections.flatMap((s) => s.items);
   let n = 0;
   model.starts = model.sections.map((s) => ((n += s.items.length), n - s.items.length));
@@ -456,13 +522,15 @@ export function boardRender(view) {
     view.reveal = false;
     view.listScroll.scroll_to_item(model.childOf?.[model.at] ?? 0);
   }
-  const countOf = (x) => (x.id === "prs" ? memory.data.prs?.prs.length : memory.data.issues?.issues.length);
-  const tabEl = (x, i) => h_flex().id(`tab-${x.id}`).flex_none().gap(6).px(10).py(4).rounded(6).cursor_pointer()
-    .text_color(x.id === tab.id ? t.foreground : t.muted)
-    .when(x.id === tab.id, (el) => el.bg(t.selected))
-    .when(x.id !== tab.id, (el) => el.hover((s) => s.bg(t.hover)))
+  const listOf = (x) => (x.id === "prs" ? memory.data.prs?.prs : memory.data.issues?.issues);
+  const countOf = (x) => listOf(x)?.filter(shown).length;
+  const bots = (listOf(tab) ?? []).filter(isBot).length;
+  // The shown tab is the title ("Open pull requests"); the other is a link to it.
+  const tabEl = (x, i) => h_flex().id(`tab-${x.id}`).flex_none().gap(6).px(6).py(2).items_center().rounded(5).cursor_pointer()
+    .when(x.id === tab.id, (el) => el.text_size(14).font_semibold().text_color(t.foreground))
+    .when(x.id !== tab.id, (el) => el.text_size(12).text_color(t.muted).hover((s) => s.bg(t.hover)))
     .on_click((_e, cx) => { showTab(view, x.id); view.note = ""; cx.notify(); })
-    .child(x.name)
+    .child(x.id === tab.id ? `Open ${x.name.toLowerCase()}` : x.name)
     .when(countOf(x) != null, (el) => el.child(div().text_size(11).text_color(t.dim).child(String(countOf(x)))))
     .tooltip(i < 9 ? `${i + 1} · tab` : "tab");
   const error = memory.errors[tab.id];
@@ -476,7 +544,11 @@ export function boardRender(view) {
     gh?.missing?.length ? `Not on GitHub, or gh can't see: ${gh.missing.join(", ")}` : "",
     gh?.partial ? "Some repos couldn't be asked." : "",
   ].filter(Boolean);
-  const hint = view.picker ? "" : ["hjkl move", "^D ^U half page", "^J ^K 5 rows", "space preview", "↵ sessions", "⌃↵ open on GitHub", "⌥↵ linked", "tab next", "r refresh", "esc close"].join(" · ");
+  const other = tabs.find((x) => x.id !== tab.id);
+  const hint = view.picker ? "" : view.searching
+    ? ["↓↑ ^J ^K move", "↵ keep filter", "esc clear"].join(" · ")
+    : ["/ search", "space preview", "↵ sessions", "⌃↵ GitHub", view.text ? "esc clear search" : "esc close"].join(" · ");
+  const allKeys = ["hjkl move", "^D ^U ^J ^K scroll", "g G first, last", "/ search", "space preview", "↵ sessions", "⌃↵ open on GitHub", "⌥↵ linked", `tab ${other.name.toLowerCase()}`, "b show or hide Dependabot", "r refresh", "esc close"].join(" · ");
   return v_flex()
     .id("board")
     .relative()
@@ -488,16 +560,23 @@ export function boardRender(view) {
     })
     .size_full()
     .min_h(0)
-    .p(16)
-    .gap(10)
+    .p(14)
+    .gap(8)
     .bg(t.popover)
-    .text_size(13)
-    .child(h_flex().flex_none().gap(4).items_center()
-      .child(h_flex().flex_1().min_w(0).gap(4).items_center().overflow_hidden().children(tabs.map(tabEl)))
-      .child(div().flex_none().text_size(11).text_color(t.dim).child(status)))
+    .text_size(12.5)
+    .child(h_flex().flex_none().gap(10).items_center()
+      .child(h_flex().flex_none().gap(4).items_center().children([tab, other].map((x) => tabEl(x, tabs.indexOf(x)))))
+      .child(div().id("status").flex_none().text_size(11).text_color(t.dim).child(status).tooltip("r · refresh"))
+      .when(bots > 0, (el) => el.child(div().id("bots").flex_none().px(6).py(1).rounded(5).cursor_pointer().text_size(11).text_color(t.muted).hover((s) => s.bg(t.hover))
+        .on_click((_e, cx) => { memory.bots = !memory.bots; view.reveal = true; cx.notify(); })
+        .child(memory.bots ? `Dependabot shown ${bots}` : `Dependabot hidden ${bots}`).tooltip("b · show or hide Dependabot PRs")))
+      .child(div().id("keys").flex_1().min_w(0).truncate().text_right().text_size(11).text_color(t.dim).child(hint).when(!view.searching, (el) => el.tooltip(allKeys))))
+    .when(view.searching || Boolean(view.text), (el) => el.child(
+      h_flex().h(30).flex_none().px(10).gap(8).items_center().rounded(6).border_1()
+        .border_color(view.searching ? t.accent : t.border).bg(t.background)
+        .child(svg(ICON("search")).size(13).text_color(t.dim))
+        .child(Input.new(view.input).flex_1().h_full().text_size(12.5).text_color(t.foreground))))
     .child(body)
-    .child(h_flex().flex_none().gap(12).items_center().text_size(11).text_color(t.dim)
-      .child(div().flex_1().min_w(0).truncate().text_color(view.note ? t.muted : t.dim).child(notes.join(" · ")))
-      .child(div().flex_none().child(hint)))
+    .when(notes.length > 0, (el) => el.child(div().flex_none().truncate().text_size(11).text_color(view.note ? t.muted : t.dim).child(notes.join(" · "))))
     .when(Boolean(view.picker), (el) => el.child(pickerPanel(view, t, dark)));
 }
