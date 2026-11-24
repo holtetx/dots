@@ -35,7 +35,7 @@ One list: folders (projects), then spaces. A space is one session. Its row shows
 
 A badge on a space comes from a `pr-link` line in the session's transcript (Claude Code writes it when it opens a PR) or from herdr-link. A URL typed in a prompt reaches only the tasks list (`ctrl-a t`). Both need the `claude.session` label.
 
-A space takes its git info from the folder of its first tab. A space made in the wrong folder shows the wrong badges.
+A space takes its git info from the folder of its first tab, or from that terminal's `claude.cwd` label when it has one (`claude --worktree` works there). Its tooltip adds `(worktree)` after a branch in a worktree. A space made in the wrong folder shows the wrong badges.
 
 ## Board (`ctrl-a T`)
 
@@ -50,6 +50,13 @@ Choices the owner made. Do not change them without a question.
 - A board session on a PR branch moves the local branch to origin: fast-forward, or after a force-push a reset when the branch has no commits or changes of its own. Otherwise it stops with an error.
 - A yellow `behind` label marks a PR with a checkout here that does not have the PR's newest commit (new commits or a force-push). A checkout is a worktree on the PR's branch, or a `review-<number>` folder as the `review-pr` skill makes. Only repos with a space or a sidebar folder are checked.
 - Not tested: worktree recreate on resume.
+
+## Preview (`space` on the board, `ctrl-space` in the tasks list)
+
+- `mods/mh-spaces/preview.js`, an mh-spaces overlay `{ preview: url, behind?, back }`. `back` is the shared key it sets when it closes, so the list under it takes the keyboard back (`board.focus`, `tasks.focus`).
+- Data: one `gh` GraphQL query (`preview-data.js`). It shows reviews, failing and running checks, the description, comments, review bodies and unresolved review threads.
+- Images: `curl` downloads them into `mh-cache/preview` in Herdr's folder (`image()` reads only there; git ignores it). Only GitHub hosts. Files older than 30 days are deleted. Videos open in the browser.
+- Herdr's `fs/promises` has no working `rename`: use `mv`.
 
 ## Decided against
 

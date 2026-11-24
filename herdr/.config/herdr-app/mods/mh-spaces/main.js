@@ -25,6 +25,7 @@ import { linkInit, linkRender } from "./links.js";
 import { MARK, applyChange, empty, folderOf, foldersOf, live, matchOf, merge, nextRank, ownPaths, pathsOn, tidy, tilde, updateFolders, writeChange } from "./folders.js";
 import { folderInit, folderRender } from "./folder-dialog.js";
 import { boardInit, boardRender } from "./board.js";
+import { previewInit, previewRender } from "./preview.js";
 import { telling } from "./title.js";
 import { discoverRepos } from "./board-data.js";
 
@@ -44,8 +45,11 @@ const narrow = () => (find(layout(), "sidebar")?.size?.px ?? Infinity) < 160;
 // `ps`: panes(), read once by the caller (each read copies every pane).
 function place(s, ps) {
   const tabs = new Set((s.tabs ?? []).map((c) => c.id));
-  return ps.find((p) => tabs.has(p.tab) && p.cwd)?.cwd || s.folder;
+  const p = ps.find((p) => tabs.has(p.tab) && p.cwd);
+  return claudeCwd.get(p?.terminal) || p?.cwd || s.folder;
 }
+// claude --worktree works in claude.cwd, not in its terminal's folder. Set on each render.
+const claudeCwd = new Map();
 const RAIL_CELL = 32;
 const railCell = (el) => h_flex().flex_none().justify_center().child(el);
 const where = (s, ps) => JSON.stringify([s.machine ?? null, place(s, ps)]);
@@ -156,6 +160,7 @@ export default class Spaces extends View {
     if (props()?.link) return linkInit(this, cx);
     if (props()?.folder) return folderInit(this, cx);
     if (props()?.board) return boardInit(this, cx);
+    if (props()?.preview) return previewInit(this, cx);
     this.git = {}; // where() -> { name, branch, ahead, behind, repo, linked, gh: "owner/repo" }, null: not a repo
     this.checked = {}; // where() -> when it was last looked at
     this.unsure = new Set(); // where()s git couldn't answer for (a machine away)
@@ -239,6 +244,7 @@ export default class Spaces extends View {
 
   close() {
     if (props()?.board) boardOverlay = null;
+    if (props()?.preview) setShared(props().back, Date.now());
   }
 
   // The GitHub repos in the sidebar folders on every machine that answers (one that doesn't
@@ -1031,6 +1037,9 @@ export default class Spaces extends View {
   grouped(t, collapsed) {
     const sp = spaces();
     const ps = panes();
+    const ts = terminals();
+    claudeCwd.clear();
+    for (const k of ts) if (k.labels?.["claude.cwd"]) claudeCwd.set(k.address, k.labels["claude.cwd"]);
     const tree = this.tree(sp, ps);
     this.panesOf = new Map();
     for (const p of ps) this.panesOf.set(p.tab, [...(this.panesOf.get(p.tab) ?? []), p]);
@@ -1038,7 +1047,7 @@ export default class Spaces extends View {
     this.filed = tree.list.length > 0;
     this.agentsOf = new Map();
     // A title a skill gave the session (hc label <terminal> mh.description=<title>).
-    this.titles = new Map(terminals().filter((k) => k.labels?.["mh.description"]?.trim()).map((k) => [k.address, k.labels["mh.description"].trim()]));
+    this.titles = new Map(ts.filter((k) => k.labels?.["mh.description"]?.trim()).map((k) => [k.address, k.labels["mh.description"].trim()]));
     for (const a of agents()) this.agentsOf.set(a.space, [...(this.agentsOf.get(a.space) ?? []), a]);
     const folded = new Set(shared("space-folders.folded") ?? []);
     const out = [];
@@ -1308,7 +1317,7 @@ export default class Spaces extends View {
     const label = this.label(w);
     const mark = this.mark(w.status, t);
     // Repo (when the row shows a session title), branch and machine, on the title only: the tab dots have their own.
-    const where = [label === w.name ? null : w.name, g?.branch, w.machine].filter(Boolean).join(" · ");
+    const where = [label === w.name ? null : w.name, g?.branch && (g.linked ? `${g.branch} (worktree)` : g.branch), w.machine].filter(Boolean).join(" · ");
     return v_flex()
       .relative()
       .id(`space-${w.id}`)
@@ -1398,6 +1407,7 @@ export default class Spaces extends View {
     if (props()?.link) return linkRender(this);
     if (props()?.folder) return folderRender(this);
     if (props()?.board) return boardRender(this);
+    if (props()?.preview) return previewRender(this);
     const t = theme();
     const collapsed = narrow();
     const palette = ["ansi6", "ansi3", "ansi4", "ansi5", "ansi2", "ansi1"];

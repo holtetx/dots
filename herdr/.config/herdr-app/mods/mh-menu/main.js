@@ -11,7 +11,9 @@ import { run, props, closeOverlay, openOverlay, theme, keys, terminals, spaces, 
 // Where a space is now: its first terminal's live folder, else where it was made.
 function place(s) {
   const tabs = new Set((s.tabs ?? []).map((c) => c.id));
-  return panes().find((p) => tabs.has(p.tab) && p.cwd)?.cwd || s.folder;
+  const p = panes().find((p) => tabs.has(p.tab) && p.cwd);
+  // claude --worktree works in claude.cwd, not in its terminal's folder.
+  return terminals().find((t) => t.address === p?.terminal)?.labels?.["claude.cwd"] || p?.cwd || s.folder;
 }
 
 // A space's checkout: "main" (a repo's own), "linked" (a worktree), or null.
