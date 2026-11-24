@@ -21,11 +21,10 @@ Read these first. They are in `~/.config/herdr-app`:
 | Links added by hand, the Waiting mark | herdr-core doc `mh-links` | `mods/mh-spaces/docs.js`, `~/.claude/skills/herdr-link/herdr-link.mjs` |
 | Which Claude session had which links | herdr-core doc `mh-tasks`, shared as `shared("tasks.sessions")` | mh-spaces (`history.mjs` reads the transcripts) |
 | Space folders | herdr-core doc `mh-folders` | mh-spaces only. Other mods ask through `shared("space-folders.ask")`. |
-| Agent description | labels `mh.description`, `mh.description.mode` | mh-agents |
 
 ## PR badges
 
-A badge on an agent comes from a `pr-link` line in the session's transcript (Claude Code writes it when it opens a PR) or from herdr-link. A URL typed in a prompt reaches only the tasks list (`ctrl-a t`). Both need the `claude.session` label.
+A badge on a space comes from a `pr-link` line in the session's transcript (Claude Code writes it when it opens a PR) or from herdr-link. A URL typed in a prompt reaches only the tasks list (`ctrl-a t`). Both need the `claude.session` label.
 
 A space takes its git info from the folder of its first tab. A space made in the wrong folder shows the wrong badges.
 
@@ -46,7 +45,7 @@ Choices the owner made. Do not change them without a question.
 ## Decided against
 
 - No `cmd-s` key, no tmux split, rename or layout keys.
-- No session archive in the sidebar.
+- No agents list and no session archive in the sidebar.
 - `review-pr` (a shared team skill) does not call herdr-link. A rule in `~/.claude/CLAUDE.md` does that.
 - The worktree options stay (`alt-shift-c`, picker, board and tasks rows).
 

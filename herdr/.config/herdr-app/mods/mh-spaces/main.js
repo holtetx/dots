@@ -2,13 +2,13 @@
 // folders you make (folders.js: by path, or dragged there; the rest in Other), a
 // server icon on another machine's. Machines show only while they need you (asleep, a
 // login, rebuilt, loading). After a space's name, where its first terminal is now,
-// only where unusual: branch, ahead/behind (its folder says the repo). Agent state lives in the agents list, not here. Click to
+// only where unusual: branch, ahead/behind (its folder says the repo). Click to
 // switch, right-click for its menu, drag to reorder or onto a folder. Spaces put in Waiting (kept on
 // their machine, docs.js) go to a section of their own at the bottom, folded at first.
 // Then its GitHub PRs and issues: linked from its menu, its branch's PR, and
 // those its Claude sessions opened, each with the issues or PRs it's linked to.
-// This copy asks GitHub about all of them and shares what it learns as shared("github") for the agents
-// list, the link dialog and the spacing dialog's Links tab. Those linked by hand, to
+// This copy asks GitHub about all of them and shares what it learns as shared("github") for the
+// tasks list, the board, the link dialog and the spacing dialog's Links tab. Those linked by hand, to
 // the space or to one of its agents, live on its machine (docs.js), copied into
 // shared("github.links") and shared("github.agent-links").
 // It also finds the GitHub repos in its folders (shared("board.repos")) and where they and
@@ -585,7 +585,7 @@ export default class Spaces extends View {
 
   // Hand-made links and Waiting marks from each machine's core into shared("github.links"),
   // shared("github.hidden"), shared("github.agent-links") and shared("spaces.waiting"),
-  // where the rows, the agents list and the dialog read them. A space or agent missing at two syncs in a row on a
+  // where the rows and the dialog read them. A space or agent missing at two syncs in a row on a
   // machine whose layout is in loses its links there; the first time per machine, what
   // this screen kept itself is moved in. Its live Claude sessions' links go in its
   // mh-tasks, and every machine's sessions there into shared("tasks.sessions").
@@ -769,8 +769,7 @@ export default class Spaces extends View {
     const used = new Set(expand([...new Set(direct)], this.items).map((e) => e.url));
     for (const u of Object.keys(this.items)) if (!used.has(u)) delete this.items[u];
     // Each space's links: by hand on it and on its agents, then its branch's PR and its
-    // Claude sessions', less those hidden, then what they bring along; agents' the same
-    // with their space's own (by hand and its branch's), for the agents list.
+    // Claude sessions', less those hidden, then what they bring along.
     const cfg = { related: shared("mh-links")?.related ?? true };
     const mineOf = (own, auto, off) => [...new Set([...own, ...auto.filter((u) => u && !off.has(u))])];
     const shownOf = (own, auto, off) => {
@@ -784,19 +783,15 @@ export default class Spaces extends View {
       const auto = [branches[s.id], ...mates.flatMap((a) => this.agentLinks[a.address] ?? [])];
       return [s.id, shownOf(own, auto, new Set(hidden[s.id] ?? []))];
     }));
-    const shownAgents = {};
     const unexpanded = {}; // terminal -> its links before what they bring along, for mh-tasks
     for (const a of as) {
       const own = [...(agentKept[a.address] ?? []), ...(kept[a.space] ?? [])];
       const auto = [...(this.agentLinks[a.address] ?? []), branches[a.space]];
-      const off = new Set(hidden[a.space] ?? []);
-      const urls = shownOf(own, auto, off);
-      if (urls.length) shownAgents[a.address] = urls;
-      const mine = mineOf(own, auto, off);
+      const mine = mineOf(own, auto, new Set(hidden[a.space] ?? []));
       if (mine.length) unexpanded[a.address] = mine;
     }
     const unread = Object.fromEntries(Object.entries(this.unread).filter(([k, u]) => !(this.dismissed[k] >= u.at)));
-    const gh = { items: this.items, agents: this.agentLinks, branches, shown: { agents: shownAgents, direct: unexpanded }, unread };
+    const gh = { items: this.items, agents: this.agentLinks, branches, shown: { direct: unexpanded }, unread };
     const text = JSON.stringify(gh);
     if (text !== this.published) {
       this.published = text;
@@ -1021,8 +1016,7 @@ export default class Spaces extends View {
 
   // Folders, each with its spaces (folded: only the shown one), then Other, machines
   // that need you, and Waiting. Publishes the order next/prev and ctrl-1..9 go by
-  // (shared("spaces.order")), every space in list order (shared("spaces.listed")) and
-  // the folder each filed space is in (shared("spaces.folder"), for mh-agents).
+  // (shared("spaces.order")) and every space in list order (shared("spaces.listed")).
   grouped(t, collapsed) {
     const sp = spaces();
     const tree = this.tree(sp, panes());
@@ -1070,9 +1064,7 @@ export default class Spaces extends View {
     if (parked >= 0) this.activeAt = out.length + 1 + parked;
     out.push(...this.waitingSection(t, collapsed, tree.waiting, draw));
     this.hidden = hidden;
-    const filed = Object.fromEntries(tree.list.flatMap((f) => tree.inside.get(f.id).map((r) => [r.w.id, f.id])));
     for (const [key, value] of [["spaces.order", order], ["spaces.listed", listed]]) if (JSON.stringify(value) !== JSON.stringify(shared(key) ?? [])) setShared(key, value);
-    if (JSON.stringify(filed) !== JSON.stringify(shared("spaces.folder") ?? {})) setShared("spaces.folder", filed);
     return out;
   }
 

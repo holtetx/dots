@@ -5,10 +5,7 @@
 // Its Links tab picks whether the sidebar's GitHub badges bring along a PR's issues and
 // an issue's PRs, kept as shared("mh-links").
 // Its Board tab picks the board's (ctrl-a T) repos (board-tab.js).
-// Its Sidebar tab picks whether space rows (mh-spaces) show their icon and branch, kept as
-// shared("mh-spaces"), and whether the agents list (mh-agents) shows each agent's icon and
-// what it says of it: its own title or nothing, and under it its space and tab, its latest
-// update or nothing, kept as shared("mh-agents").
+// Its Sidebar tab picks whether space rows (mh-spaces) show their icon and branch, kept as shared("mh-spaces").
 // What isn't in the layout is saved in mh-settings.json by mh-footer.
 
 import { View, div, svg } from "gpui-kit";
@@ -36,17 +33,14 @@ const SWITCHES = [
 ];
 const linkValue = (key) => shared(LINKS)?.[key] ?? LINK_DEFAULTS[key];
 
-// mh-spaces' and mh-agents' PREF_DEFAULTS.
-const PREFS = { "mh-spaces": { icon: "shown", branch: "hidden" }, "mh-agents": { icon: "shown", description: "title", line: "space" } };
+// mh-spaces' PREF_DEFAULTS.
+const PREFS = { "mh-spaces": { icon: "shown", branch: "hidden" } };
 const SHOWN = [["shown", "Shown"], ["hidden", "Hidden"]];
 const SIDEBAR_ROWS = [
   { store: "mh-spaces", key: "icon", label: "Icon", options: SHOWN },
   { store: "mh-spaces", key: "branch", label: "Branch", options: SHOWN },
-  { store: "mh-agents", key: "icon", label: "Icon", options: SHOWN },
-  { store: "mh-agents", key: "description", label: "Description", options: [["title", "Agent's title"], ["off", "Off"]] },
-  { store: "mh-agents", key: "line", label: "Second line", options: [["space", "Space \u00b7 tab"], ["update", "Latest update"], ["off", "Off"]] },
 ];
-const SECTIONS = { "mh-spaces": "Spaces", "mh-agents": "Agents" };
+const SECTIONS = { "mh-spaces": "Spaces" };
 const prefValue = (row) => shared(row.store)?.[row.key] ?? PREFS[row.store][row.key];
 
 function setPref(row, value) {

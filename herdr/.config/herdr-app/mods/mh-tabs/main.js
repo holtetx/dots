@@ -1,6 +1,6 @@
 import { View, div, svg, image } from "gpui-kit";
 import { h_flex, ScrollHandle } from "gpui-base";
-import { spaces, panes, run, openOverlay, theme, window, shared, setShared, layout, settings, focused, nextCommand, exec, home, notify } from "herdr";
+import { spaces, panes, agents, run, openOverlay, theme, window, shared, setShared, layout, settings, focused, nextCommand, exec, home, notify } from "herdr";
 
 function find(node, id) {
   if (node?.id === id) return node;
@@ -15,7 +15,7 @@ function find(node, id) {
 const clean = (s) => (s ?? "").replace(/^(?:\[ [!.] \] |[✋⏳]\uFE0F?(?=\s)|(?!(?:\p{Emoji}\uFE0F|[#*]\u20E3))[^\p{L}\p{N}\p{Ps}\p{Pi}\p{Emoji_Presentation}])+/u, "").trim();
 
 // A tab Herdr named (unnamed, or after its program) follows its agent's live
-// title, as the agents list does; a name the person gave stays.
+// title, as the sidebar rows do; a name the person gave stays.
 function label(tab, lead) {
   const prog = lead?.program?.name;
   const base = tab.named ? tab.name : prog ?? "Terminal";
@@ -39,8 +39,7 @@ function rotate(up) {
 }
 
 // Space and agent next/prev, as the sidebar lists them (shared("spaces.order"): folders'
-// spaces, but those folded away, and Waiting's only while its section is open); agents
-// in mh-agents' order (shared("agents.order")).
+// spaces, but those folded away, and Waiting's only while its section is open).
 function spaceOrder() {
   const ids = spaces().map((s) => s.id);
   const listed = shared("spaces.order");
@@ -64,12 +63,13 @@ function askWaiting(id, waiting) {
 
 function navigate(command) {
   const by = command.endsWith("-next") ? 1 : -1;
-  const space = focused()?.space ?? spaces().find((s) => s.active)?.id;
+  const order = spaceOrder();
   if (command.startsWith("space-")) {
-    const id = step(spaceOrder(), space, by);
+    const id = step(order, focused()?.space ?? spaces().find((s) => s.active)?.id, by);
     if (id) run("space.select", { id });
   } else {
-    const terminal = step(shared("agents.order") ?? [], focused()?.terminal, by);
+    const list = agents().filter((a) => order.includes(a.space)).sort((a, b) => order.indexOf(a.space) - order.indexOf(b.space));
+    const terminal = step(list.map((a) => a.address), focused()?.terminal, by);
     if (terminal) run("agent.focus", { terminal });
   }
 }
