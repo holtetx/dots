@@ -212,6 +212,7 @@ export default class Spaces extends View {
         if (command === "board") boardOverlay = boardOverlay ? closeOverlay(boardOverlay) : openOverlay({ mod: "mh-spaces", kind: "dialog", width: 0.92, height: 0.88, props: { board: true } });
         // The tasks list (mh-sessions) clears shared("tasks.overlay") when it closes.
         if (command === "tasks") setShared("tasks.overlay", shared("tasks.overlay") ? closeOverlay(shared("tasks.overlay")) : openOverlay({ mod: "mh-sessions", kind: "dialog", width: 680, height: 0.7, props: { tasks: true } }));
+        if (command === "new-session") this.newSession();
         if (command !== "link" && command !== "link-space") continue;
         const space = focused()?.space ?? spaces().find((s) => s.active)?.id;
         openLinks(space, command === "link" ? agents().find((a) => a.focused && a.space === space)?.address : null);
@@ -581,9 +582,16 @@ export default class Spaces extends View {
     const keys = ["", ...this.machines.filter((m) => m.state === "connected").map((m) => m.name)];
     for (const key of keys) {
       const path = pathsOn(this.folderState, f.id, key, this.homes)?.paths[0];
-      if (path) return { args: { folder: path, machine: key }, tip: `New space in ${tilde(path, this.homes[key])}${key ? ` on ${key}` : ""}` };
+      if (path) return { args: { folder: path, machine: key, argv: ["claude"] }, tip: `New session in ${tilde(path, this.homes[key])}${key ? ` on ${key}` : ""}` };
     }
     return null;
+  }
+
+  // A new session in the shown space's repo (the main checkout, for a worktree too), on its machine.
+  newSession() {
+    const s = spaces().find((x) => x.active);
+    if (!s) return run("space.new", { argv: ["claude"] });
+    run("space.new", { folder: rootOf(this.git[where(s, panes())]) ?? s.folder, machine: s.machine ?? "", argv: ["claude"] });
   }
 
   // Hand-made links and Waiting marks from each machine's core into shared("github.links"),

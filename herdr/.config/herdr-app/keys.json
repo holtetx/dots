@@ -64,15 +64,7 @@
     "ctrl-7": "mh-tabs.space-7",
     "ctrl-8": "mh-tabs.space-8",
     "ctrl-9": "mh-tabs.space-9",
-    "cmd-shift-c": {
-      "command": "tab.new",
-      "args": {
-        "name": "Claude",
-        "argv": [
-          "claude"
-        ]
-      }
-    },
+    "cmd-shift-c": "mh-spaces.new-session",
     "alt-shift-c": {
       "command": "tab.new",
       "args": {
