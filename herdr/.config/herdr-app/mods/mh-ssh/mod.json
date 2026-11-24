@@ -1,1 +1,21 @@
-{ "place": "none", "title": "SSH", "overlay": { "kind": "popup", "at": "top", "offset": 40, "width": 560, "height": 0.7 } }
+{
+  "place": "none",
+  "title": "SSH",
+  "overlay": {
+    "kind": "popup",
+    "at": "top",
+    "offset": 40,
+    "width": 560,
+    "height": 0.7
+  },
+  "palette": [
+    {
+      "title": "SSH to a host",
+      "command": "mod.open",
+      "args": {
+        "name": "mh-ssh"
+      },
+      "words": "ssh remote kiosk router"
+    }
+  ]
+}

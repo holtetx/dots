@@ -1,9 +1,23 @@
 {
   "place": "none",
   "title": "My keys",
-  "overlay": { "kind": "dialog", "width": 760, "height": 0.82 },
+  "overlay": {
+    "kind": "dialog",
+    "width": 760,
+    "height": 0.82
+  },
   "cloned_from": {
     "name": "help",
     "version": "0.1.17"
-  }
+  },
+  "palette": [
+    {
+      "title": "My keys",
+      "command": "mod.open",
+      "args": {
+        "name": "mh-help"
+      },
+      "words": "help shortcuts bindings"
+    }
+  ]
 }

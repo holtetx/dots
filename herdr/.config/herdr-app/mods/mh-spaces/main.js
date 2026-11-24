@@ -207,7 +207,7 @@ export default class Spaces extends View {
     this.reposAt = 0;
     this.reposOf = null; // shared("space-folders") they were looked for in
     this.refreshMachines(cx);
-    cx.timer.every(15000, cx => this.refreshMachines(cx));
+    cx.timer.every(15000, cx => window()?.visible !== false && this.refreshMachines(cx));
     // Refresh only when the refs could have changed (see `due`).
     cx.timer.every(250, (cx) => this.checkNew(cx));
     cx.spawn(async () => {
@@ -226,6 +226,8 @@ export default class Spaces extends View {
   }
 
   checkNew(cx) {
+    // Polls pause while the window is hidden; queued asks wait for the next tick.
+    if (window()?.visible === false) return;
     const now = Date.now();
     const sp = spaces();
     const ps = panes();
