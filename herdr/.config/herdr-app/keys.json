@@ -64,15 +64,7 @@
     "ctrl-7": "mh-tabs.space-7",
     "ctrl-8": "mh-tabs.space-8",
     "ctrl-9": "mh-tabs.space-9",
-    "cmd-shift-c": {
-      "command": "tab.new",
-      "args": {
-        "name": "Claude",
-        "argv": [
-          "claude"
-        ]
-      }
-    },
+    "cmd-shift-c": "mh-spaces.new-session",
     "alt-shift-c": {
       "command": "tab.new",
       "args": {
@@ -86,7 +78,6 @@
     "cmd-shift-n": "mh-tabs.new-window",
     "cmd-k": "mod.open:mh-sessions",
     "cmd-o": "mod.open:mh-open",
-    "cmd-shift-a": "mh-sessions.archive",
     "alt-n": "tab.next",
     "alt-p": "tab.prev",
     "alt-shift-n": "mh-tabs.space-next",
@@ -100,9 +91,8 @@
     "ctrl-a v": "mh-tabs.copy-mode",
     "ctrl-a f": "mh-tabs.fingers",
     "ctrl-a k": "mod.open:mh-scroll",
-    "ctrl-a t": "mh-sessions.tasks",
+    "ctrl-a t": "mh-spaces.tasks",
     "ctrl-a shift-t": "mh-spaces.board",
-    "ctrl-a d": "mh-agents.describe",
     "ctrl-a g": "mh-spaces.link",
     "ctrl-a shift-g": "mh-spaces.link-space",
     "ctrl-a h": "mh-tabs.waiting",

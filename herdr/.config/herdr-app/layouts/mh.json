@@ -11,43 +11,11 @@
       "type": "column",
       "children": [
         {
-          "id": "sidebar-lists",
-          "type": "column",
-          "children": [
-            {
-              "id": "spaces",
-              "type": "block",
-              "content": {
-                "mod": "mh-spaces"
-              },
-              "size": {
-                "weight": 1
-              },
-              "min": 90
-            },
-            {
-              "id": "agents",
-              "type": "block",
-              "content": {
-                "mod": "mh-agents"
-              },
-              "size": {
-                "weight": 1
-              },
-              "min": 90
-            },
-            {
-              "id": "archived",
-              "type": "block",
-              "content": {
-                "mod": "mh-sessions"
-              },
-              "size": {
-                "weight": 0.5
-              },
-              "min": 41
-            }
-          ]
+          "id": "spaces",
+          "type": "block",
+          "content": {
+            "mod": "mh-spaces"
+          }
         },
         {
           "id": "footer",

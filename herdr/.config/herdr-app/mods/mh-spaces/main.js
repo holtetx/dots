@@ -2,13 +2,14 @@
 // folders you make (folders.js: by path, or dragged there; the rest in Other), a
 // server icon on another machine's. Machines show only while they need you (asleep, a
 // login, rebuilt, loading). After a space's name, where its first terminal is now,
-// only where unusual: branch, ahead/behind (its folder says the repo). Agent state lives in the agents list, not here. Click to
+// only where unusual: ahead/behind (its folder says the repo). A space is one session: its row is
+// called by its name if someone named it, else by its lead agent's title, with that agent's state. Click to
 // switch, right-click for its menu, drag to reorder or onto a folder. Spaces put in Waiting (kept on
 // their machine, docs.js) go to a section of their own at the bottom, folded at first.
 // Then its GitHub PRs and issues: linked from its menu, its branch's PR, and
 // those its Claude sessions opened, each with the issues or PRs it's linked to.
-// This copy asks GitHub about all of them and shares what it learns as shared("github") for the agents
-// list, the link dialog and the spacing dialog's Links tab. Those linked by hand, to
+// This copy asks GitHub about all of them and shares what it learns as shared("github") for the
+// tasks list, the board, the link dialog and the spacing dialog's Links tab. Those linked by hand, to
 // the space or to one of its agents, live on its machine (docs.js), copied into
 // shared("github.links") and shared("github.agent-links").
 // It also finds the GitHub repos in its folders (shared("board.repos")) and where they and
@@ -24,6 +25,7 @@ import { linkInit, linkRender } from "./links.js";
 import { MARK, applyChange, empty, folderOf, foldersOf, live, matchOf, merge, nextRank, ownPaths, pathsOn, tidy, tilde, updateFolders, writeChange } from "./folders.js";
 import { folderInit, folderRender } from "./folder-dialog.js";
 import { boardInit, boardRender } from "./board.js";
+import { telling } from "./title.js";
 import { discoverRepos } from "./board-data.js";
 
 function find(node, id) {
@@ -100,7 +102,8 @@ const BACKFILL = 15 * 60000;
 // The sidebar folders' repos are looked for this often.
 const BOARD_REPOS = 10 * 60000;
 // mh-spacing's Sidebar tab keeps what differs from these.
-const PREF_DEFAULTS = { icon: "shown", branch: "hidden" };
+const PREF_DEFAULTS = { icon: "shown" };
+const CLAUDE = "#D97757";
 const pref = (key) => shared("mh-spaces")?.[key] ?? PREF_DEFAULTS[key];
 const machineOf = (id) => (id.includes("/") ? id.split("/")[0] : null);
 
@@ -207,6 +210,9 @@ export default class Spaces extends View {
         // "link": the focused agent's, else the space's; "link-space": the space's.
         const command = await nextCommand();
         if (command === "board") boardOverlay = boardOverlay ? closeOverlay(boardOverlay) : openOverlay({ mod: "mh-spaces", kind: "dialog", width: 0.92, height: 0.88, props: { board: true } });
+        // The tasks list (mh-sessions) clears shared("tasks.overlay") when it closes.
+        if (command === "tasks") setShared("tasks.overlay", shared("tasks.overlay") ? closeOverlay(shared("tasks.overlay")) : openOverlay({ mod: "mh-sessions", kind: "dialog", width: 680, height: 0.7, props: { tasks: true } }));
+        if (command === "new-session") this.newSession();
         if (command !== "link" && command !== "link-space") continue;
         const space = focused()?.space ?? spaces().find((s) => s.active)?.id;
         openLinks(space, command === "link" ? agents().find((a) => a.focused && a.space === space)?.address : null);
@@ -576,14 +582,21 @@ export default class Spaces extends View {
     const keys = ["", ...this.machines.filter((m) => m.state === "connected").map((m) => m.name)];
     for (const key of keys) {
       const path = pathsOn(this.folderState, f.id, key, this.homes)?.paths[0];
-      if (path) return { args: { folder: path, machine: key }, tip: `New space in ${tilde(path, this.homes[key])}${key ? ` on ${key}` : ""}` };
+      if (path) return { args: { folder: path, machine: key, argv: ["claude"] }, tip: `New session in ${tilde(path, this.homes[key])}${key ? ` on ${key}` : ""}` };
     }
     return null;
   }
 
+  // A new session in the shown space's repo (the main checkout, for a worktree too), on its machine.
+  newSession() {
+    const s = spaces().find((x) => x.active);
+    if (!s) return run("space.new", { argv: ["claude"] });
+    run("space.new", { folder: rootOf(this.git[where(s, panes())]) ?? s.folder, machine: s.machine ?? "", argv: ["claude"] });
+  }
+
   // Hand-made links and Waiting marks from each machine's core into shared("github.links"),
   // shared("github.hidden"), shared("github.agent-links") and shared("spaces.waiting"),
-  // where the rows, the agents list and the dialog read them. A space or agent missing at two syncs in a row on a
+  // where the rows and the dialog read them. A space or agent missing at two syncs in a row on a
   // machine whose layout is in loses its links there; the first time per machine, what
   // this screen kept itself is moved in. Its live Claude sessions' links go in its
   // mh-tasks, and every machine's sessions there into shared("tasks.sessions").
@@ -767,8 +780,7 @@ export default class Spaces extends View {
     const used = new Set(expand([...new Set(direct)], this.items).map((e) => e.url));
     for (const u of Object.keys(this.items)) if (!used.has(u)) delete this.items[u];
     // Each space's links: by hand on it and on its agents, then its branch's PR and its
-    // Claude sessions', less those hidden, then what they bring along; agents' the same
-    // with their space's own (by hand and its branch's), for the agents list.
+    // Claude sessions', less those hidden, then what they bring along.
     const cfg = { related: shared("mh-links")?.related ?? true };
     const mineOf = (own, auto, off) => [...new Set([...own, ...auto.filter((u) => u && !off.has(u))])];
     const shownOf = (own, auto, off) => {
@@ -782,19 +794,15 @@ export default class Spaces extends View {
       const auto = [branches[s.id], ...mates.flatMap((a) => this.agentLinks[a.address] ?? [])];
       return [s.id, shownOf(own, auto, new Set(hidden[s.id] ?? []))];
     }));
-    const shownAgents = {};
     const unexpanded = {}; // terminal -> its links before what they bring along, for mh-tasks
     for (const a of as) {
       const own = [...(agentKept[a.address] ?? []), ...(kept[a.space] ?? [])];
       const auto = [...(this.agentLinks[a.address] ?? []), branches[a.space]];
-      const off = new Set(hidden[a.space] ?? []);
-      const urls = shownOf(own, auto, off);
-      if (urls.length) shownAgents[a.address] = urls;
-      const mine = mineOf(own, auto, off);
+      const mine = mineOf(own, auto, new Set(hidden[a.space] ?? []));
       if (mine.length) unexpanded[a.address] = mine;
     }
     const unread = Object.fromEntries(Object.entries(this.unread).filter(([k, u]) => !(this.dismissed[k] >= u.at)));
-    const gh = { items: this.items, agents: this.agentLinks, branches, shown: { agents: shownAgents, direct: unexpanded }, unread };
+    const gh = { items: this.items, agents: this.agentLinks, branches, shown: { direct: unexpanded }, unread };
     const text = JSON.stringify(gh);
     if (text !== this.published) {
       this.published = text;
@@ -1019,13 +1027,19 @@ export default class Spaces extends View {
 
   // Folders, each with its spaces (folded: only the shown one), then Other, machines
   // that need you, and Waiting. Publishes the order next/prev and ctrl-1..9 go by
-  // (shared("spaces.order")), every space in list order (shared("spaces.listed")) and
-  // the folder each filed space is in (shared("spaces.folder"), for mh-agents).
+  // (shared("spaces.order")) and every space in list order (shared("spaces.listed")).
   grouped(t, collapsed) {
     const sp = spaces();
-    const tree = this.tree(sp, panes());
+    const ps = panes();
+    const tree = this.tree(sp, ps);
+    this.panesOf = new Map();
+    for (const p of ps) this.panesOf.set(p.tab, [...(this.panesOf.get(p.tab) ?? []), p]);
     this.rowsById = new Map([...tree.inside.values(), tree.other, tree.waiting].flat().map((r) => [r.w.id, r]));
     this.filed = tree.list.length > 0;
+    this.agentsOf = new Map();
+    // A title a skill gave the session (hc label <terminal> mh.description=<title>).
+    this.titles = new Map(terminals().filter((k) => k.labels?.["mh.description"]?.trim()).map((k) => [k.address, k.labels["mh.description"].trim()]));
+    for (const a of agents()) this.agentsOf.set(a.space, [...(this.agentsOf.get(a.space) ?? []), a]);
     const folded = new Set(shared("space-folders.folded") ?? []);
     const out = [];
     const order = [];
@@ -1068,9 +1082,7 @@ export default class Spaces extends View {
     if (parked >= 0) this.activeAt = out.length + 1 + parked;
     out.push(...this.waitingSection(t, collapsed, tree.waiting, draw));
     this.hidden = hidden;
-    const filed = Object.fromEntries(tree.list.flatMap((f) => tree.inside.get(f.id).map((r) => [r.w.id, f.id])));
     for (const [key, value] of [["spaces.order", order], ["spaces.listed", listed]]) if (JSON.stringify(value) !== JSON.stringify(shared(key) ?? [])) setShared(key, value);
-    if (JSON.stringify(filed) !== JSON.stringify(shared("spaces.folder") ?? {})) setShared("spaces.folder", filed);
     return out;
   }
 
@@ -1238,11 +1250,37 @@ export default class Spaces extends View {
     });
   }
 
-  // The branch, on a line of its own under the name. Not when the name already says it (a
-  // worktree is named after its branch) or on master/main: nearly every space is on one.
-  branchOf(g, name) {
-    const raw = g?.branch ?? "";
-    return pref("branch") === "hidden" || !raw || raw.toLowerCase() === name.toLowerCase() || raw === "master" || raw === "main" ? "" : raw;
+  // Its name if someone named it, else its most urgent agent's given or own title, else where it is.
+  label(w) {
+    const mine = this.agentsOf.get(w.id) ?? [];
+    const lead = mine.reduce((a, b) => ((URGENT[b.status] ?? 0) > (URGENT[a.status] ?? 0) ? b : a), mine[0]);
+    return (!w.named && (this.titles.get(lead?.address) || telling(lead))) || w.name;
+  }
+
+  // A dot per tab: Claude's orange where Claude runs, the accent color for another agent; more
+  // than 5 end in +N. Hovering a dot names its session and state, else what runs in each pane and where.
+  tabDots(w, t) {
+    const agentOf = new Map((this.agentsOf.get(w.id) ?? []).map((a) => [a.tab, a]));
+    return h_flex().flex_none().items_center().text_size(10).text_color(t.dim)
+      .children(w.tabs.slice(0, 5).map((tab) => {
+        const a = agentOf.get(tab.id);
+        const claude = a && (a.app === "claude-code" || a.program?.key === "claude");
+        const home = this.homes[w.machine ?? ""];
+        const what = (this.panesOf.get(tab.id) ?? []).map((p) => [p.name ?? p.program?.name ?? p.mod ?? "Terminal", p.cwd && tilde(p.cwd, home)].filter(Boolean).join(" · "));
+        const session = a && [this.titles.get(a.address) || telling(a) || a.program?.name, a.status !== "idle" && a.status].filter(Boolean).join(" · ");
+        const name = [tab.named ? tab.name : null, session || what.join("\n")].filter(Boolean).join(": ");
+        return div().id(`space-tab-${tab.id}`).p(2).tooltip(name)
+          .child(div().size(5).rounded(3).bg(claude ? CLAUDE : a ? t.accent : t.dim));
+      }))
+      .when(w.tabs.length > 5, (el) => el.child(div().pl(2).child(`+${w.tabs.length - 5}`)));
+  }
+
+  // Working spins, blocked asks, done waits to be seen; idle shows nothing.
+  mark(status, t) {
+    if (status === "working") return svg("mods/workspace-chrome/spinner.svg").size(12).flex_none().text_color(t.working).spin(900);
+    if (status === "blocked") return div().size(14).flex_none().rounded(4).bg(t.blocked + "26").text_size(10.5).font_bold().text_color(t.blocked).flex().items_center().justify_center().child("!");
+    if (status === "done") return div().flex_none().text_size(10).text_color(t.done).child("●");
+    return null;
   }
 
   gitTail(g, t) {
@@ -1267,12 +1305,15 @@ export default class Spaces extends View {
     const colors = shared("space.colors") ?? {};
     const color = colors[w.id] ?? "ansi6";
     const fill = color.startsWith("#") ? color : (MARK[color] ?? t[color]);
-    const branch = this.branchOf(g, w.name);
+    const label = this.label(w);
+    const mark = this.mark(w.status, t);
+    // Repo (when the row shows a session title), branch and machine, on the title only: the tab dots have their own.
+    const where = [label === w.name ? null : w.name, g?.branch, w.machine].filter(Boolean).join(" · ");
     return v_flex()
       .relative()
       .id(`space-${w.id}`)
       .px(8)
-      .h(branch ? 44 : 30)
+      .h(30)
       .flex_none()
       .justify_center()
       .rounded(8)
@@ -1325,14 +1366,15 @@ export default class Spaces extends View {
         h_flex()
           .gap(9)
           .items_center()
-          .when(pref("icon") !== "hidden", (el) => el.child(h_flex().size(18).flex_none().rounded(5).bg(fill).items_center().justify_center().text_size(10.5).font_bold().text_color("#ffffff").child([...w.name][0]?.toUpperCase() ?? "?")))
-          .child(div().flex_shrink(1).min_w(48).truncate().text_color(t.foreground).child(w.name))
-          .when(Boolean(w.machine), (el) => el.child(div().id(`space-machine-${w.id}`).flex_none().text_color(t.dim).tooltip(w.machine)
-            .child(svg("mods/workspace-chrome/server.svg").size(11))))
+          .when(pref("icon") !== "hidden", (el) => el.child(h_flex().size(18).flex_none().rounded(5).bg(fill).items_center().justify_center().text_size(10.5).font_bold().text_color("#ffffff").child([...label][0]?.toUpperCase() ?? "?")))
+          .child(div().id(`space-name-${w.id}`).flex_shrink(1).min_w(48).truncate().text_color(t.foreground).child(label)
+            .when(Boolean(where), (el) => el.tooltip(where)))
+          .when(Boolean(w.machine), (el) => el.child(div().flex_none().text_color(t.dim).child(svg("mods/workspace-chrome/server.svg").size(11))))
           .child(g ? this.gitTail(g, t) : div().flex_1())
-          .when(this.links?.get(w.id)?.length > 0, (el) => el.child(kinds(this.links.get(w.id), this.items, t, `gh-${w.id}`, () => openLinks(w.id)))),
-      )
-      .when(Boolean(branch), (el) => el.child(div().truncate().text_size(10.5).text_color(t.dim).when(pref("icon") !== "hidden", (b) => b.pl(27)).child(branch)));
+          .when(this.links?.get(w.id)?.length > 0, (el) => el.child(kinds(this.links.get(w.id), this.items, t, `gh-${w.id}`, () => openLinks(w.id))))
+          .when(w.tabs.length > 1, (el) => el.child(this.tabDots(w, t)))
+          .when(Boolean(mark), (el) => el.child(mark)),
+      );
   }
 
   compact({ w, n }, t) {

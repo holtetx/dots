@@ -17,15 +17,19 @@ Read these first. They are in `~/.config/herdr-app`:
 | What | Where | Writer |
 |---|---|---|
 | Spacing dialog settings | `mh-settings.json` (in dots) | `mods/mh-footer/settings.js`, synced with `shared()` |
-| Space colors, archived sessions, folded folders, board repos (`mh-board`) | `mh-state.json` (this Mac, not in dots) | same file. `new-window.sh` makes it. |
+| Space colors, folded folders, board repos (`mh-board`) | `mh-state.json` (this Mac, not in dots) | same file. `new-window.sh` makes it. |
 | Links added by hand, the Waiting mark | herdr-core doc `mh-links` | `mods/mh-spaces/docs.js`, `~/.claude/skills/herdr-link/herdr-link.mjs` |
 | Which Claude session had which links | herdr-core doc `mh-tasks`, shared as `shared("tasks.sessions")` | mh-spaces (`history.mjs` reads the transcripts) |
 | Space folders | herdr-core doc `mh-folders` | mh-spaces only. Other mods ask through `shared("space-folders.ask")`. |
-| Agent description | labels `mh.description`, `mh.description.mode` | mh-agents |
+| Session title | label `mh.description` | skills, with `hc label` |
+
+## Sidebar
+
+One list: folders (projects), then spaces. A space is one session. Its row shows its name when someone renamed it, else its most urgent agent's `mh.description` label or title (`mods/mh-spaces/title.js`), and that agent's status. The folder `+` and `cmd-shift-c` start a space with `claude`. `cmd-[` / `cmd-]` (`mh-tabs`) go through the agents of the spaces the sidebar shows, in its order.
 
 ## PR badges
 
-A badge on an agent comes from a `pr-link` line in the session's transcript (Claude Code writes it when it opens a PR) or from herdr-link. A URL typed in a prompt reaches only the tasks list (`ctrl-a t`). Both need the `claude.session` label.
+A badge on a space comes from a `pr-link` line in the session's transcript (Claude Code writes it when it opens a PR) or from herdr-link. A URL typed in a prompt reaches only the tasks list (`ctrl-a t`). Both need the `claude.session` label.
 
 A space takes its git info from the folder of its first tab. A space made in the wrong folder shows the wrong badges.
 
@@ -46,6 +50,7 @@ Choices the owner made. Do not change them without a question.
 ## Decided against
 
 - No `cmd-s` key, no tmux split, rename or layout keys.
+- No agents list and no session archive in the sidebar.
 - `review-pr` (a shared team skill) does not call herdr-link. A rule in `~/.claude/CLAUDE.md` does that.
 - The worktree options stay (`alt-shift-c`, picker, board and tasks rows).
 

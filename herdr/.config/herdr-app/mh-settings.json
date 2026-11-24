@@ -10,11 +10,7 @@
     "height": 26,
     "position": "top"
   },
-  "mh-agents": {
-    "icon": "hidden"
-  },
   "mh-spaces": {
-    "icon": "hidden",
-    "branch": "shown"
+    "icon": "hidden"
   }
 }
