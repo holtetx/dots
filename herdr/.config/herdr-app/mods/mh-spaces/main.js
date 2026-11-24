@@ -1317,7 +1317,7 @@ export default class Spaces extends View {
     const label = this.label(w);
     const mark = this.mark(w.status, t);
     // Repo (when the row shows a session title), branch and machine, on the title only: the tab dots have their own.
-    const where = [label === w.name ? null : w.name, g?.branch, w.machine].filter(Boolean).join(" · ");
+    const where = [label === w.name ? null : w.name, g?.branch && (g.linked ? `${g.branch} (worktree)` : g.branch), w.machine].filter(Boolean).join(" · ");
     return v_flex()
       .relative()
       .id(`space-${w.id}`)
