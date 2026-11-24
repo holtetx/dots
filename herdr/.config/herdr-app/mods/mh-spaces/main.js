@@ -103,6 +103,7 @@ const BACKFILL = 15 * 60000;
 const BOARD_REPOS = 10 * 60000;
 // mh-spacing's Sidebar tab keeps what differs from these.
 const PREF_DEFAULTS = { icon: "shown" };
+const CLAUDE = "#D97757";
 const pref = (key) => shared("mh-spaces")?.[key] ?? PREF_DEFAULTS[key];
 const machineOf = (id) => (id.includes("/") ? id.split("/")[0] : null);
 
@@ -1021,7 +1022,10 @@ export default class Spaces extends View {
   // (shared("spaces.order")) and every space in list order (shared("spaces.listed")).
   grouped(t, collapsed) {
     const sp = spaces();
-    const tree = this.tree(sp, panes());
+    const ps = panes();
+    const tree = this.tree(sp, ps);
+    this.panesOf = new Map();
+    for (const p of ps) this.panesOf.set(p.tab, [...(this.panesOf.get(p.tab) ?? []), p]);
     this.rowsById = new Map([...tree.inside.values(), tree.other, tree.waiting].flat().map((r) => [r.w.id, r]));
     this.filed = tree.list.length > 0;
     this.agentsOf = new Map();
@@ -1245,6 +1249,24 @@ export default class Spaces extends View {
     return (!w.named && (this.titles.get(lead?.address) || telling(lead))) || w.name;
   }
 
+  // A dot per tab: Claude's orange where Claude runs, the accent color for another agent; more
+  // than 5 end in +N. Hovering a dot names its session and state, else what runs in each pane and where.
+  tabDots(w, t) {
+    const agentOf = new Map((this.agentsOf.get(w.id) ?? []).map((a) => [a.tab, a]));
+    return h_flex().flex_none().items_center().text_size(10).text_color(t.dim)
+      .children(w.tabs.slice(0, 5).map((tab) => {
+        const a = agentOf.get(tab.id);
+        const claude = a && (a.app === "claude-code" || a.program?.key === "claude");
+        const home = this.homes[w.machine ?? ""];
+        const what = (this.panesOf.get(tab.id) ?? []).map((p) => [p.name ?? p.program?.name ?? p.mod ?? "Terminal", p.cwd && tilde(p.cwd, home)].filter(Boolean).join(" · "));
+        const session = a && [this.titles.get(a.address) || telling(a) || a.program?.name, a.status !== "idle" && a.status].filter(Boolean).join(" · ");
+        const name = [tab.named ? tab.name : null, session || what.join("\n")].filter(Boolean).join(": ");
+        return div().id(`space-tab-${tab.id}`).p(2).tooltip(name)
+          .child(div().size(5).rounded(3).bg(claude ? CLAUDE : a ? t.accent : t.dim));
+      }))
+      .when(w.tabs.length > 5, (el) => el.child(div().pl(2).child(`+${w.tabs.length - 5}`)));
+  }
+
   // Working spins, blocked asks, done waits to be seen; idle shows nothing.
   mark(status, t) {
     if (status === "working") return svg("mods/workspace-chrome/spinner.svg").size(12).flex_none().text_color(t.working).spin(900);
@@ -1342,6 +1364,7 @@ export default class Spaces extends View {
           .when(Boolean(w.machine), (el) => el.child(div().flex_none().text_color(t.dim).child(svg("mods/workspace-chrome/server.svg").size(11))))
           .child(g ? this.gitTail(g, t) : div().flex_1())
           .when(this.links?.get(w.id)?.length > 0, (el) => el.child(kinds(this.links.get(w.id), this.items, t, `gh-${w.id}`, () => openLinks(w.id))))
+          .when(w.tabs.length > 1, (el) => el.child(this.tabDots(w, t)))
           .when(Boolean(mark), (el) => el.child(mark)),
       );
   }
