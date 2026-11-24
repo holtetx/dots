@@ -2,3 +2,5 @@
 node = "lts"
 python = "3"
 pnpm = "latest"
+"npm:typescript-language-server" = "latest"
+"npm:typescript" = "latest"

@@ -2,7 +2,7 @@
   "id": "root",
   "cloned_from": {
     "name": "main",
-    "version": "0.1.15"
+    "version": "0.1.17"
   },
   "type": "row",
   "children": [
@@ -163,6 +163,5 @@
     -100,
     -100
   ],
-  "terminal_menu": "mh-menu",
-  "toast": "mh-toast"
+  "terminal_menu": "mh-menu"
 }
