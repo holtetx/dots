@@ -372,11 +372,13 @@ function rowBase(id, on, t) {
 }
 
 // One word for the review state: GitHub's review decision, else the latest reviews. A change request shows unless GitHub says approved.
+// "in review" when a person other than the author reviewed or commented; bots do not count.
 function verdict(p, t, dark) {
   if (p.state === "draft") return ["draft", t.dim];
   if (p.state === "queued") return ["queued", pick(YELLOW, dark)];
   if (p.review === "CHANGES_REQUESTED" || (p.changes && p.review !== "APPROVED")) return ["changes", pick(RED, dark)];
   if (p.review === "APPROVED" || (!p.review && p.approvals)) return ["approved", pick(GREEN, dark)];
+  if (p.discussed) return ["in review", t.foreground];
   return ["needs review", pick(YELLOW, dark)];
 }
 
