@@ -5,7 +5,7 @@
 // Its Links tab picks whether the sidebar's GitHub badges bring along a PR's issues and
 // an issue's PRs, kept as shared("mh-links").
 // Its Board tab picks the board's (ctrl-a T) repos (board-tab.js).
-// Its Sidebar tab picks whether space rows (mh-spaces) show their icon and branch, kept as shared("mh-spaces").
+// Its Sidebar tab picks whether space rows (mh-spaces) show their icon, kept as shared("mh-spaces").
 // What isn't in the layout is saved in mh-settings.json by mh-footer.
 
 import { View, div, svg } from "gpui-kit";
@@ -34,11 +34,10 @@ const SWITCHES = [
 const linkValue = (key) => shared(LINKS)?.[key] ?? LINK_DEFAULTS[key];
 
 // mh-spaces' PREF_DEFAULTS.
-const PREFS = { "mh-spaces": { icon: "shown", branch: "hidden" } };
+const PREFS = { "mh-spaces": { icon: "shown" } };
 const SHOWN = [["shown", "Shown"], ["hidden", "Hidden"]];
 const SIDEBAR_ROWS = [
   { store: "mh-spaces", key: "icon", label: "Icon", options: SHOWN },
-  { store: "mh-spaces", key: "branch", label: "Branch", options: SHOWN },
 ];
 const SECTIONS = { "mh-spaces": "Spaces" };
 const prefValue = (row) => shared(row.store)?.[row.key] ?? PREFS[row.store][row.key];

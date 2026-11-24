@@ -11,7 +11,6 @@
     "position": "top"
   },
   "mh-spaces": {
-    "icon": "hidden",
-    "branch": "shown"
+    "icon": "hidden"
   }
 }

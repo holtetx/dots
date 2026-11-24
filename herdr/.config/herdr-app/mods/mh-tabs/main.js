@@ -11,7 +11,7 @@ function find(node, id) {
   return null;
 }
 
-// Same as the agents mod: drops a status glyph, keeps a leading bracket or quote.
+// Same as mh-spaces/title.js (mods can't import each other): drops a status glyph, keeps a leading bracket or quote.
 const clean = (s) => (s ?? "").replace(/^(?:\[ [!.] \] |[✋⏳]\uFE0F?(?=\s)|(?!(?:\p{Emoji}\uFE0F|[#*]\u20E3))[^\p{L}\p{N}\p{Ps}\p{Pi}\p{Emoji_Presentation}])+/u, "").trim();
 
 // A tab Herdr named (unnamed, or after its program) follows its agent's live
