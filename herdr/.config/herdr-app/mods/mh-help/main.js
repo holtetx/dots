@@ -26,6 +26,7 @@ const DESCRIBE = {
   "mh-tabs.waiting": [SESSIONS, "Show or hide the Waiting section"],
   "mod.open:mh-picker": [SESSIONS, "Go to a tab"],
   "mod.open:mh-open": [SESSIONS, "Open a recent folder as a space, tab or pane"],
+  "mod.open:mh-ssh": [SESSIONS, "SSH to a host: a space with ssh and a Claude session beside it"],
 
   "space.new": [SPACES, "New space"],
   "space.rename": [SPACES, "Rename the space"],

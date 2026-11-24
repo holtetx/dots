@@ -9,7 +9,7 @@ Read these first. They are in `~/.config/herdr-app`:
 
 - `~/.config/herdr-app` is a link to `~/dots/herdr/.config/herdr-app`. The `.gitignore` there lists the tracked files. All other files are Herdr's.
 - Do not edit Herdr's own mods and layouts. Clone them (`mod.clone`, `layout.clone`).
-- The `mh-*` mods are forks of jnatten's `jj-*` mods (github.com/jnatten/dots), changed to git only, no Trello, no 1Password.
+- The `mh-*` mods are forks of jnatten's `jj-*` mods (github.com/jnatten/dots), changed to git only, no Trello, no 1Password. `mh-ssh` is new and uses `op` for ssh passwords.
 - Claude Code side: stow package `claude` in dots. `hooks/statusline.sh` sets the `claude.session`, `claude.cwd`, `claude.context` and `claude.context_size` labels and writes `~/.cache/herdr-claude/limits.json`. `hooks/herdr-activity.sh` sets `claude.subagents` and `claude.shells`, and removes all `claude.*` labels at SessionEnd. `claude.cwd` is the project folder. `~/.claude/settings.json` (not in dots) runs both.
 
 ## Where state lives
@@ -22,6 +22,8 @@ Read these first. They are in `~/.config/herdr-app`:
 | Which Claude session had which links | herdr-core doc `mh-tasks`, shared as `shared("tasks.sessions")` | mh-spaces (`history.mjs` reads the transcripts) |
 | Space folders | herdr-core doc `mh-folders` | mh-spaces only. Other mods ask through `shared("space-folders.ask")`. |
 | Session title | label `mh.description` | skills, with `hc label` |
+| SSH: 1Password reference, Claude's folder (`mh-ssh`) | `mh-state.json` | by hand, on the work Mac only |
+| Which space is an SSH space | label `mh.ssh=<host>` on its ssh terminal | `mods/mh-ssh` |
 
 ## Key list (`cmd-/`, `ctrl-a ?`)
 
@@ -30,6 +32,15 @@ Read these first. They are in `~/.config/herdr-app`:
 ## Sidebar
 
 One list: folders (projects), then spaces. A space is one session. Its row shows its name when someone renamed it, else its most urgent agent's `mh.description` label or title (`mods/mh-spaces/title.js`), and that agent's status. The folder `+` and `cmd-shift-c` start a space with `claude`. `cmd-[` / `cmd-]` (`mh-tabs`) go through the agents of the spaces the sidebar shows, in its order.
+
+## SSH (`ctrl-a s`)
+
+- `mods/mh-ssh` lists the hosts in `~/.ssh/config` and its `Include`s. Enter opens a space named after the host with ssh in it. ⌘Enter also opens Claude on the right with a system prompt about the host; on a host that is already open it adds Claude to its space. In an SSH space the dialog starts with its host selected, so `ctrl-a s`, ⌘Enter adds Claude there.
+- The ssh pane is the control master (`~/.ssh/mh-<host>.sock`). Claude runs commands through it with `ssh -S <sock> -o ProxyCommand=false`, so a closed connection fails at once and never starts a new login. Logout (ctrl-d, `exit`) or ctrl-c in the ssh pane closes the space. A lost connection (ssh exit 255) waits for Enter and connects again, so Claude keeps its session. Closing the space ends both.
+- `mh-ssh` in `mh-state.json`, all optional: `op` (an `op://` reference, or a map from Host alias ending, e.g. `-ruter`, to reference with `"*"` for the rest: `askpass.sh` fills password prompts from it), `hostname` (only hosts whose HostName in `ssh -G` starts with it, and with no ProxyJump and no ssh in ProxyCommand, get a password; without it, no host does; end it with a dot, e.g. `10.0.0.`) and `folder` (where Claude starts, default `~`). Set only on the work Mac. At home, keys come from the 1Password ssh agent.
+- A new host key: with `StrictHostKeyChecking ask`, `askpass.sh` fails the question, so run `ssh <host>` once by hand. With `accept-new` (set by some team ssh configs), ssh takes a new key without asking and then sends the password.
+- Claude is told not to run `op` (`--disallowedTools "Bash(op *)"`). This is a soft guard: a full path or `sh -c` gets past it.
+- The sidebar lists these spaces under SSH, after Other.
 
 ## PR badges
 

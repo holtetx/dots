@@ -97,7 +97,8 @@
     "ctrl-a shift-g": "mh-spaces.link-space",
     "ctrl-a h": "mh-tabs.waiting",
     "ctrl-a shift-h": "mh-tabs.wait",
-    "ctrl-a ?": "mod.open:mh-help"
+    "ctrl-a ?": "mod.open:mh-help",
+    "ctrl-a s": "mod.open:mh-ssh"
   },
   "mod:mh-open": {
     "cmd-shift-c": "mh-open.claude",
