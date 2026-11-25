@@ -37,7 +37,7 @@ stow claude --target ~
 ```
 Then add to `~/.claude/settings.json` (not in this repo):
 - `statusLine`, type `command`: `f="$HOME/.claude/hooks/statusline.sh"; [ -f "$f" ] && bash "$f"; true`
-- A hook with command `f="$HOME/.claude/hooks/herdr-activity.sh"; [ -f "$f" ] && bash "$f"; true` on `SessionStart`, `SessionEnd`, `SubagentStart`, `SubagentStop` and `Stop`, and with matcher `Bash` on `PreToolUse`, `PostToolUse` and `PostToolUseFailure`.
+- A `SessionEnd` hook with command `f="$HOME/.claude/hooks/herdr-activity.sh"; [ -f "$f" ] && bash "$f"; true`.
 
 ### Directory Structure
 Initialize Git repositories for conditional includes to work:

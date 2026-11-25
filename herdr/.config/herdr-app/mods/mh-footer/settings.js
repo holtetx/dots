@@ -1,7 +1,6 @@
 // Two files beside the layout, mirrored into shared(), where the mods read and write them:
 // - mh-settings.json (in dots, so shared between machines): the spacing dialog's settings
-//   that aren't in the layout (hints, links, the hidden title bar, space branches, agent
-//   descriptions). The file wins at start and whenever it changes on disk (a pull); changes
+//   that aren't in the layout (hints, links, the hidden title bar, the sidebar's icons). The file wins at start and whenever it changes on disk (a pull); changes
 //   made here are written back.
 // - mh-state.json (this Mac's, linked into each window's home by new-window.sh): what
 //   every window on this Mac shows alike (space colors, folded folders). A key it

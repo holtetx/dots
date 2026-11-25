@@ -1,8 +1,6 @@
-// Moves and arranges terminal panes. Opened as an overlay with props
-// { action, terminal }: "tab" (a new tab in its space), "space" (a picker: one of
-// the space's machine's other spaces, or a new one), or "layout" with
-// { layout } (tmux's even-horizontal, even-vertical, main-horizontal,
-// main-vertical or tiled, the given terminal as main).
+// Moves terminal panes. Opened as an overlay with props { action, terminal }: "tab"
+// (a new tab in its space) or "space" (a picker: one of the space's machine's other
+// spaces, or a new one).
 //
 // A pane moves by parking its terminal and labelling it with the space and tab
 // it should show in; Herdr makes a space or tab for ids it doesn't know.
@@ -63,61 +61,6 @@ async function toSpace(cx, terminal, target, name) {
   run("pane.focus", { terminal });
 }
 
-// A balanced split of `list` along `dir`: halves of halves, since every split is an even one.
-function line(list, dir) {
-  if (list.length === 1) return list[0];
-  const half = Math.ceil(list.length / 2);
-  return { dir, a: line(list.slice(0, half), dir), b: line(list.slice(half), dir) };
-}
-
-function plan(layout, order, main) {
-  const rest = order.filter((t) => t !== main);
-  switch (layout) {
-    case "even-vertical":
-      return line(order, "down");
-    case "main-horizontal":
-      return rest.length ? { dir: "down", a: main, b: line(rest, "right") } : main;
-    case "main-vertical":
-      return rest.length ? { dir: "right", a: main, b: line(rest, "down") } : main;
-    case "tiled": {
-      const cols = Math.ceil(Math.sqrt(order.length));
-      const rows = [];
-      for (let i = 0; i < order.length; i += cols) rows.push(line(order.slice(i, i + cols), "right"));
-      return line(rows, "down");
-    }
-    default:
-      return line(order, "right");
-  }
-}
-
-const first = (node) => (typeof node === "string" ? node : first(node.a));
-
-// The region `first(node)` fills becomes `node`: each split gives the second half to its first terminal.
-async function build(cx, node) {
-  if (typeof node === "string") return;
-  const owner = first(node.a);
-  const next = first(node.b);
-  run("pane.focus", { terminal: owner });
-  await waitFor(cx, () => paneOf(owner)?.focused);
-  run("terminal.keep", { terminal: next, place: node.dir });
-  if (!(await waitFor(cx, () => Boolean(paneOf(next))))) throw new Error(`${next} didn't come back`);
-  await build(cx, node.a);
-  await build(cx, node.b);
-}
-
-async function arrange(cx, terminal, layout) {
-  const where = tabOf(terminal);
-  if (!where) throw new Error("no pane to arrange");
-  const mine = panes().filter((p) => p.tab === where.t.id);
-  if (mine.some((p) => !p.terminal)) throw new Error("this tab has a panel that isn't a terminal");
-  if (mine.length < 2) return;
-  if (where.t.zoomed) run("pane.zoom", { pane: paneOf(terminal).pane });
-  const tree = plan(layout, mine.map((p) => p.terminal), terminal);
-  for (const p of mine) if (p.terminal !== first(tree)) await park(cx, p.terminal);
-  await build(cx, tree);
-  run("pane.focus", { terminal });
-}
-
 const fail = (error) => notify({ title: "Couldn't move the pane", body: String(error?.message ?? error), level: "error" });
 
 export default class Panes extends View {
@@ -129,7 +72,6 @@ export default class Panes extends View {
       cx.spawn(async (cx) => {
         try {
           if (p.action === "tab") await toTab(cx, p.terminal);
-          else if (p.action === "layout") await arrange(cx, p.terminal, p.layout);
         } catch (error) {
           fail(error);
         }

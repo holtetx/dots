@@ -11,7 +11,7 @@
 
 import { div, svg } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, ScrollHandle } from "gpui-base";
-import { agents, terminals, theme, settings, shared, setShared, props, run, exec, closeOverlay, openOverlay } from "herdr";
+import { agents, terminals, settings, shared, setShared, props, run, exec, closeOverlay, openOverlay } from "herdr";
 import { ago, base, bring, label, missing, resume, startNew, worktree } from "./sessions.js";
 
 const ICON = (name) => `mods/workspace-chrome/${name}.svg`;
