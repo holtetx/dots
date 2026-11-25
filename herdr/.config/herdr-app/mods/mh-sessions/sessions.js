@@ -19,7 +19,7 @@ export function worktree(cwd) {
   return m ? { repo: m[1], name: m[2], root: m[0] } : null;
 }
 
-// "rekkert › guest-limits" for a workspace kept inside or beside its repo, else the folder's name.
+// "repo › branch" for a workspace kept inside or beside its repo, else the folder's name.
 export function label(cwd) {
   const claude = worktree(cwd);
   if (claude) return `${base(claude.repo)} › ${claude.name}`;
@@ -106,7 +106,6 @@ export async function resume(rec, here = false) {
     run("space.select", { id: s.id });
     run("tab.new", { space: s.id, folder: cwd, argv });
   } else run("space.new", { folder: cwd, machine: on ?? "", argv });
-  forget(rec.id);
   return "";
 }
 
