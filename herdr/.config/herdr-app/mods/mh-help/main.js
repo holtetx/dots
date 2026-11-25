@@ -2,7 +2,7 @@
 
 import { View, div } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input } from "gpui-base";
-import { keys, commands, props, closeOverlay, theme, window } from "herdr";
+import { keys, commands, props, closeOverlay, theme, window, shared } from "herdr";
 
 const SESSIONS = "Sessions";
 const SPACES = "Spaces and tabs";
@@ -157,6 +157,7 @@ function rows() {
   const byRow = new Map();
   for (const k of keys()) {
     if (!k.keys.trim()) continue;
+    if (k.action === "mod.open:mh-lunch" && !shared("mh-lunch")) continue; // no canteen on this Mac
     const [action, part] = fold(norm(k.action));
     const id = k.section === "global" ? action : `${k.section}|${action}`;
     const row = byRow.get(id) ?? byRow.set(id, { id, section: k.section, action, bindings: [] }).get(id);

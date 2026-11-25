@@ -3,10 +3,9 @@
 
 import { View, div } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { props, closeOverlay, theme, shared } from "herdr";
+import { props, closeOverlay, theme, shared, checking } from "herdr";
 import { emojis } from "./emoji.js";
 
-const OFF = "No canteen on this Mac: add mh-lunch to mh-state.json.";
 const canteen = () => {
   const c = shared("mh-lunch");
   return /^\d+$/.test(c?.canteen ?? "") && /^\d+$/.test(c?.building ?? "") ? c : null;
@@ -25,10 +24,8 @@ export default class Lunch extends View {
     this.place = "";
     this.error = "";
     const c = canteen();
-    if (!c) {
-      this.error = OFF;
-      return;
-    }
+    // No canteen on this Mac (home): ctrl-a l and the palette entry do nothing.
+    if (!c) return void (checking() || hide());
     cx.spawn(async (cx) => {
       try {
         const res = await fetch(`https://api.izy.as/api/dishes?canteen_id=${c.canteen}`, { headers: { "Building-Id": String(c.building) } });

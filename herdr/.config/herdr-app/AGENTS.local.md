@@ -93,7 +93,7 @@ Choices the owner made. Do not change them without a question.
 
 ## Lunch (`ctrl-a l`)
 
-- `mods/mh-lunch`: this week's dishes in a canteen from `api.izy.as` (header `Building-Id`). The canteen is `mh-lunch` in `mh-state.json`: `{ "canteen": "<id>", "building": "<id>" }`, strings of digits, set by hand on the work Mac only. Without it the popup says there is no canteen. Without a `week` the API gives the current week. Today is a large card, past days are dimmed.
+- `mods/mh-lunch`: this week's dishes in a canteen from `api.izy.as` (header `Building-Id`). The canteen is `mh-lunch` in `mh-state.json`: `{ "canteen": "<id>", "building": "<id>" }`, strings of digits, set by hand on the work Mac only. Without it (the home Mac) `ctrl-a l` and the palette entry close at once, and the key list leaves the key out. Without a `week` the API gives the current week. Today is a large card, past days are dimmed.
 - Emojis come from a word list in `mods/mh-lunch/emoji.js`, in the order the words come in the dish name. A dish with no known word gets 🍽️. Test: `node mods/mh-lunch/emoji.test.mjs`.
 
 ## Decided against
