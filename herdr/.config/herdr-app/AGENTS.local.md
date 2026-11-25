@@ -57,7 +57,7 @@ The `git` block under the terminal is `mh-spaces` with props `{ bar: true }` (`m
 
 Choices the owner made. Do not change them without a question.
 
-- Repos: those found in the sidebar folders, plus `mh-board.repos`. `mh-board` is in `mh-state.json`, not in dots: this repo is public and the repo names are internal. A `git@<host>:owner/repo` remote counts as GitHub (ssh host aliases).
+- Repos: those found in the sidebar folders, but those in `mh-board.skip` (`owner/repo`, any case), plus `mh-board.repos`. `mh-board` is in `mh-state.json`, not in dots: this repo is public and the repo names are internal. A `git@<host>:owner/repo` remote counts as GitHub (ssh host aliases).
 - Repos whose `owner/repo` name contains an entry of `mh-board.hide` are hidden.
 - PRs are asked for in three separate `gh` calls. One combined query gives HTTP 502.
 - The PR and issue tabs are grouped by repo. There are no status groups. A stacked PR (its base is the branch of another open PR in the repo) sits under its parent with an indent (`mods/mh-spaces/stack.js`, test: `node mods/mh-spaces/stack.test.mjs`).

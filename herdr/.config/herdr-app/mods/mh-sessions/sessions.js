@@ -79,7 +79,7 @@ async function nearest(cwd, on) {
 }
 
 // The live terminal running session id on any machine (one brought here is the same session).
-export const runningIn = (id) => terminals().find((t) => t.state === "live" && t.labels?.["claude.session"] === id);
+const runningIn = (id) => terminals().find((t) => t.state === "live" && t.labels?.["claude.session"] === id);
 
 // Resumes { id, cwd, machine?, space? } on its machine (null: this one), in its space
 // while that's open, or goes to it wherever it's running. here: when the session's folder

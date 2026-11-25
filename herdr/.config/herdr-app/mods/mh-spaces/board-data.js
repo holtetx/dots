@@ -4,8 +4,8 @@ import { exec, shared } from "herdr";
 import { PR, ISSUE, githubRepo, graphql, itemOf } from "./github.js";
 import { offHead, worktreesOf } from "./stack.js";
 
-export const BOARD_DEFAULTS = { repos: [], skip: [], hide: [] };
-export const boardSettings = () => ({ ...BOARD_DEFAULTS, ...(shared("mh-board") ?? {}) });
+const BOARD_DEFAULTS = { repos: [], skip: [], hide: [] };
+const boardSettings = () => ({ ...BOARD_DEFAULTS, ...(shared("mh-board") ?? {}) });
 
 export function boardRepos() {
   const cfg = boardSettings();

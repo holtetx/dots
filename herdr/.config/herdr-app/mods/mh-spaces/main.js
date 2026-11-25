@@ -149,7 +149,7 @@ export function glyph(status) {
   return status === "blocked" || status === "done" ? "●" : "·";
 }
 
-export function tone(t, status) {
+function tone(t, status) {
   return t[status] ?? t.unknown;
 }
 

@@ -77,7 +77,7 @@ export function unknown(url, at) {
   return { kind: m?.[2] === "issues" ? "issue" : "pr", url, repo: m?.[1] ?? "", number: Number(m?.[3]) || null, title: "", state: "unknown", at, links: [] };
 }
 
-export function tipOf(it, s) {
+function tipOf(it, s) {
   return [`${it.repo}#${it.number ?? "?"}`, s?.label, reviewOf(it)?.label, unreadOf(it) && "New activity", it.title].filter(Boolean).join(" · ");
 }
 
