@@ -85,12 +85,18 @@ Choices the owner made. Do not change them without a question.
 - Images: `curl` downloads them into `mh-cache/preview` in Herdr's folder (`image()` reads only there; git ignores it). Only GitHub hosts. Files older than 30 days are deleted. Videos open in the browser.
 - Herdr's `fs/promises` has no working `rename`: use `mv`.
 
+## Lunch (`ctrl-a l`)
+
+- `mods/mh-lunch`: this week's dishes in the Transperia canteen from `api.izy.as` (header `Building-Id`). Without a `week` the API gives the current week. Today is a large card, past days are dimmed.
+- Emojis come from a word list in `mods/mh-lunch/emoji.js`, in the order the words come in the dish name. A dish with no known word gets 🍽️. Test: `node mods/mh-lunch/emoji.test.mjs`.
+
 ## Decided against
 
 - No `cmd-s` key, no tmux split, rename or layout keys.
 - No agents list and no session archive in the sidebar.
 - `review-pr` (a shared team skill) does not call herdr-link. A rule in `~/.claude/CLAUDE.md` does that.
 - The worktree options stay (`alt-shift-c`, picker, board and tasks rows).
+- No generated lunch images: Claude's SVG drawings looked bad, and the Gemini free tier allows 0 image requests.
 
 ## More windows
 
@@ -108,3 +114,4 @@ A second window closes with `cmd-q`.
 - `tab` and `shift-tab` never reach `on_key_down`: the app binds them to focus movement. Bind them to an action of your own in a `key_context` (`cx.bind_keys` in `init`, `.key_context(...).on_action(...)` on the root), as the board and the spacing dialog do.
 - `exec` never closes stdin: a program that reads stdin when it is not a terminal (`op`) waits forever. Run it as `sh -c '... </dev/null'`.
 - Herdr adds `gpui-kit.d.ts` and `jsconfig.json` to mod folders. They are ignored by git.
+- A popup grows with its content. A child with `flex_1().min_h(0)` gets 0 px in it, and an overlay `"height": 0` shows nothing.

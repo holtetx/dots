@@ -63,6 +63,8 @@ const DESCRIBE = {
   "mh-spaces.link": [BOARD, "Link a PR or issue to the focused agent"],
   "mh-spaces.link-space": [BOARD, "Link a PR or issue to the space"],
 
+  "mod.open:mh-lunch": [OTHER, "This week's canteen lunch, today highlighted"],
+
   "app.palette": [APP, "Command palette"],
   "app.settings": [APP, "Settings"],
   "mod.open:mh-help": [APP, "My keys (this list)"],

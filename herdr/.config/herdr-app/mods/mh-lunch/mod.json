@@ -1,0 +1,6 @@
+{
+  "place": "none",
+  "title": "Lunch",
+  "overlay": { "kind": "popup", "at": "top", "offset": 40, "width": 460, "height": 0.75 },
+  "palette": [{ "title": "Lunch this week", "command": "mod.open", "args": { "name": "mh-lunch" }, "words": "canteen food kantine middag" }]
+}
