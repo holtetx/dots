@@ -11,6 +11,7 @@ import { spaces, terminals, theme, props, run, exec, home, appHome, readTextFile
 import { covers, readHosts } from "./hosts.js";
 
 const LIST = 440;
+const FEW = 10; // at most this many hosts: list them all before typing
 const ICON = (name) => `mods/workspace-chrome/${name}.svg`;
 
 const expand = (path) => path.replace(/^~(?=\/|$)/, home());
@@ -92,10 +93,13 @@ export default class Ssh extends View {
   items() {
     const tokens = this.text.toLowerCase().split(/\s+/).filter(Boolean);
     if (!tokens.length) {
-      // In an SSH space its host is ready, so ⌘↵ adds Claude without typing.
+      // In an SSH space its host is first and selected, so ⌘↵ adds Claude without typing.
+      // A short host list shows in full before typing; a long one only after.
       const shown = spaces().find((s) => s.active);
       const alias = shown && terminals().find((k) => k.labels?.["herdr.space"] === shown.id && k.labels?.["mh.ssh"])?.labels["mh.ssh"];
-      return (this.hosts ?? []).filter((h) => h.alias === alias);
+      const hosts = this.hosts ?? [];
+      const current = hosts.filter((h) => h.alias === alias);
+      return hosts.length > FEW ? current : [...current, ...hosts.filter((h) => h.alias !== alias)];
     }
     return (this.hosts ?? []).filter((h) => tokens.every((t) => `${h.alias} ${h.note} ${h.hostname}`.toLowerCase().includes(t)));
   }
