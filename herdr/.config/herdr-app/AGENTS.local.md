@@ -14,6 +14,8 @@ Read these first. They are in `~/.config/herdr-app`:
 
 ## Where state lives
 
+All `mh-state.json` keys, their shape and which Mac needs them: README.md in dots, "Herdr: this Mac's settings". Keep that list in step with `FILES` in `mods/mh-footer/settings.js`.
+
 | What | Where | Writer |
 |---|---|---|
 | Spacing dialog settings | `mh-settings.json` (in dots) | `mods/mh-footer/settings.js`, synced with `shared()` |
