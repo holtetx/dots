@@ -48,6 +48,10 @@ A badge on a space comes from a `pr-link` line in the session's transcript (Clau
 
 A space takes its git info from the folder of its first tab, or from that terminal's `claude.cwd` label when it has one (`claude --worktree` works there). Its tooltip adds `(worktree)` after a branch in a worktree. A space made in the wrong folder shows the wrong badges. A branch's PR shows only on a space that is alone on that repo and branch: spaces that share a checkout get it only through a transcript or herdr-link.
 
+## Git bar
+
+The `git` block under the terminal is `mh-spaces` with props `{ bar: true }` (`mods/mh-spaces/bar.js`). It shows the shown space's branch, ahead/behind, uncommitted changes and PR badges. Branch and ahead/behind come from the sidebar copy through `shared("git.spaces")`. The bar polls the changes itself every 5 s. A mod can not import from another mod's folder, so the bar lives in `mh-spaces` to reuse `badge()` from `github.js`.
+
 ## Board (`ctrl-a T`)
 
 Choices the owner made. Do not change them without a question.

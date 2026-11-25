@@ -15,6 +15,7 @@
 // It also finds the GitHub repos in its folders (shared("board.repos")) and where they and
 // its spaces' repos are (shared("board.places")), for the board (ctrl-a T, board.js) and the
 // spacing dialog's Board tab; and links the sessions the board starts to their item.
+// Each space's branch and ahead/behind go to shared("git.spaces") for the git bar (bar.js).
 
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex, ScrollHandle } from "gpui-base";
@@ -26,6 +27,7 @@ import { MARK, applyChange, empty, folderOf, foldersOf, live, matchOf, merge, ne
 import { folderInit, folderRender } from "./folder-dialog.js";
 import { boardInit, boardRender } from "./board.js";
 import { previewInit, previewRender } from "./preview.js";
+import { barInit, barRender } from "./bar.js";
 import { telling } from "./title.js";
 import { discoverRepos } from "./board-data.js";
 
@@ -165,6 +167,7 @@ export default class Spaces extends View {
     if (props()?.folder) return folderInit(this, cx);
     if (props()?.board) return boardInit(this, cx);
     if (props()?.preview) return previewInit(this, cx);
+    if (props()?.bar) return barInit(this, cx);
     this.git = {}; // where() -> { name, branch, ahead, behind, repo, linked, gh: "owner/repo" }, null: not a repo
     this.checked = {}; // where() -> when it was last looked at
     this.unsure = new Set(); // where()s git couldn't answer for (a machine away)
@@ -281,6 +284,20 @@ export default class Spaces extends View {
       this.publishPlaces();
     }
     this.linkAsksDue();
+  }
+
+  // Each space's git by space id, for the git bar (bar.js).
+  publishGit(sp, ps) {
+    const git = {};
+    for (const s of sp) {
+      const g = this.git[where(s, ps)];
+      if (g) git[s.id] = { machine: s.machine ?? null, top: g.top, branch: g.branch, ahead: g.ahead, behind: g.behind, linked: g.linked };
+    }
+    const text = JSON.stringify(git);
+    if (text !== this.gitPublished) {
+      this.gitPublished = text;
+      setShared("git.spaces", git);
+    }
   }
 
   // Where each GitHub repo is checked out, by "owner/repo" in lower case: [{ machine, path }],
@@ -1434,6 +1451,7 @@ export default class Spaces extends View {
     if (props()?.folder) return folderRender(this);
     if (props()?.board) return boardRender(this);
     if (props()?.preview) return previewRender(this);
+    if (props()?.bar) return barRender(this);
     const t = theme();
     const collapsed = narrow();
     const palette = ["ansi6", "ansi3", "ansi4", "ansi5", "ansi2", "ansi1"];
@@ -1449,6 +1467,7 @@ export default class Spaces extends View {
     }
     if (changed) setShared("space.colors", kept);
     this.publish(sp, panes());
+    this.publishGit(sp, panes());
     this.publishFolders();
     const list = this.grouped(t, collapsed);
     // Bring the active space into view when it, or its place in the list, changes; a row already in view stays put.
