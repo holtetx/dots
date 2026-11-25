@@ -135,6 +135,14 @@ export default class Spacing extends View {
     this.side = 0;
     this.tab = TABS.find(([id]) => id === localStorage.getItem("tab"))?.[0] ?? "spacing";
     this.patterns = null;
+    // Tab and shift-tab are the app's (they move focus before our key handler sees them):
+    // bindings of our own, deeper in, come first.
+    try {
+      cx.bind_keys([
+        { keystroke: "tab", action: "mh_spacing_next_tab", context: "MhSpacing" },
+        { keystroke: "shift-tab", action: "mh_spacing_prev_tab", context: "MhSpacing" },
+      ]);
+    } catch {}
     this.handle = cx.focus_handle();
     this.handle.focus();
     this.editing = null;
@@ -166,9 +174,15 @@ export default class Spacing extends View {
     localStorage.setItem("tab", tab);
   }
 
+  // Tab and shift-tab: the next or previous tab, wrapping. Not while a field is edited.
+  step(by, cx) {
+    if (this.editing) return;
+    this.show(TABS[(TABS.findIndex(([id]) => id === this.tab) + by + TABS.length) % TABS.length][0]);
+    cx.notify();
+  }
+
   key(e) {
     if (this.editing) return false;
-    if (e.key === "tab") return this.show(TABS[(TABS.findIndex(([id]) => id === this.tab) + 1) % TABS.length][0]), true;
     const up = e.key === "up" || e.key === "k";
     const down = e.key === "down" || e.key === "j";
     const step = e.key === "left" || e.key === "h" || e.key === "-" ? -1 : e.key === "right" || e.key === "l" || e.key === "+" || e.key === "=" ? 1 : 0;
@@ -343,6 +357,9 @@ export default class Spacing extends View {
     return v_flex()
       .id("spacing")
       .track_focus(this.handle)
+      .key_context("MhSpacing")
+      .on_action("mh_spacing_next_tab", (_e, cx) => this.step(1, cx))
+      .on_action("mh_spacing_prev_tab", (_e, cx) => this.step(-1, cx))
       .on_key_down((e, cx) => {
         if (e.key === "escape") return closeOverlay(props().overlay);
         if (!this.key(e)) return;

@@ -9,7 +9,7 @@ Read these first. They are in `~/.config/herdr-app`:
 
 - `~/.config/herdr-app` is a link to `~/dots/herdr/.config/herdr-app`. The `.gitignore` there lists the tracked files. All other files are Herdr's.
 - Do not edit Herdr's own mods and layouts. Clone them (`mod.clone`, `layout.clone`).
-- The `mh-*` mods are forks of jnatten's `jj-*` mods (github.com/jnatten/dots), changed to git only, no Trello, no 1Password. `mh-ssh` is new and uses `op` for ssh passwords.
+- The `mh-*` mods are git only. `mh-ssh` (ssh passwords) and the board's Jira tab use `op` (1Password).
 - Claude Code side: stow package `claude` in dots. `hooks/statusline.sh` sets the `claude.session`, `claude.cwd`, `claude.context` and `claude.context_size` labels and writes `~/.cache/herdr-claude/limits.json`. `hooks/herdr-activity.sh` sets `claude.subagents` and `claude.shells`, and removes all `claude.*` labels at SessionEnd. `claude.cwd` is the project folder. `~/.claude/settings.json` (not in dots) runs both.
 
 ## Where state lives
@@ -59,15 +59,24 @@ Choices the owner made. Do not change them without a question.
 - Repos: those found in the sidebar folders, plus `mh-board.repos`. `mh-board` is in `mh-state.json`, not in dots: this repo is public and the repo names are internal. A `git@<host>:owner/repo` remote counts as GitHub (ssh host aliases).
 - Repos whose `owner/repo` name contains an entry of `mh-board.hide` are hidden.
 - PRs are asked for in three separate `gh` calls. One combined query gives HTTP 502.
-- Both tabs are grouped by repo. There are no status groups. A stacked PR (its base is the branch of another open PR in the repo) sits under its parent with an indent (`mods/mh-spaces/stack.js`, test: `node mods/mh-spaces/stack.test.mjs`).
+- The PR and issue tabs are grouped by repo. There are no status groups. A stacked PR (its base is the branch of another open PR in the repo) sits under its parent with an indent (`mods/mh-spaces/stack.js`, test: `node mods/mh-spaces/stack.test.mjs`).
 - A yellow `review` label marks a PR where GitHub says the owner's review is requested. PRs with the label come first in their repo.
 - Each PR row, left to right: `#number`, title, labels, comment count (GitHub `totalCommentsCount`), links, author, `+added -deleted`, age, one review word (`needs review`, `in review`, `approved`, `changes`, `draft`, `queued`; GitHub's `reviewDecision`, else the latest reviews; a change request shows unless GitHub says approved; `in review` when a person other than the author reviewed or commented, bots do not count) and `CI` with its state. Use words, not icons alone.
-- The title line is the shown tab ("Open pull requests"), the other tab, the refresh state and the main keys. Hover the keys for all of them. A line under the list shows only when there is a note.
+- The title line is the tabs in a fixed order (Pull requests, Issues, Jira; the shown one highlighted), the refresh state and the main keys. Hover the keys for all of them. A line under the list shows only when there is a note.
 - `/` opens a search field under the title line. It filters the shown tab by ref, title, repo, author, branch, assignees and labels; every word must match. `↵` keeps the filter, `esc` clears it.
 - Dependabot PRs are hidden each time the mod loads. `b`, or the `Dependabot hidden N` button on the title line, shows them until the next load.
 - A board session on a PR branch moves the local branch to origin: fast-forward, or after a force-push a reset when the branch has no commits or changes of its own. Otherwise it stops with an error.
 - A yellow `behind` label marks a PR with a checkout here that does not have the PR's newest commit (new commits or a force-push). A checkout is a worktree on the PR's branch, or a `review-<number>` folder as the `review-pr` skill makes. Only repos with a space or a sidebar folder are checked.
 - Not tested: worktree recreate on resume.
+
+## Jira tab on the board (work Mac only)
+
+- Shows when `mh-jira` is in `mh-state.json`: `{ "account": "<1Password account URL>", "vault": "...", "item": "..." }`. The item has the fields `email`, `site`, `board` and `credential` (an Atlassian API token). Without `mh-jira` there is no Jira tab.
+- One Jira board only, read only. `mods/mh-spaces/jira-data.js` sends only `GET` to two paths: `/rest/agile/1.0/board/<board>/configuration` and `/rest/software/1.0/board/<board>/issue` (the `/rest/agile/1.0` issue path is deprecated). Never add other Jira calls without a question.
+- Rows: open issues and those done in the last 14 days (`statusCategory != Done OR resolved >= -14d`), grouped by the board's columns in board order, in Jira's rank order. Swimlanes are not shown: the public API does not return their queries.
+- The token: one `op item get` per Herdr run, when the Jira tab first shows. Kept in memory only, sent with `fetch`, never in a process list. `op` needs `--account` (3 accounts: without it, op asks once per account) and `</dev/null` (op reads stdin when it is not a terminal, and `exec` never closes stdin, so op waits forever and Herdr freezes).
+- No retries: a 429 says to press `r` later. The tab asks Jira only while it shows.
+- Test: `node mods/mh-spaces/jira.test.mjs`.
 
 ## Preview (`space` on the board, `ctrl-space` in the tasks list)
 
@@ -96,4 +105,6 @@ A second window closes with `cmd-q`.
 - Errors and focus: `herdr-app status`. Screenshot: `herdr-app shot <file>.png`. Labels: `hc get <terminal> --json`.
 - Reload: Herdr does not always see an edit made through a link. Run `touch -h` on the link of the mod or of `keys.json` in `~/.config/herdr-app`.
 - Layout: change it with `herdr-app do layout.set`.
+- `tab` and `shift-tab` never reach `on_key_down`: the app binds them to focus movement. Bind them to an action of your own in a `key_context` (`cx.bind_keys` in `init`, `.key_context(...).on_action(...)` on the root), as the board and the spacing dialog do.
+- `exec` never closes stdin: a program that reads stdin when it is not a terminal (`op`) waits forever. Run it as `sh -c '... </dev/null'`.
 - Herdr adds `gpui-kit.d.ts` and `jsconfig.json` to mod folders. They are ignored by git.
