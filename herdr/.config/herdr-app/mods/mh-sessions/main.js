@@ -13,6 +13,8 @@ const ICON = (name) => `mods/workspace-chrome/${name}.svg`;
 // Space avatar colors, as the mh-spaces sidebar draws them.
 const MARK = { ansi6: "#22a99a", ansi3: "#e3814f", ansi4: "#5b8def", ansi5: "#8b7cf6", ansi2: "#3fae6a", ansi1: "#d9649a" };
 
+// When an agent in the space last changed state (0: not since Herdr started).
+const activity = (w) => Math.max(0, ...w.tabs.map((t) => t.changed_at ?? 0));
 const claude = (a) => !a.address.includes("/") && (a.app === "claude-code" || a.program?.key === "claude");
 
 async function sessionOf(pid) {
@@ -108,8 +110,11 @@ export default class Sessions extends View {
     });
     this.input.on("submit", (e, cx) => this.go(this.items()[this.at], cx, Boolean(e?.shift)));
     this.input.focus();
+    // Orders are taken once: the selection is a row number, so rows must not move under it.
+    this.rank = new Map([...spaces()].sort((a, b) => activity(b) - activity(a)).map((w, i) => [w.id, i]));
     cx.spawn(async (cx) => {
-      this.open = await live();
+      const seq = Object.fromEntries(agents().map((a) => [a.address, a.seq]));
+      this.open = (await live()).sort((a, b) => (seq[b.address] ?? 0) - (seq[a.address] ?? 0));
       cx.notify();
     });
     cx.spawn(async (cx) => {
@@ -140,13 +145,14 @@ export default class Sessions extends View {
     // have a section of their own: each space, then its sessions.
     const parked = new Set(shared("spaces.waiting") ?? []);
     const open = this.open ?? [];
+    const recent = [...all].sort((a, b) => (this.rank.get(a.id) ?? all.length) - (this.rank.get(b.id) ?? all.length));
     const waiting = all.filter((w) => parked.has(w.id)).flatMap((w) => {
       const mine = open.filter((s) => s.space === w.id && match(s)).map((s) => ({ ...s, kind: "open" }));
       return match(w) || mine.length ? [{ ...w, kind: "space" }, ...mine] : [];
     });
     return [
       { name: "Open", kind: "open", list: open.filter((s) => !parked.has(s.space) && match(s)), loading: this.open === undefined },
-      { name: "Spaces", kind: "space", list: all.filter((w) => !parked.has(w.id) && match(w)), loading: false },
+      { name: "Spaces", kind: "space", list: recent.filter((w) => !parked.has(w.id) && match(w)), loading: false },
       { name: "Waiting", kind: "waiting", list: waiting, loading: false },
       { name: "History", kind: "history", list: past.slice(0, 100), total: past.length, loading: this.history === undefined },
     ];

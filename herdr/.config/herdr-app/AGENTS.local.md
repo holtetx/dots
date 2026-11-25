@@ -31,7 +31,7 @@ Read these first. They are in `~/.config/herdr-app`:
 
 ## Sidebar
 
-One list: folders (projects), then spaces. A space is one session. Its row shows its name when someone renamed it, else its most urgent agent's `mh.description` label or title (`mods/mh-spaces/title.js`), and that agent's status. The folder `+` and `cmd-shift-c` start a space with `claude`. `cmd-[` / `cmd-]` (`mh-tabs`) go through the agents of the spaces the sidebar shows, in its order.
+One list: folders (projects), then spaces. A space is one session. Its row shows its name when someone renamed it, else its most urgent agent's `mh.description` label or title (`mods/mh-spaces/title.js`), and that agent's status. The folder `+` and `cmd-shift-c` start a space with `claude`. Each folder, Other and SSH list their spaces by recent activity: the newest `changed_at` of their tabs (an agent's state change), so there is no order by hand. `cmd-k` (`mh-sessions`) lists Spaces the same way and Open sessions by agent `seq`. `cmd-[` / `cmd-]` (`mh-tabs`) go through the agents of the spaces the sidebar shows, in its order.
 
 ## SSH (`ctrl-a s`)
 
