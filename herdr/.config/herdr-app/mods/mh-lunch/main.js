@@ -3,6 +3,7 @@
 import { View, div } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { props, closeOverlay, theme } from "herdr";
+import { emojis } from "./emoji.js";
 
 const URL = "https://api.izy.as/api/dishes?canteen_id=2036155";
 const pad = (n) => String(n).padStart(2, "0");
@@ -49,6 +50,20 @@ export default class Lunch extends View {
           .child(div().id("mh-lunch-esc").px(6).py(2).rounded(5).text_size(11).text_color(t.dim).cursor_pointer().hover((s) => s.bg(t.hover).text_color(t.foreground)).on_click(hide).child("Esc")),
       )
       .when(!!text, (el) => el.child(div().text_color(t.dim).child(text)))
-      .when(!text, (el) => el.children(this.dishes.map((name) => div().text_color(t.foreground).child(name))));
+      .when(!text, (el) =>
+        el.children(
+          this.dishes.map((name) =>
+            h_flex()
+              .gap(12)
+              .px(12)
+              .py(10)
+              .rounded(9)
+              .items_center()
+              .bg(t.background)
+              .child(div().flex_none().text_size(22).child(emojis(name)))
+              .child(div().flex_1().min_w(0).text_size(14).text_color(t.foreground).child(name)),
+          ),
+        ),
+      );
   }
 }
