@@ -1,7 +1,7 @@
-// The Jira tab's data: one board, GET only (AGENTS.local.md, "Jira tab on the board").
+// The Jira tab's data: one board and the previewed issue, GET only (AGENTS.local.md, "Jira tab on the board").
 
 import { exec, shared } from "herdr";
-import { byColumn, columnsOf, issueOf, validBoard, validSite } from "./jira.js";
+import { adfBlocks, adfToMd, avatarOf, byColumn, columnsOf, issueOf, linksOf, validBoard, validKey, validSite } from "./jira.js";
 
 export const jiraSettings = () => {
   const s = shared("mh-jira");
@@ -53,7 +53,7 @@ async function boardIssues(a) {
   const out = [];
   let token = null;
   for (let page = 0; page < 10; page++) {
-    const params = { jql: "statusCategory != Done OR resolved >= -14d", fields: "summary,status,assignee,issuetype,priority,updated,labels", maxResults: "100" };
+    const params = { jql: "statusCategory != Done OR resolved >= -14d", fields: "summary,status,assignee,issuetype,priority,labels,parent,issuelinks", maxResults: "100" };
     if (token) params.nextPageToken = token;
     const r = await get(a, `/rest/software/1.0/board/${a.board}/issue`, params);
     out.push(...(r.issues ?? []));
@@ -67,7 +67,26 @@ async function boardIssues(a) {
 export async function fetchJira(cfg) {
   const a = await credentials(cfg);
   const [config, raw] = await Promise.all([get(a, `/rest/agile/1.0/board/${a.board}/configuration`), boardIssues(a)]);
-  const at = Date.now();
-  const issues = raw.map((n) => issueOf(n, a.site, at));
+  const issues = raw.map((n) => issueOf(n, a.site));
   return { name: config.name ?? "", sections: byColumn(columnsOf(config), issues) };
+}
+
+// The preview (space on a Jira card), in preview.js's shape: one issue's description and comments.
+export async function fetchJiraPreview(key) {
+  const cfg = jiraSettings();
+  if (!cfg) throw new Error("There is no mh-jira in mh-state.json.");
+  if (!validKey(key)) throw new Error(`${key} is not a Jira key.`);
+  const a = await credentials(cfg);
+  const n = await get(a, `/rest/api/3/issue/${key}`, { fields: "summary,status,issuetype,priority,assignee,reporter,created,updated,labels,parent,description,comment,issuelinks" });
+  const f = n.fields ?? {};
+  const url = `https://${a.site}/browse/${n.key}`;
+  return {
+    ...issueOf(n, a.site),
+    jira: true, ref: n.key,
+    reporter: f.reporter?.displayName ?? "", reporterAvatar: avatarOf(f.reporter),
+    created: Date.parse(f.created) || 0, updated: Date.parse(f.updated) || 0,
+    links: linksOf(f, a.site),
+    body: adfBlocks(f.description, url).map((md) => ({ md })),
+    posts: (f.comment?.comments ?? []).map((c) => ({ who: c.author?.displayName ?? "someone", avatar: avatarOf(c.author), at: Date.parse(c.created) || 0, url: `${url}?focusedCommentId=${c.id}`, parts: [{ md: adfToMd(c.body, url) }] })),
+  };
 }

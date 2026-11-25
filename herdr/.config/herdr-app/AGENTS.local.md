@@ -72,8 +72,11 @@ Choices the owner made. Do not change them without a question.
 ## Jira tab on the board (work Mac only)
 
 - Shows when `mh-jira` is in `mh-state.json`: `{ "account": "<1Password account URL>", "vault": "...", "item": "..." }`. The item has the fields `email`, `site`, `board` and `credential` (an Atlassian API token). Without `mh-jira` there is no Jira tab.
-- One Jira board only, read only. `mods/mh-spaces/jira-data.js` sends only `GET` to two paths: `/rest/agile/1.0/board/<board>/configuration` and `/rest/software/1.0/board/<board>/issue` (the `/rest/agile/1.0` issue path is deprecated). Never add other Jira calls without a question.
-- Rows: open issues and those done in the last 14 days (`statusCategory != Done OR resolved >= -14d`), grouped by the board's columns in board order, in Jira's rank order. Swimlanes are not shown: the public API does not return their queries.
+- One Jira board only, read only. `mods/mh-spaces/jira-data.js` sends only `GET` to three paths: `/rest/agile/1.0/board/<board>/configuration` and `/rest/software/1.0/board/<board>/issue` (the `/rest/agile/1.0` issue path is deprecated), and `/rest/api/3/issue/<key>` for the preview (only on `space`). Never add other Jira calls without a question.
+- Cards: open issues and those done in the last 14 days (`statusCategory != Done OR resolved >= -14d`), in the board's columns side by side, in Jira's rank order. Swimlanes are not shown: the public API does not return their queries.
+- A card: title, parent (epic) tag, priority word, a red `blocked` tag when an open issue blocks it (`issuelinks`), type color, key (struck through when done), assignee initials. The left edge has the priority color. A column header is red when it has more cards than the board's max.
+- `h l` move between columns, `j k` between cards, `z` folds or opens a column (also a click on its header). Backlog, Analyse and Ferdig start folded; the choice is kept in the mod's `localStorage` (`jira.folded`), names in lower case and trimmed.
+- `space` previews an issue in `preview.js`, laid out as Jira shows it: title on top, description, linked issues and comments on the left, fields on the right. On a linked issue `↵` previews it and `^O` goes back. The text is Jira's rich text (ADF) made markdown by `adfToMd` in `jira.js`. Attachments need a login, so they are a link to the issue.
 - The token: one `op item get` per Herdr run, when the Jira tab first shows, and again after a 401 (a replaced token). Kept in memory only, sent with `fetch`, never in a process list. `op` needs `--account` (3 accounts: without it, op asks once per account) and `</dev/null` (op reads stdin when it is not a terminal, and `exec` never closes stdin, so op waits forever and Herdr freezes).
 - No retries: a 429 says to press `r` later. The tab asks Jira only while it shows.
 - Test: `node mods/mh-spaces/jira.test.mjs`.
@@ -81,8 +84,8 @@ Choices the owner made. Do not change them without a question.
 ## Preview (`space` on the board, `ctrl-space` in the tasks list)
 
 - `mods/mh-spaces/preview.js`, an mh-spaces overlay `{ preview: url, behind?, back }`. `back` is the shared key it sets when it closes, so the list under it takes the keyboard back (`board.focus`, `tasks.focus`).
-- Data: one `gh` GraphQL query (`preview-data.js`). It shows reviews, failing and running checks, the description, comments, review bodies and unresolved review threads.
-- Images: `curl` downloads them into `mh-cache/preview` in Herdr's folder (`image()` reads only there; git ignores it). Only GitHub hosts. Files older than 30 days are deleted. Videos open in the browser.
+- Data: a Jira URL (`/browse/<key>`) goes to `fetchJiraPreview` in `jira-data.js`. Else one `gh` GraphQL query (`preview-data.js`). It shows reviews, failing and running checks, the description, comments, review bodies and unresolved review threads.
+- Images: `curl` downloads them into `mh-cache/preview` in Herdr's folder (`image()` reads only there; git ignores it). Only GitHub hosts, and for Jira user pictures (board cards and preview) only Gravatar and Atlassian's public avatar host (`avatarOf` in `jira.js`). Pictures on the Jira site itself need a login: those users get initials. Files older than 30 days are deleted. Videos open in the browser.
 - Herdr's `fs/promises` has no working `rename`: use `mv`.
 
 ## Lunch (`ctrl-a l`)
