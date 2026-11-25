@@ -765,12 +765,22 @@ export default class Spaces extends View {
         for (const [url, it] of Object.entries(r.items)) this.items[url] = { links: this.items[url]?.links, ...it };
         for (const [k, url] of Object.entries(r.branches)) this.branchPrs[k] = { url, at: Date.now(), base: r.items[url]?.base ?? null };
         if (!r.ok) this.ghRetry = Date.now() + GH_RETRY;
-      } catch {
+        this.ghFailed(r.ok ? null : r.error ?? "GitHub gave no data.");
+      } catch (e) {
         this.ghRetry = Date.now() + GH_RETRY;
+        this.ghFailed(e);
       }
       this.fetching = false;
       cx.notify();
     });
+  }
+
+  // Badges keep their last state while GitHub can't be asked: say so once, until it works again.
+  ghFailed(error) {
+    if (!error) return void (this.ghWarned = false);
+    if (this.ghWarned) return;
+    this.ghWarned = true;
+    notify({ title: "GitHub badges are not updating", body: `${String(error?.message ?? error).slice(0, 300)}\nChecked again in ${GH_RETRY / 60000} minutes.`, level: "warning" });
   }
 
   // GitHub's unread notifications about PRs, each minute while the window is active and
@@ -791,8 +801,10 @@ export default class Spaces extends View {
         this.unread = await fetchUnread();
         for (const [key, at] of Object.entries(this.dismissed)) if (!this.unread[key] || this.unread[key].at > at) delete this.dismissed[key];
         this.unreadAt = Date.now() + GH_UNREAD;
-      } catch {
+        this.ghFailed(null);
+      } catch (e) {
         this.unreadAt = Date.now() + GH_RETRY;
+        this.ghFailed(e);
       }
       this.unreading = false;
       cx.notify();

@@ -126,7 +126,10 @@ export async function scanAgent(sid, on) {
 export async function graphql(fields) {
   const r = await exec("gh", ["api", "graphql", "-f", `query=query { ${fields} }`], { timeout: 30000 });
   // A missing PR or repo is an error beside the rest of the data, and gh exits 1.
-  return JSON.parse(r.stdout || "null")?.data ?? null;
+  const data = JSON.parse(r.stdout || "null")?.data ?? null;
+  // No data at all (logged out, an expired token, no network): say why.
+  if (!data && r.code !== 0) throw new Error((r.stderr || r.stdout || `gh exited ${r.code}`).trim());
+  return data;
 }
 
 // A repo's open PRs, yours first, then the most recently updated.
@@ -170,7 +173,7 @@ export async function fetchUnread() {
 }
 
 // Each URL's state, and each { repo, branch }'s newest PR (an open one first).
-// ok: false when GitHub couldn't be asked at all.
+// ok: false, with error, when GitHub couldn't be asked at all.
 export async function fetchGitHub(urls, branches) {
   const at = Date.now();
   const out = { items: {}, branches: {}, ok: true };
@@ -195,7 +198,7 @@ export async function fetchGitHub(urls, branches) {
   for (let i = 0; i < parts.length; i += 40) {
     const chunk = parts.slice(i, i + 40);
     let data = null;
-    try { data = await graphql(chunk.map((p, j) => `a${j}: ${p.q}`).join("\n")); } catch {}
+    try { data = await graphql(chunk.map((p, j) => `a${j}: ${p.q}`).join("\n")); } catch (e) { out.error = String(e?.message ?? e); }
     if (!data) { out.ok = false; continue; }
     chunk.forEach((p, j) => p.done(data[`a${j}`]));
   }
