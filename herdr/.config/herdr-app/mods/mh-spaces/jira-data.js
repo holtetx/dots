@@ -38,10 +38,11 @@ async function readItem(cfg) {
 async function get(a, path, params = {}) {
   const query = Object.entries(params).map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join("&");
   const r = await fetch(`https://${a.site}${path}${query ? `?${query}` : ""}`, { method: "GET", headers: { Authorization: a.header, Accept: "application/json" } });
-  if (r.status === 401 || r.status === 403) {
+  if (r.status === 401) {
     auth = null; // r reads the item again, after the token is replaced in 1Password
-    throw new Error(`Jira refused the token (${r.status}). It may have expired.`);
+    throw new Error("Jira refused the token (401). It may have expired.");
   }
+  if (r.status === 403) throw new Error(`Jira says this account has no access to board ${a.board} (403).`);
   if (r.status === 429) throw new Error("Jira says too many requests: press r in a minute.");
   if (!r.ok) throw new Error(`Jira answered ${r.status}.`);
   return r.json();

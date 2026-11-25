@@ -74,7 +74,7 @@ Choices the owner made. Do not change them without a question.
 - Shows when `mh-jira` is in `mh-state.json`: `{ "account": "<1Password account URL>", "vault": "...", "item": "..." }`. The item has the fields `email`, `site`, `board` and `credential` (an Atlassian API token). Without `mh-jira` there is no Jira tab.
 - One Jira board only, read only. `mods/mh-spaces/jira-data.js` sends only `GET` to two paths: `/rest/agile/1.0/board/<board>/configuration` and `/rest/software/1.0/board/<board>/issue` (the `/rest/agile/1.0` issue path is deprecated). Never add other Jira calls without a question.
 - Rows: open issues and those done in the last 14 days (`statusCategory != Done OR resolved >= -14d`), grouped by the board's columns in board order, in Jira's rank order. Swimlanes are not shown: the public API does not return their queries.
-- The token: one `op item get` per Herdr run, when the Jira tab first shows. Kept in memory only, sent with `fetch`, never in a process list. `op` needs `--account` (3 accounts: without it, op asks once per account) and `</dev/null` (op reads stdin when it is not a terminal, and `exec` never closes stdin, so op waits forever and Herdr freezes).
+- The token: one `op item get` per Herdr run, when the Jira tab first shows, and again after a 401 (a replaced token). Kept in memory only, sent with `fetch`, never in a process list. `op` needs `--account` (3 accounts: without it, op asks once per account) and `</dev/null` (op reads stdin when it is not a terminal, and `exec` never closes stdin, so op waits forever and Herdr freezes).
 - No retries: a 429 says to press `r` later. The tab asks Jira only while it shows.
 - Test: `node mods/mh-spaces/jira.test.mjs`.
 
