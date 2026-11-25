@@ -4,8 +4,7 @@
 export const validSite = (s) => /^[a-z0-9-]+\.atlassian\.net$/.test(s ?? "");
 export const validBoard = (b) => /^\d+$/.test(b ?? "");
 
-// The board's columns in its order. Columns with the same name (Backlog twice on a kanban
-// board with a backlog) become one.
+// The board's columns in order; same-named columns (two Backlogs on a kanban board) become one.
 export function columnsOf(config) {
   const out = [];
   for (const c of config?.columnConfig?.columns ?? []) {

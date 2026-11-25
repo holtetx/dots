@@ -49,8 +49,7 @@ const tabsOf = () => [
 ];
 
 export function boardInit(view, cx) {
-  // Tab and shift-tab are the app's (they move focus before our key handler sees them):
-  // bindings of our own, deeper in, come first.
+  // Tab and shift-tab move app focus before on_key_down: our own bindings, deeper in, come first.
   try {
     cx.bind_keys([
       { keystroke: "tab", action: "mh_board_next_tab", context: "MhBoard" },
@@ -592,7 +591,7 @@ export function boardRender(view) {
   const hint = view.picker ? "" : view.searching
     ? ["↓↑ ^J ^K move", "↵ keep filter", "esc clear"].join(" · ")
     : ["/ search", ...tab.keys, view.text ? "esc clear search" : "esc close"].join(" · ");
-  const allKeys = ["hjkl move", "^D ^U ^J ^K scroll", "g G first, last", "/ search", "space preview", "↵ sessions", "⌃↵ open on GitHub", "⌥↵ linked", "tab next tab", "1-9 a tab", "b show or hide Dependabot", "r refresh", "esc close"].join(" · ");
+  const allKeys = ["hjkl move", "^D ^U ^J ^K scroll", "g G first, last", "/ search", ...(tab.github ? ["space preview", "↵ sessions", "⌃↵ open on GitHub", "⌥↵ linked", "b show or hide Dependabot"] : tab.keys), "tab next tab", "1-9 a tab", "r refresh", "esc close"].join(" · ");
   return v_flex()
     .id("board")
     .relative()

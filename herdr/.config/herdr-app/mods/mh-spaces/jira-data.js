@@ -1,8 +1,4 @@
-// The Jira tab's data: one board, read only. Settings: shared("mh-jira") from mh-state.json,
-// { account, vault, item }: the 1Password item with the fields email, site, board and
-// credential (an API token). The work Mac only: without it the board has no Jira tab.
-// The item is read once per Herdr run (one op call, so one approval) and kept in memory
-// only; copies of mh-spaces share it. Only GET, and only the two board paths below.
+// The Jira tab's data: one board, GET only (AGENTS.local.md, "Jira tab on the board").
 
 import { exec, shared } from "herdr";
 import { byColumn, columnsOf, issueOf, validBoard, validSite } from "./jira.js";
@@ -12,11 +8,20 @@ export const jiraSettings = () => {
   return s?.account && s?.vault && s?.item ? s : null;
 };
 
-let auth = null; // { refs, site, board, header }
+// { refs, p }: the item read, or being read, so a reopened board waits for the same op call.
+let auth = null;
 
-async function credentials(cfg) {
+function credentials(cfg) {
   const refs = JSON.stringify([cfg.account, cfg.vault, cfg.item]);
-  if (auth?.refs === refs) return auth;
+  if (auth?.refs !== refs) {
+    const p = readItem(cfg);
+    auth = { refs, p };
+    p.catch(() => { if (auth?.p === p) auth = null; });
+  }
+  return auth.p;
+}
+
+async function readItem(cfg) {
   // --account: without it, op outside a terminal asks once per signed-in account.
   // </dev/null: op reads stdin when it isn't a terminal, and exec's stdin never closes.
   const r = await exec("sh", ["-c", 'exec op item get "$1" --account "$2" --vault "$3" --fields label=email,label=site,label=board,label=credential --reveal --format json </dev/null', "sh", cfg.item, cfg.account, cfg.vault], { timeout: 60000 })
@@ -26,15 +31,17 @@ async function credentials(cfg) {
   if (!f.email || !f.credential) throw new Error("The 1Password item has no email or credential.");
   if (!validSite(f.site)) throw new Error("The 1Password item's site must look like name.atlassian.net.");
   if (!validBoard(f.board)) throw new Error("The 1Password item's board must be a number.");
-  auth = { refs, site: f.site, board: f.board, header: `Basic ${btoa(`${f.email}:${f.credential}`)}` };
-  return auth;
+  return { site: f.site, board: f.board, header: `Basic ${btoa(`${f.email}:${f.credential}`)}` };
 }
 
 // No retries: the board asks only when opened or on r, and a 429 says to wait.
 async function get(a, path, params = {}) {
   const query = Object.entries(params).map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join("&");
   const r = await fetch(`https://${a.site}${path}${query ? `?${query}` : ""}`, { method: "GET", headers: { Authorization: a.header, Accept: "application/json" } });
-  if (r.status === 401 || r.status === 403) throw new Error(`Jira refused the token (${r.status}). It may have expired.`);
+  if (r.status === 401 || r.status === 403) {
+    auth = null; // r reads the item again, after the token is replaced in 1Password
+    throw new Error(`Jira refused the token (${r.status}). It may have expired.`);
+  }
   if (r.status === 429) throw new Error("Jira says too many requests: press r in a minute.");
   if (!r.ok) throw new Error(`Jira answered ${r.status}.`);
   return r.json();

@@ -135,8 +135,7 @@ export default class Spacing extends View {
     this.side = 0;
     this.tab = TABS.find(([id]) => id === localStorage.getItem("tab"))?.[0] ?? "spacing";
     this.patterns = null;
-    // Tab and shift-tab are the app's (they move focus before our key handler sees them):
-    // bindings of our own, deeper in, come first.
+    // Tab and shift-tab move app focus before on_key_down: our own bindings, deeper in, come first.
     try {
       cx.bind_keys([
         { keystroke: "tab", action: "mh_spacing_next_tab", context: "MhSpacing" },
