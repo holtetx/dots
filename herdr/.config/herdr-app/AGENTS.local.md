@@ -23,6 +23,7 @@ Read these first. They are in `~/.config/herdr-app`:
 | Space folders | herdr-core doc `mh-folders` | mh-spaces only. Other mods ask through `shared("space-folders.ask")`. |
 | Session title | label `mh.description` | skills, with `hc label` |
 | SSH: 1Password reference, Claude's folder (`mh-ssh`) | `mh-state.json` | by hand, on the work Mac only |
+| Jira board (`mh-jira`), lunch canteen (`mh-lunch`) | `mh-state.json` | by hand, on the work Mac only |
 | Which space is an SSH space | label `mh.ssh=<host>` on its ssh terminal | `mods/mh-ssh` |
 
 ## Key list (`cmd-/`, `ctrl-a ?`)
@@ -75,7 +76,7 @@ Choices the owner made. Do not change them without a question.
 - One Jira board only, read only. `mods/mh-spaces/jira-data.js` sends only `GET` to three paths: `/rest/agile/1.0/board/<board>/configuration` and `/rest/software/1.0/board/<board>/issue` (the `/rest/agile/1.0` issue path is deprecated), and `/rest/api/3/issue/<key>` for the preview (only on `space`). Never add other Jira calls without a question.
 - Cards: open issues and those done in the last 14 days (`statusCategory != Done OR resolved >= -14d`), in the board's columns side by side, in Jira's rank order. Swimlanes are not shown: the public API does not return their queries.
 - A card: title, parent (epic) tag, priority word, a red `blocked` tag when an open issue blocks it (`issuelinks`), type color, key (struck through when done), assignee initials. The left edge has the priority color. A column header is red when it has more cards than the board's max.
-- `h l` move between columns, `j k` between cards, `z` folds or opens a column (also a click on its header). Backlog, Analyse and Ferdig start folded; the choice is kept in the mod's `localStorage` (`jira.folded`), names in lower case and trimmed.
+- `h l` move between columns, `j k` between cards, `z` folds or opens a column (also a click on its header). Backlog and the columns in `mh-jira.folded` (a list of names) start folded; the choice is kept in the mod's `localStorage` (`jira.folded`), names in lower case and trimmed.
 - `space` previews an issue in `preview.js`, laid out as Jira shows it: title on top, description, linked issues and comments on the left, fields on the right. On a linked issue `↵` previews it and `^O` goes back. The text is Jira's rich text (ADF) made markdown by `adfToMd` in `jira.js`. Attachments need a login, so they are a link to the issue.
 - The token: one `op item get` per Herdr run, when the Jira tab first shows, and again after a 401 (a replaced token). Kept in memory only, sent with `fetch`, never in a process list. `op` needs `--account` (3 accounts: without it, op asks once per account) and `</dev/null` (op reads stdin when it is not a terminal, and `exec` never closes stdin, so op waits forever and Herdr freezes).
 - No retries: a 429 says to press `r` later. The tab asks Jira only while it shows.
@@ -90,7 +91,7 @@ Choices the owner made. Do not change them without a question.
 
 ## Lunch (`ctrl-a l`)
 
-- `mods/mh-lunch`: this week's dishes in the Transperia canteen from `api.izy.as` (header `Building-Id`). Without a `week` the API gives the current week. Today is a large card, past days are dimmed.
+- `mods/mh-lunch`: this week's dishes in a canteen from `api.izy.as` (header `Building-Id`). The canteen is `mh-lunch` in `mh-state.json`: `{ "canteen": "<id>", "building": "<id>" }`, strings of digits, set by hand on the work Mac only. Without it the popup says there is no canteen. Without a `week` the API gives the current week. Today is a large card, past days are dimmed.
 - Emojis come from a word list in `mods/mh-lunch/emoji.js`, in the order the words come in the dish name. A dish with no known word gets 🍽️. Test: `node mods/mh-lunch/emoji.test.mjs`.
 
 ## Decided against

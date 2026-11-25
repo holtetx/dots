@@ -17,7 +17,7 @@ const tilde = (path) => path.replace(/^\/(?:Users|home)\/[^/]+(?=\/|$)/, "~");
 const parent = (path) => tilde(path.replace(/\/+$/, "").replace(/\/[^/]*$/, "") || "/");
 const zoxide = (args, on) => exec("zoxide", args, { on, timeout: 8000 });
 
-// "rekkert › guest-limits" for a workspace kept inside or beside its repo, else the folder's name.
+// "repo › branch" for a workspace kept inside or beside its repo, else the folder's name.
 function label(cwd) {
   const claude = cwd.match(/^(.*)\/\.claude\/worktrees\/([^/]+)/);
   if (claude) return `${base(claude[1])} › ${claude[2]}`;

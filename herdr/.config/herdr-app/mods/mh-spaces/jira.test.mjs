@@ -5,18 +5,18 @@ import { adfBlocks, adfToMd, avatarOf, blockersOf, byColumn, columnsOf, foldKey,
 const config = { columnConfig: { columns: [
   { name: "Backlog", statuses: [{ id: "1" }] },
   { name: "Backlog", statuses: [{ id: "10007" }] },
-  { name: "Analyse", statuses: [{ id: "10711" }, { id: "11683" }], max: 8 },
-  { name: "Ferdig", statuses: [{ id: "10710" }] },
+  { name: "Review", statuses: [{ id: "3" }, { id: "4" }], max: 8 },
+  { name: "Done", statuses: [{ id: "5" }] },
 ] } };
 const cols = columnsOf(config);
-assert.deepStrictEqual(cols.map((c) => c.name), ["Backlog", "Analyse", "Ferdig"]);
+assert.deepStrictEqual(cols.map((c) => c.name), ["Backlog", "Review", "Done"]);
 assert.ok(cols[0].statuses.has("1") && cols[0].statuses.has("10007"));
 
 const n = (key, id) => ({ key, fields: { summary: key, status: { id, name: "x", statusCategory: { key: "new" } }, updated: "2026-11-20T10:00:00.000+0100" } });
-const issues = [n("ABC-3", "11683"), n("ABC-1", "10007"), n("ABC-9", "999"), n("ABC-2", "10711")].map((i) => issueOf(i, "x.atlassian.net"));
+const issues = [n("ABC-3", "4"), n("ABC-1", "10007"), n("ABC-9", "999"), n("ABC-2", "3")].map((i) => issueOf(i, "x.atlassian.net"));
 assert.strictEqual(issues[0].url, "https://x.atlassian.net/browse/ABC-3");
 const secs = byColumn(cols, issues);
-assert.deepStrictEqual(secs.map((s) => [s.name, s.max, s.items.map((i) => i.key)]), [["Backlog", null, ["ABC-1"]], ["Analyse", 8, ["ABC-3", "ABC-2"]], ["Ferdig", null, []]]);
+assert.deepStrictEqual(secs.map((s) => [s.name, s.max, s.items.map((i) => i.key)]), [["Backlog", null, ["ABC-1"]], ["Review", 8, ["ABC-3", "ABC-2"]], ["Done", null, []]]);
 assert.deepStrictEqual(issueOf({ key: "A-1", fields: { parent: { key: "A-9", fields: { summary: "Epic" } } } }, "x.atlassian.net").parent, { key: "A-9", title: "Epic" });
 
 const p = (...content) => ({ type: "paragraph", content });
@@ -49,12 +49,12 @@ assert.strictEqual(adfToMd(doc, "https://x.atlassian.net/browse/A-1"), [
 ].join("\n\n"));
 assert.strictEqual(adfToMd(null, ""), "");
 assert.strictEqual(adfToMd({ type: "doc", content: [p(tx("Ønsker jeg ", "strong"), tx("x"), tx("  ", "em"))] }, ""), "**Ønsker jeg** x  ");
-assert.strictEqual(foldKey(" FERDIG "), foldKey("Ferdig"));
-assert.deepStrictEqual([initials("Åse Merethe Wilhelmsen"), initials("Kari"), initials(" ")], ["ÅW", "K", "?"]);
-assert.ok(validKey("ETU-80229") && !validKey("ETU-1/../x") && !validKey("etu-1"));
+assert.strictEqual(foldKey(" DONE "), foldKey("Done"));
+assert.deepStrictEqual([initials("Åse Kari Nordmann"), initials("Kari"), initials(" ")], ["ÅN", "K", "?"]);
+assert.ok(validKey("ABC-123") && !validKey("ABC-1/../x") && !validKey("abc-1"));
 
 assert.ok(validSite("example.atlassian.net") && !validSite("evil.com/x?") && !validSite("a.atlassian.net.evil.com"));
-assert.ok(validBoard("282") && !validBoard("282/../1") && !validBoard(""));
+assert.ok(validBoard("12") && !validBoard("12/../1") && !validBoard(""));
 const blocks = { name: "Blocks", inward: "is blocked by", outward: "blocks" };
 const other = (key, cat) => ({ key, fields: { summary: key, status: { name: "s", statusCategory: { key: cat } }, issuetype: { name: "Task" } } });
 const links = linksOf({ issuelinks: [

@@ -28,8 +28,8 @@ const CHECKS = { SUCCESS: ["check", GREEN, "Checks passed"], FAILURE: ["x", RED,
 const KIND_ORDER = { pr: 0, issue: 1 };
 const ROW = 28;
 const CARD = 96;
-// Folded until z opens them; the choice is kept in localStorage.
-const FOLDED = ["Backlog", "Analyse", "Ferdig"];
+// Folded until z opens them: Backlog, plus mh-jira.folded (this Mac's board); the choice is kept in localStorage.
+const FOLDED = () => ["Backlog", ...(shared("mh-jira")?.folded ?? [])];
 
 // What was fetched, the tab shown and each tab's selection ({ url, i }),
 // kept between openings (copies share this module).
@@ -387,9 +387,9 @@ function key(view, e, cx) {
 let folded = null;
 function foldedSet() {
   if (folded) return folded;
-  let raw = FOLDED;
+  let raw = FOLDED();
   try {
-    raw = JSON.parse(localStorage.getItem("jira.folded")) ?? FOLDED;
+    raw = JSON.parse(localStorage.getItem("jira.folded")) ?? FOLDED();
   } catch {}
   return (folded = new Set(raw.map(foldKey)));
 }
