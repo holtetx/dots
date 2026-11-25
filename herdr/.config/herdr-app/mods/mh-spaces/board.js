@@ -5,15 +5,18 @@
 // hjkl moves (^D/^U half a page, ^J/^K five); ↵ picks one of its sessions or
 // starts one in its repo (mh-sessions' tasks list for that item), ⌃↵ opens
 // it, ⌥↵ lists what it's linked to, space previews it (preview.js), / searches the tab shown.
+// The Jira tab (jira-data.js, only with shared("mh-jira")): one Jira board by its columns; ↵ opens
+// an issue in the browser. It asks Jira only while it's shown.
 // What was fetched is kept for the next opening.
 // A mh-spaces overlay with props { board: true }.
 
 import { asks, stacked } from "./stack.js";
 import { div, svg } from "gpui-kit";
 import { v_flex, h_flex, ScrollHandle, InputState, Input } from "gpui-base";
-import { props, closeOverlay, openOverlay, theme, settings, shared, terminals, exec } from "herdr";
-import { GH, FINAL, markRead, prKey, unknown } from "./github.js";
+import { props, closeOverlay, openOverlay, theme, settings, shared, terminals } from "herdr";
+import { GH, FINAL, markRead, open, prKey, unknown } from "./github.js";
 import { boardRepos, fetchIssues, fetchPrs } from "./board-data.js";
+import { fetchJira, jiraSettings } from "./jira-data.js";
 
 const FRESH = 2 * 60000;
 const ICON = (name) => `mods/workspace-chrome/${name}.svg`;
@@ -35,14 +38,24 @@ export const ago = (ms) => {
   return d < 3600 ? `${Math.max(1, Math.round(d / 60))}m` : d < 86400 ? `${Math.round(d / 3600)}h` : d < 86400 * 60 ? `${Math.round(d / 86400)}d` : `${Math.round(d / 86400 / 30)}mo`;
 };
 const kindOf = (url, items) => items[url]?.kind ?? (/\/issues\/\d+/.test(url) ? "issue" : "pr");
-const refOf = (it) => `${it.repo.split("/").pop()}#${it.number ?? "?"}`;
+const refOf = (it) => it.key ?? `${it.repo.split("/").pop()}#${it.number ?? "?"}`;
 
+// Each tab: its items, how a row looks, and its texts. Rows are hoisted functions further down.
+const GITHUB_KEYS = ["space preview", "↵ sessions", "⌃↵ GitHub"];
 const tabsOf = () => [
-  { id: "prs", name: "Pull requests" },
-  { id: "issues", name: "Issues" },
+  { id: "prs", name: "Pull requests", list: () => memory.data.prs?.prs, row: prRow, empty: "No open PRs.", asking: "Asking GitHub…", keys: GITHUB_KEYS, github: true },
+  { id: "issues", name: "Issues", list: () => memory.data.issues?.issues, row: issueRow, empty: "No open issues.", asking: "Asking GitHub…", keys: GITHUB_KEYS, github: true },
+  ...(jiraSettings() ? [{ id: "jira", name: "Jira", list: () => memory.data.jira?.sections.flatMap((s) => s.items), row: jiraRow, empty: "No issues on the board.", asking: "Asking Jira… (approve 1Password if it asks)", keys: ["↵ open in Jira"] }] : []),
 ];
 
 export function boardInit(view, cx) {
+  // Tab and shift-tab move app focus before on_key_down: our own bindings, deeper in, come first.
+  try {
+    cx.bind_keys([
+      { keystroke: "tab", action: "mh_board_next_tab", context: "MhBoard" },
+      { keystroke: "shift-tab", action: "mh_board_prev_tab", context: "MhBoard" },
+    ]);
+  } catch {}
   view.handle = cx.focus_handle();
   view.handle.focus();
   // The session picker over it gives the keyboard back when it closes (shared("board.focus")).
@@ -109,6 +122,10 @@ function refresh(view, cx, force) {
   const due = (key, s) => force || !memory.data[key] || memory.stamps[key] !== s || now - (memory.at[key] ?? 0) > FRESH;
   if (due("prs", stamp)) load(view, cx, "prs", stamp, () => fetchPrs(repos));
   if (due("issues", stamp)) load(view, cx, "issues", stamp, () => fetchIssues(repos));
+  // Only while shown: the first ask of a Herdr run asks 1Password too.
+  const jira = jiraSettings();
+  const jiraStamp = JSON.stringify(jira);
+  if (jira && memory.tab === "jira" && due("jira", jiraStamp)) load(view, cx, "jira", jiraStamp, () => fetchJira(jira));
 }
 
 // Every item the board knows: the sidebar's, then its own.
@@ -160,14 +177,19 @@ function graphOf(items) {
 }
 
 const matches = (it, words) => {
-  const text = [refOf(it), it.title, it.repo, it.author, it.branch, ...(it.assignees ?? []), ...(it.labels ?? []).map((l) => l.name)].join(" ").toLowerCase();
+  const text = [refOf(it), it.title, it.repo, it.author, it.branch, it.assignee, it.type, it.status, ...(it.assignees ?? []), ...(it.labels ?? []).map((l) => l.name)].join(" ").toLowerCase();
   return words.every((w) => text.includes(w));
 };
 
 function sectionsOf(tab, text) {
   const words = text.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  // Jira comes grouped by the board's columns.
+  if (tab.id === "jira") {
+    const secs = memory.data.jira?.sections ?? [];
+    return words.length ? secs.map((s) => ({ name: s.name, items: s.items.filter((i) => matches(i, words)) })).filter((s) => s.items.length) : secs;
+  }
   const by = new Map();
-  for (const i of (tab.id === "prs" ? memory.data.prs?.prs : memory.data.issues?.issues) ?? []) if (shown(i) && matches(i, words)) by.set(i.repo, [...(by.get(i.repo) ?? []), i]);
+  for (const i of tab.list() ?? []) if (shown(i) && matches(i, words)) by.set(i.repo, [...(by.get(i.repo) ?? []), i]);
   return [...by]
     .map(([name, items]) => ({ name, items: tab.id === "prs" ? stacked(items) : items.sort((a, b) => b.updated - a.updated) }))
     .sort((a, b) => Math.max(...b.items.map((i) => i.updated)) - Math.max(...a.items.map((i) => i.updated)));
@@ -179,9 +201,19 @@ function listAt(tab, rows) {
   return i >= 0 ? i : Math.max(0, Math.min(s.i ?? 0, rows.length - 1));
 }
 
-function showTab(view, id) {
+// Tab and shift-tab: the next or previous tab, wrapping. Not while the picker or search has the keyboard.
+function stepTab(view, by, cx) {
+  if (view.picker || view.searching) return;
+  const tabs = tabsOf();
+  const i = tabs.findIndex((t) => t.id === view.model.tab.id);
+  showTab(view, tabs[(i + by + tabs.length) % tabs.length].id, cx);
+  cx.notify();
+}
+
+function showTab(view, id, cx) {
   memory.tab = id;
   view.reveal = true;
+  refresh(view, cx, false);
 }
 
 function move(view, dir, by = 1) {
@@ -208,8 +240,11 @@ function edge(view, last) {
 
 function openUrl(it, cx) {
   markRead([it]);
-  cx.spawn(async () => { await exec("open", [it.url]).catch(() => null); });
+  open(it.url, cx);
 }
+
+// ↵ and double-click: a Jira issue opens in the browser; a GitHub item lists its sessions.
+const pickItem = (view, it, cx) => (it.kind === "jira" ? openUrl(it, cx) : sessions(view, it));
 
 // What a new session for `it` would start in: its repo, a PR's branch, and a worktree's name.
 function startOf(it) {
@@ -262,7 +297,7 @@ function pickerKey(view, e, cx) {
     if (!at) return openUrl(row.it, cx), true;
     clearSearch(view);
     memory.sel[at.tab] = at.sel;
-    showTab(view, at.tab);
+    showTab(view, at.tab, cx);
     view.picker = null;
   } else return false;
   view.pickScroll.scroll_to_item(view.picker?.at ?? 0);
@@ -301,16 +336,12 @@ function key(view, e, cx) {
   view.note = "";
   if (e.key === "escape") return view.text ? clearSearch(view) : closeOverlay(props().overlay), true;
   if (e.key === "/" && plain) return (view.searching = true), view.input.focus(), true;
-  if (e.key === "space" && plain) return preview(it), true;
+  if (e.key === "space" && plain) return it?.kind === "jira" ? (view.note = "No preview for Jira issues yet: ↵ opens it.") : preview(it), true;
   if (e.key === "enter") {
     if (m.control) it && openUrl(it, cx);
     else if (m.alt) linked(view, it);
-    else sessions(view, it);
+    else if (it) pickItem(view, it, cx);
     return true;
-  }
-  if (e.key === "tab") {
-    const i = tabs.findIndex((t) => t.id === view.model.tab.id);
-    return showTab(view, tabs[(i + (m.shift ? tabs.length - 1 : 1)) % tabs.length].id), true;
   }
   if (m.control && !m.alt && !m.platform) {
     const half = Math.max(1, Math.floor((view.listHeight ?? 340) / 2 / ROW));
@@ -318,7 +349,7 @@ function key(view, e, cx) {
     if (by) return move(view, e.key === "d" || e.key === "j" ? "down" : "up", by), true;
   }
   if (!plain) return false;
-  if (/^[1-9]$/.test(e.key) && tabs[Number(e.key) - 1]) return showTab(view, tabs[Number(e.key) - 1].id), true;
+  if (/^[1-9]$/.test(e.key) && tabs[Number(e.key) - 1]) return showTab(view, tabs[Number(e.key) - 1].id, cx), true;
   if (e.key === "r") return refresh(view, cx, true), true;
   if (e.key === "b") return (memory.bots = !memory.bots), (view.reveal = true), true;
   if (e.key === "g" || e.key === "G") return edge(view, m.shift || e.key === "G"), true;
@@ -353,7 +384,7 @@ function select(view, tabId, sel, e, cx, it) {
   memory.sel[tabId] = sel;
   view.note = "";
   if (e.modifiers.control) openUrl(it, cx);
-  else if (e.click_count >= 2) sessions(view, it);
+  else if (e.click_count >= 2) pickItem(view, it, cx);
   cx.notify();
 }
 
@@ -429,6 +460,18 @@ function issueRow(view, it, i, on, t, dark, login) {
     .child(div().w(30).flex_none().text_right().text_size(11).text_color(t.dim).child(ago(it.updated)));
 }
 
+function jiraRow(view, it, i, on, t) {
+  const done = it.statusCategory === "done";
+  return rowBase(`jira-${it.key}`, on, t)
+    .on_click((e, cx) => select(view, "jira", { url: it.url, i }, e, cx, it))
+    .child(div().w(84).flex_none().text_size(11.5).text_color(t.dim).child(it.key))
+    .child(div().flex_1().min_w(0).truncate().text_color(done ? t.muted : t.foreground).child(it.title))
+    .child(div().w(90).flex_none().truncate().text_size(11.5).text_color(t.dim).child(it.type))
+    .child(div().w(60).flex_none().truncate().text_size(11.5).text_color(t.dim).child(it.priority))
+    .child(div().w(140).flex_none().truncate().text_size(11.5).text_color(it.assignee ? t.muted : t.dim).child(it.assignee || "unassigned"))
+    .child(div().w(30).flex_none().text_right().text_size(11).text_color(t.dim).child(ago(it.updated)));
+}
+
 function listBody(view, t, dark) {
   const { tab, sections } = view.model;
   const children = [];
@@ -445,15 +488,14 @@ function listBody(view, t, dark) {
     for (const it of sec.items) {
       childOf[n] = children.length;
       const on = n === view.model.at;
-      children.push(tab.id === "prs" ? prRow(view, it, n, on, t, dark) : issueRow(view, it, n, on, t, dark, login));
+      children.push(tab.row(view, it, n, on, t, dark, login));
       n++;
     }
   }
   view.model.childOf = childOf;
-  const none = !boardRepos().length
-    ? "No repos yet: put repos in a sidebar folder, or add them in the spacing dialog's Board tab."
-    : view.text.trim() ? "Nothing matches the search."
-    : tab.id === "prs" ? "No open PRs." : "No open issues.";
+  const none = view.text.trim() ? "Nothing matches the search."
+    : tab.github && !boardRepos().length ? "No repos yet: put repos in a sidebar folder, or add them in the spacing dialog's Board tab."
+    : tab.empty;
   return v_flex()
     .id(`list-${tab.id}`)
     .on_size_change((size) => (view.listHeight = size.height))
@@ -462,7 +504,7 @@ function listBody(view, t, dark) {
     .overflow_y_scrollbar()
     .track_scroll(view.listScroll)
     .children(children)
-    .when(!n, (el) => el.child(div().p(10).text_color(t.dim).child(memory.data[tab.id] ? none : view.busy[tab.id] ? "Asking GitHub…" : "")));
+    .when(!n, (el) => el.child(div().p(10).text_color(t.dim).child(memory.data[tab.id] ? none : view.busy[tab.id] ? tab.asking : "")));
 }
 
 function pickerPanel(view, t, dark) {
@@ -524,15 +566,15 @@ export function boardRender(view) {
     view.reveal = false;
     view.listScroll.scroll_to_item(model.childOf?.[model.at] ?? 0);
   }
-  const listOf = (x) => (x.id === "prs" ? memory.data.prs?.prs : memory.data.issues?.issues);
-  const countOf = (x) => listOf(x)?.filter(shown).length;
-  const bots = (listOf(tab) ?? []).filter(isBot).length;
-  // The shown tab is the title ("Open pull requests"); the other is a link to it.
+  const countOf = (x) => x.list()?.filter(shown).length;
+  const bots = (tab.list() ?? []).filter(isBot).length;
+  // Tabs in a fixed order, the shown one highlighted; the same text either way, so nothing moves.
   const tabEl = (x, i) => h_flex().id(`tab-${x.id}`).flex_none().gap(6).px(6).py(2).items_center().rounded(5).cursor_pointer()
-    .when(x.id === tab.id, (el) => el.text_size(14).font_semibold().text_color(t.foreground))
-    .when(x.id !== tab.id, (el) => el.text_size(12).text_color(t.muted).hover((s) => s.bg(t.hover)))
-    .on_click((_e, cx) => { showTab(view, x.id); view.note = ""; cx.notify(); })
-    .child(x.id === tab.id ? `Open ${x.name.toLowerCase()}` : x.name)
+    .text_size(13)
+    .when(x.id === tab.id, (el) => el.font_semibold().text_color(t.foreground).bg(t.selected))
+    .when(x.id !== tab.id, (el) => el.text_color(t.muted).hover((s) => s.bg(t.hover)))
+    .on_click((_e, cx) => { showTab(view, x.id, cx); view.note = ""; cx.notify(); })
+    .child(x.name)
     .when(countOf(x) != null, (el) => el.child(div().text_size(11).text_color(t.dim).child(String(countOf(x)))))
     .tooltip(i < 9 ? `${i + 1} · tab` : "tab");
   const error = memory.errors[tab.id];
@@ -546,15 +588,17 @@ export function boardRender(view) {
     gh?.missing?.length ? `Not on GitHub, or gh can't see: ${gh.missing.join(", ")}` : "",
     gh?.partial ? "Some repos couldn't be asked." : "",
   ].filter(Boolean);
-  const other = tabs.find((x) => x.id !== tab.id);
   const hint = view.picker ? "" : view.searching
     ? ["↓↑ ^J ^K move", "↵ keep filter", "esc clear"].join(" · ")
-    : ["/ search", "space preview", "↵ sessions", "⌃↵ GitHub", view.text ? "esc clear search" : "esc close"].join(" · ");
-  const allKeys = ["hjkl move", "^D ^U ^J ^K scroll", "g G first, last", "/ search", "space preview", "↵ sessions", "⌃↵ open on GitHub", "⌥↵ linked", `tab ${other.name.toLowerCase()}`, "b show or hide Dependabot", "r refresh", "esc close"].join(" · ");
+    : ["/ search", ...tab.keys, view.text ? "esc clear search" : "esc close"].join(" · ");
+  const allKeys = ["hjkl move", "^D ^U ^J ^K scroll", "g G first, last", "/ search", ...(tab.github ? ["space preview", "↵ sessions", "⌃↵ open on GitHub", "⌥↵ linked", "b show or hide Dependabot"] : tab.keys), "tab next tab", "1-9 a tab", "r refresh", "esc close"].join(" · ");
   return v_flex()
     .id("board")
     .relative()
     .track_focus(view.handle)
+    .key_context("MhBoard")
+    .on_action("mh_board_next_tab", (_e, cx) => stepTab(view, 1, cx))
+    .on_action("mh_board_prev_tab", (_e, cx) => stepTab(view, -1, cx))
     .on_key_down((e, cx) => {
       if (!key(view, e, cx)) return;
       cx.stop_propagation();
@@ -567,7 +611,7 @@ export function boardRender(view) {
     .bg(t.popover)
     .text_size(12.5)
     .child(h_flex().flex_none().gap(10).items_center()
-      .child(h_flex().flex_none().gap(4).items_center().children([tab, other].map((x) => tabEl(x, tabs.indexOf(x)))))
+      .child(h_flex().flex_none().gap(4).items_center().children(tabs.map(tabEl)))
       .child(div().id("status").flex_none().text_size(11).text_color(t.dim).child(status).tooltip("r · refresh"))
       .when(bots > 0, (el) => el.child(div().id("bots").flex_none().px(6).py(1).rounded(5).cursor_pointer().text_size(11).text_color(t.muted).hover((s) => s.bg(t.hover))
         .on_click((_e, cx) => { memory.bots = !memory.bots; view.reveal = true; cx.notify(); })

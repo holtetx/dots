@@ -13,7 +13,7 @@ import { appHome, readTextFile, writeTextFile, shared, setShared } from "herdr";
 
 const FILES = [
   { name: "mh-settings.json", keys: ["mh-copy.hints", "mh-links", "mh-spacing.header", "mh-spaces"], fill: false, keepEmpty: false },
-  { name: "mh-state.json", keys: ["space.colors", "space-folders.folded", "mh-board", "mh-ssh"], fill: true, keepEmpty: true },
+  { name: "mh-state.json", keys: ["space.colors", "space-folders.folded", "mh-board", "mh-ssh", "mh-jira"], fill: true, keepEmpty: true },
 ];
 
 const empty = (v) => v == null || (typeof v === "object" && !Array.isArray(v) && Object.keys(v).length === 0);
