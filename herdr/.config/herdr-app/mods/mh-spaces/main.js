@@ -19,8 +19,10 @@
 
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex, ScrollHandle } from "gpui-base";
-import { spaces, machines, panes, terminals, agents, focused, props, nextCommand, run, openOverlay, closeOverlay, exec, hc, home, appHome, readTextFile, theme, shared, setShared, watchFolder, window, layout, notify } from "herdr";
-import { FINAL, branchName, expand, fetchGitHub, fetchUnread, githubRepo, kinds, scanAgent } from "./github.js";
+import { spaces, machines, panes, terminals, agents, focused, props, nextCommand, run, openOverlay, closeOverlay, exec, hc, home, appHome, readTextFile, theme, shared, setShared, window, layout, notify } from "herdr";
+import { branchName, expand, kinds, scanAgent } from "./github.js";
+import { githubDue, unreadDue } from "./github-poll.js";
+import { refreshGit, sameRepo } from "./git-poll.js";
 import { backfillHistory, canon, editLinks, edited, forgetHistory, setWaiting, split, updateHistory, updateLinks } from "./docs.js";
 import { linkInit, linkRender } from "./links.js";
 import { MARK, applyChange, empty, folderOf, foldersOf, live, matchOf, merge, nextRank, ownPaths, pathsOn, tidy, tilde, updateFolders, writeChange } from "./folders.js";
@@ -55,40 +57,11 @@ const claudeCwd = new Map();
 const RAIL_CELL = 32;
 const railCell = (el) => h_flex().flex_none().justify_center().child(el);
 const where = (s, ps) => JSON.stringify([s.machine ?? null, place(s, ps)]);
-const base = (path) => path.replace(/\/+$/, "").split("/").pop();
-// A repo's name from its git folder: the folder holding .git, a bare repo's own
-// name, or the folder holding a hidden bare repo (<project>/.bare).
-const repoName = (common) => {
-  if (common.endsWith("/.git")) return base(common.slice(0, -5));
-  const own = base(common);
-  return own === ".bare" ? base(common.slice(0, -own.length - 1)) : own.replace(/\.git$/, "");
-};
-
-// A detached HEAD as the nearest branch or tag below it and the commits since:
-// "main", "origin/main~2", else "@a1b2c3d".
-async function detached(cwd, on) {
-  const r = await exec("git", ["describe", "--all", "--always"], { cwd, on });
-  if (r.code !== 0) return "(detached)";
-  const d = r.stdout.trim().replace(/^(heads|remotes|tags)\//, "");
-  const m = d.match(/^(.+)-(\d+)-g[0-9a-f]+$/);
-  return m ? `${m[1]}~${m[2]}` : /^[0-9a-f]{7,}$/.test(d) ? `@${d}` : d;
-}
 
 // Changes made outside Herdr (an editor's save, a commit in another app): looked
 // for this often, in repos the list shows, while the window is in front.
 const FALLBACK = 60000;
-// Places looked at together (several git runs each). All at once, a few hundred spaces
-// run out of the app's open files (256 when started from the Dock on macOS) or
-// past a machine core's 16 running execs, and those spaces wait for FALLBACK.
-const AT_ONCE = 6;
 
-// Every run, finished: a place isn't done while one of its runs still holds a slot.
-async function settled(...runs) {
-  const done = await Promise.allSettled(runs);
-  const failed = done.find((d) => d.status === "rejected");
-  if (failed) throw failed.reason;
-  return done.map((d) => d.value);
-}
 
 const parsed = (key, fallback) => {
   try {
@@ -97,12 +70,6 @@ const parsed = (key, fallback) => {
   } catch { return fallback; }
 };
 
-// GitHub is asked again this often while the window is in front: open PRs and
-// issues and branches' PRs, then merged and closed ones; after a failure, not before.
-const GH_OPEN = 2 * 60000;
-const GH_FINAL = 30 * 60000;
-const GH_RETRY = 10 * 60000;
-const GH_UNREAD = 60000;
 // Each machine's Claude transcripts are read for mh-tasks this often while the window is in front.
 const BACKFILL = 15 * 60000;
 // The sidebar folders' repos are looked for this often.
@@ -239,11 +206,11 @@ export default class Spaces extends View {
     const sp = spaces();
     const ps = panes();
     const due = this.due(now, sp, ps);
-    if (due.size) this.refreshGit(due, cx);
+    if (due.size) refreshGit(this, due, cx);
     this.publishGit(sp, ps);
     this.claudeDue(cx);
-    this.githubDue(now, sp, ps, cx);
-    this.unreadDue(now, cx);
+    githubDue(this, now, sp, ps, cx);
+    unreadDue(this, now, cx);
     this.linksDue(now, cx);
     this.waitingDue(cx);
     this.forgetDue(cx);
@@ -749,67 +716,8 @@ export default class Spaces extends View {
     return branch ? `${g.gh}\0${branch}` : null;
   }
 
-  githubDue(now, sp, ps, cx) {
-    if (this.fetching || now < this.ghRetry) return;
-    const active = window().active;
-    const old = (at, final) => active && now - (at ?? 0) > (final ? GH_FINAL : GH_OPEN);
-    const urls = [...new Set([...Object.values(shared("github.links") ?? {}).flat(), ...Object.values(shared("github.agent-links") ?? {}).flat(), ...Object.values(this.agentLinks).flat(), ...this.historyLinks()])]
-      .filter((u) => (!this.items[u]?.links || this.stale.has(u) || old(this.items[u].at, FINAL.has(this.items[u].state))));
-    const keys = [...new Set(sp.map((s) => this.branchKey(s, ps)).filter(Boolean))].filter((k) => !this.branchPrs[k] || old(this.branchPrs[k].at, false));
-    if (!urls.length && !keys.length) return;
-    this.fetching = true;
-    for (const u of urls) this.stale.delete(u);
-    cx.spawn(async (cx) => {
-      try {
-        const r = await fetchGitHub(urls, keys.map((key) => { const [repo, branch] = key.split("\0"); return { key, repo, branch }; }));
-        for (const [url, it] of Object.entries(r.items)) this.items[url] = { links: this.items[url]?.links, ...it };
-        for (const [k, url] of Object.entries(r.branches)) this.branchPrs[k] = { url, at: Date.now(), base: r.items[url]?.base ?? null };
-        if (!r.ok) this.ghRetry = Date.now() + GH_RETRY;
-        this.ghFailed(r.ok ? null : r.error ?? "GitHub gave no data.");
-      } catch (e) {
-        this.ghRetry = Date.now() + GH_RETRY;
-        this.ghFailed(e);
-      }
-      this.fetching = false;
-      cx.notify();
-    });
-  }
 
-  // Badges keep their last state while GitHub can't be asked: say so once, until it works again.
-  ghFailed(error) {
-    if (!error) return void (this.ghWarned = false);
-    if (this.ghWarned) return;
-    this.ghWarned = true;
-    notify({ title: "GitHub badges are not updating", body: `${String(error?.message ?? error).slice(0, 300)}\nChecked again in ${GH_RETRY / 60000} minutes.`, level: "warning" });
-  }
 
-  // GitHub's unread notifications about PRs, each minute while the window is active and
-  // a PR is shown. News opened from a badge (shared("github.read.ask")) stays read until
-  // there's newer, or GitHub agrees.
-  unreadDue(now, cx) {
-    const asks = shared("github.read.ask") ?? [];
-    if (asks.length) {
-      setShared("github.read.ask", []);
-      for (const a of asks) this.dismissed[a.key] = Math.max(this.dismissed[a.key] ?? 0, a.at);
-      cx.notify();
-    }
-    if (this.unreading || now < this.unreadAt || !window().active) return;
-    if (!Object.values(this.items).some((it) => it.kind === "pr")) return;
-    this.unreading = true;
-    cx.spawn(async (cx) => {
-      try {
-        this.unread = await fetchUnread();
-        for (const [key, at] of Object.entries(this.dismissed)) if (!this.unread[key] || this.unread[key].at > at) delete this.dismissed[key];
-        this.unreadAt = Date.now() + GH_UNREAD;
-        this.ghFailed(null);
-      } catch (e) {
-        this.unreadAt = Date.now() + GH_RETRY;
-        this.ghFailed(e);
-      }
-      this.unreading = false;
-      cx.notify();
-    });
-  }
 
   // What the other mods read: every linked item's state, agents' PRs, spaces' branch
   // PRs and the PRs with unread news. Written only when it changed.
@@ -880,7 +788,7 @@ export default class Spaces extends View {
     for (const p of ps) {
       if (!p.terminal || !spaceOf[p.tab]) continue;
       busy[p.pane] = p.status === "working" || !(p.program?.shell || p.program?.agent);
-      if (this.busy[p.pane] && !busy[p.pane]) this.sameRepo(at[spaceOf[p.tab].id], keys).forEach((k) => due.add(k));
+      if (this.busy[p.pane] && !busy[p.pane]) sameRepo(this, at[spaceOf[p.tab].id], keys).forEach((k) => due.add(k));
     }
     this.busy = busy;
     for (const m of machines()) {
@@ -898,11 +806,6 @@ export default class Spaces extends View {
     return due;
   }
 
-  // `key` and the other places in its repo (a commit there moves their ahead/behind).
-  sameRepo(key, keys) {
-    const repo = this.git[key]?.repo;
-    return [key, ...(repo ? [...keys].filter((k) => this.git[k]?.repo === repo) : [])];
-  }
 
   refreshMachines(cx) {
     cx.spawn(async cx => {
@@ -963,90 +866,8 @@ export default class Spaces extends View {
     });
   }
 
-  // One look at a time, each place once however often it was asked for meanwhile.
-  refreshGit(keys, cx) {
-    for (const k of keys) this.pending.add(k);
-    if (this.refreshing) return;
-    this.refreshing = true;
-    cx.spawn(async (cx) => {
-      while (this.pending.size) {
-        const keys = [...this.pending];
-        this.pending.clear();
-        let next = 0;
-        await Promise.all(Array.from({ length: Math.min(AT_ONCE, keys.length) }, async () => {
-          while (next < keys.length) await this.check(keys[next++], cx);
-        }));
-      }
-      const used = new Set(Object.values(this.git).filter(Boolean).map((g) => JSON.parse(g.repo)).filter(([on]) => !on).map(([, repo]) => repo));
-      for (const [repo, pending] of this.watching) if (!used.has(repo)) {
-        this.watching.delete(repo);
-        pending.cancel();
-      }
-      this.refreshing = false;
-      cx.notify();
-    });
-  }
 
-  // One place's git: branch, ahead/behind, its repo.
-  async check(key, cx) {
-    const [on, cwd] = JSON.parse(key);
-    this.checked[key] = Date.now();
-    this.unsure.delete(key);
-    try {
-      // Ref-only reads avoid scanning the worktree or waking its index watch.
-      // Two reads: a folder name may itself contain a newline.
-      const [r, common] = await settled(
-        exec("git", ["rev-parse", "--path-format=absolute", "--show-toplevel"], { cwd, on }),
-        exec("git", ["rev-parse", "--path-format=absolute", "--git-common-dir"], { cwd, on }),
-      );
-      if (r.code !== 0 || common.code !== 0) {
-        // Only git's own "no" is remembered as no repo; anything else is asked again.
-        if (!/not a git repository/i.test(r.code !== 0 ? r.stderr : common.stderr)) {
-          this.unsure.add(key);
-          this.git[key] ??= null;
-        } else this.git[key] = null;
-        return;
-      }
-      // The repo's own .git folder names it; a worktree's top differs from it.
-      const top = r.stdout.replace(/\n$/, ""), repo = common.stdout.replace(/\n$/, "");
-      const [branch, counts, origin] = await settled(
-        exec("git", ["symbolic-ref", "-q", "HEAD"], { cwd, on }),
-        exec("git", ["rev-list", "--left-right", "--count", "HEAD...@{upstream}"], { cwd, on }),
-        exec("git", ["remote", "get-url", "origin"], { cwd, on }),
-      );
-      const name = repoName(repo);
-      const [ahead, behind] = counts.code === 0 ? counts.stdout.trim().split(/\s+/).map(Number) : [0, 0];
-      const info = { name, top, branch: branch.code === 0 ? branch.stdout.trim().replace(/^refs\/heads\//, "") : await detached(cwd, on), ahead, behind, repo: JSON.stringify([on, repo]), linked: repo !== `${top}/.git`, gh: origin.code === 0 ? githubRepo(origin.stdout) : null };
-      this.git[key] = info;
-      if (!on) this.watch(repo, cx);
-    } catch {
-      // Couldn't ask (the machine is away): keep what it showed, look again later.
-      this.git[key] ??= null;
-      this.unsure.add(key);
-    }
-  }
 
-  watch(repo, cx) {
-    if (this.watching.has(repo)) return;
-    const pending = watchFolder(repo);
-    this.watching.set(repo, pending);
-    cx.spawn(async (cx) => {
-      let current = pending;
-      try {
-        for (;;) {
-          await current;
-          if (this.watching.get(repo) !== current) return;
-          const mine = JSON.stringify([null, repo]);
-          const keys = Object.keys(this.git).filter((k) => this.git[k]?.repo === mine);
-          if (!keys.length) break;
-          this.refreshGit(keys, cx);
-          current = watchFolder(repo);
-          this.watching.set(repo, current);
-        }
-      } catch {}
-      if (this.watching.get(repo) === current) this.watching.delete(repo);
-    });
-  }
 
   menu(w) {
     // A popup is as tall as its items; height is only the most.
