@@ -1,7 +1,7 @@
 // Emojis for a Norwegian dish name, in the order the words come. No Herdr imports, so node can test it (emoji.test.mjs).
 
 const WORDS = [
-  [/thanksgiving|kalkun/, "🦃"],
+  [/kalkun/, "🦃"],
   [/fisk|laks|torsk|\bsei\b|hyse|ørret|makrell|sild/, "🐟"],
   [/reke|scampi|skalldyr/, "🦐"],
   [/sushi/, "🍣"],
@@ -43,5 +43,5 @@ export function emojis(name, max = 4) {
   const text = name.toLowerCase();
   const hits = WORDS.map(([re, emoji]) => [text.search(re), emoji]).filter(([at]) => at >= 0);
   const list = [...new Set(hits.sort((a, b) => a[0] - b[0]).map(([, emoji]) => emoji))].slice(0, max);
-  return list.length ? list.join("") : "🍽️";
+  return list.length ? list : ["🍽️"];
 }
