@@ -8,6 +8,7 @@
 import { div, svg } from "gpui-kit";
 import { h_flex } from "gpui-base";
 import { exec, settings, shared, setShared } from "herdr";
+export { githubRepo } from "./remote.js";
 
 export const PR = "__typename url number title state isDraft isInMergeQueue reviewDecision headRefName baseRefName repository { nameWithOwner }";
 export const ISSUE = "__typename url number title state stateReason repository { nameWithOwner }";
@@ -96,12 +97,6 @@ export function expand(urls, items, { related = true } = {}) {
   return out;
 }
 
-// "owner/name" of a GitHub remote URL, or null.
-// shortcut: a git@<host>: remote counts as GitHub (ssh host aliases), upgrade if a non-GitHub ssh remote shows up
-export function githubRepo(remote) {
-  const m = (remote ?? "").trim().match(/(?:github\.com[:/]|^git@[^:/\s]+:)([^/\s]+)\/([^/\s]+?)(?:\.git)?\/?$/);
-  return m ? `${m[1]}/${m[2]}` : null;
-}
 
 // A branch from the spaces list's label (git's branch), or null for main, master
 // and "(detached)".

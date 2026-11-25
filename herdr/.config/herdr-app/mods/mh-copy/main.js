@@ -52,6 +52,7 @@ async function capture(cx, terminal, cwd, colors) {
 }
 
 const RUNNING = "mh-copy.fingers";
+// A copy of mh-spaces/remote.js (a mod cannot import from another): keep them the same.
 const githubRepo = (remote) => (remote ?? "").trim().match(/(?:github\.com[:/]|^git@[^:/\s]+:)([^/\s]+)\/([^/\s]+?)(?:\.git)?\/?$/)?.slice(1).join("/") ?? null;
 const short = (text) => (text.length > 80 ? `${text.slice(0, 79)}…` : text);
 

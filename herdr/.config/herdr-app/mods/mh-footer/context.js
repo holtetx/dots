@@ -3,6 +3,7 @@
 import { div } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { terminals, panes, focused, exec, hc, home, readTextFile } from "herdr";
+import { parseContext } from "./report.js";
 
 export const tokens = (n) => (n >= 1e6 ? `${+(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${+(n / 1e3).toFixed(1)}k` : `${Math.round(n)}`);
 
@@ -40,27 +41,6 @@ export function shownSession() {
   };
 }
 
-// Claude's `/context` report: the totals line and its "Estimated usage by category" table.
-function parseContext(md) {
-  const num = (v) => {
-    const m = String(v).trim().toLowerCase().match(/^([\d.]+)\s*([km]?)$/);
-    return m ? Number(m[1]) * (m[2] === "m" ? 1e6 : m[2] === "k" ? 1e3 : 1) : 0;
-  };
-  const total = md.match(/\*\*Tokens:\*\*\s*([\d.]+[km]?)\s*\/\s*([\d.]+[km]?)/i);
-  const rows = [];
-  let table = false;
-  for (const line of (md.split("### Estimated usage by category")[1] ?? "").split("\n")) {
-    if (!line.startsWith("|")) {
-      if (table) break;
-      continue;
-    }
-    table = true;
-    const [name, count, pct] = line.split("|").slice(1, -1).map((c) => c.trim());
-    if (name === "Category" || /^-+$/.test(name)) continue;
-    rows.push({ name, tokens: num(count), pct: parseFloat(pct) || 0 });
-  }
-  return { used: total ? num(total[1]) : null, size: total ? num(total[2]) : null, rows };
-}
 
 // A terminal's Claude session from ~/.claude/sessions/<pid>.json: its
 // foreground process's, or a child's when a shell launched it.
