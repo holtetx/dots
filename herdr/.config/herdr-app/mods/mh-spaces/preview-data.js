@@ -105,6 +105,14 @@ const cached = {};
 
 export const canCache = (url) => GITHUB_HOST.test(url);
 
+// Jira user pictures (jira.js's avatarOf checks the host): url -> cached path, or null when it could not be had.
+export const avatars = {};
+export async function loadAvatars(urls) {
+  await Promise.all([...new Set(urls)].filter((u) => u && !(u in avatars)).map(async (u) => {
+    avatars[u] = (await cacheImage(u))?.path ?? null;
+  }));
+}
+
 // { path, w, h } for image(), or null when it could not be had.
 export function cacheImage(url) {
   const key = keyOf(url);

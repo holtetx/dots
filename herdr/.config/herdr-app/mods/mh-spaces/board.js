@@ -5,18 +5,21 @@
 // hjkl moves (^D/^U half a page, ^J/^K five); ↵ picks one of its sessions or
 // starts one in its repo (mh-sessions' tasks list for that item), ⌃↵ opens
 // it, ⌥↵ lists what it's linked to, space previews it (preview.js), / searches the tab shown.
-// The Jira tab (jira-data.js, only with shared("mh-jira")): one Jira board by its columns; ↵ opens
-// an issue in the browser. It asks Jira only while it's shown.
+// The Jira tab (jira-data.js, only with shared("mh-jira")): one Jira board as columns of cards; hl
+// moves between columns, z folds or opens one, ↵ opens an issue in the browser, space previews it.
+// It asks Jira only while it's shown.
 // What was fetched is kept for the next opening.
 // A mh-spaces overlay with props { board: true }.
 
 import { asks, stacked } from "./stack.js";
-import { div, svg } from "gpui-kit";
+import { div, svg, image } from "gpui-kit";
 import { v_flex, h_flex, ScrollHandle, InputState, Input } from "gpui-base";
 import { props, closeOverlay, openOverlay, theme, settings, shared, terminals } from "herdr";
 import { GH, FINAL, markRead, open, prKey, unknown } from "./github.js";
 import { boardRepos, fetchIssues, fetchPrs } from "./board-data.js";
 import { fetchJira, jiraSettings } from "./jira-data.js";
+import { avatars, loadAvatars } from "./preview-data.js";
+import { PRIORITY_COLOR, TYPE_COLOR, foldKey, hue, initials } from "./jira.js";
 
 const FRESH = 2 * 60000;
 const ICON = (name) => `mods/workspace-chrome/${name}.svg`;
@@ -24,6 +27,9 @@ const GREEN = ["#1a7f37", "#3fb950"], RED = ["#cf222e", "#f85149"], YELLOW = ["#
 const CHECKS = { SUCCESS: ["check", GREEN, "Checks passed"], FAILURE: ["x", RED, "Checks failed"], ERROR: ["x", RED, "Checks failed"], PENDING: [null, YELLOW, "Checks running"], EXPECTED: [null, YELLOW, "Checks expected"] };
 const KIND_ORDER = { pr: 0, issue: 1 };
 const ROW = 28;
+const CARD = 96;
+// Folded until z opens them; the choice is kept in localStorage.
+const FOLDED = ["Backlog", "Analyse", "Ferdig"];
 
 // What was fetched, the tab shown and each tab's selection ({ url, i }),
 // kept between openings (copies share this module).
@@ -45,7 +51,7 @@ const GITHUB_KEYS = ["space preview", "↵ sessions", "⌃↵ GitHub"];
 const tabsOf = () => [
   { id: "prs", name: "Pull requests", list: () => memory.data.prs?.prs, row: prRow, empty: "No open PRs.", asking: "Asking GitHub…", keys: GITHUB_KEYS, github: true },
   { id: "issues", name: "Issues", list: () => memory.data.issues?.issues, row: issueRow, empty: "No open issues.", asking: "Asking GitHub…", keys: GITHUB_KEYS, github: true },
-  ...(jiraSettings() ? [{ id: "jira", name: "Jira", list: () => memory.data.jira?.sections.flatMap((s) => s.items), row: jiraRow, empty: "No issues on the board.", asking: "Asking Jira… (approve 1Password if it asks)", keys: ["↵ open in Jira"] }] : []),
+  ...(jiraSettings() ? [{ id: "jira", name: "Jira", list: () => memory.data.jira?.sections.flatMap((s) => s.items), empty: "No issues on the board.", asking: "Asking Jira… (approve 1Password if it asks)", keys: ["hl column", "z fold", "space preview", "↵ open in Jira"] }] : []),
 ];
 
 export function boardInit(view, cx) {
@@ -94,6 +100,8 @@ export function boardInit(view, cx) {
   view.reveal = true;
   view.listScroll = ScrollHandle.new();
   view.pickScroll = ScrollHandle.new();
+  // Handles can't be made in render. shortcut: Jira columns past 12 don't follow the selection; raise it for a wider board.
+  view.colScroll = Array.from({ length: 12 }, () => ScrollHandle.new());
   refresh(view, cx, false);
 }
 
@@ -111,6 +119,10 @@ function load(view, cx, key, stamp, work) {
     }
     view.busy[key] = false;
     cx.notify();
+    if (key === "jira" && memory.data.jira) {
+      await loadAvatars(memory.data.jira.sections.flatMap((s) => s.items.map((i) => i.assigneeAvatar)));
+      cx.notify();
+    }
   });
 }
 
@@ -177,7 +189,7 @@ function graphOf(items) {
 }
 
 const matches = (it, words) => {
-  const text = [refOf(it), it.title, it.repo, it.author, it.branch, it.assignee, it.type, it.status, ...(it.assignees ?? []), ...(it.labels ?? []).map((l) => l.name)].join(" ").toLowerCase();
+  const text = [refOf(it), it.title, it.repo, it.author, it.branch, it.assignee, it.type, it.status, ...(it.assignees ?? []), ...(it.labels ?? []).map((l) => l.name ?? l)].join(" ").toLowerCase();
   return words.every((w) => text.includes(w));
 };
 
@@ -186,13 +198,22 @@ function sectionsOf(tab, text) {
   // Jira comes grouped by the board's columns.
   if (tab.id === "jira") {
     const secs = memory.data.jira?.sections ?? [];
-    return words.length ? secs.map((s) => ({ name: s.name, items: s.items.filter((i) => matches(i, words)) })).filter((s) => s.items.length) : secs;
+    return words.length ? secs.map((s) => ({ ...s, items: s.items.filter((i) => matches(i, words)) })) : secs;
   }
   const by = new Map();
   for (const i of tab.list() ?? []) if (shown(i) && matches(i, words)) by.set(i.repo, [...(by.get(i.repo) ?? []), i]);
   return [...by]
     .map(([name, items]) => ({ name, items: tab.id === "prs" ? stacked(items) : items.sort((a, b) => b.updated - a.updated) }))
     .sort((a, b) => Math.max(...b.items.map((i) => i.updated)) - Math.max(...a.items.map((i) => i.updated)));
+}
+
+// The PR and issue tabs: one list, its sections' starts, and the selected row.
+function listModel(model) {
+  model.rows = model.sections.flatMap((s) => s.items);
+  let n = 0;
+  model.starts = model.sections.map((s) => ((n += s.items.length), n - s.items.length));
+  model.at = listAt(model.tab, model.rows);
+  model.item = model.rows[model.at] ?? null;
 }
 
 function listAt(tab, rows) {
@@ -218,6 +239,7 @@ function showTab(view, id, cx) {
 
 function move(view, dir, by = 1) {
   const md = view.model;
+  if (md.cols) return jiraStep(view, dir === "up" ? -by : by);
   const n = md.rows.length;
   if (!n) return;
   let i = md.at;
@@ -233,6 +255,7 @@ function move(view, dir, by = 1) {
 
 function edge(view, last) {
   const md = view.model;
+  if (md.cols) return jiraStep(view, last ? Infinity : -Infinity);
   const i = last ? md.rows.length - 1 : 0;
   if (md.rows[i]) memory.sel[md.tab.id] = { url: md.rows[i].url, i };
   view.reveal = true;
@@ -281,7 +304,7 @@ function find(url) {
   return null;
 }
 
-const preview = (it) => it?.url && openOverlay({ mod: "mh-spaces", kind: "dialog", width: 0.8, height: 0.76, props: { preview: it.url, behind: Boolean(it.behind), back: "board.focus" } });
+const preview = (it) => it?.url && openOverlay({ mod: "mh-spaces", kind: "dialog", width: it.kind === "jira" ? 0.62 : 0.8, height: it.kind === "jira" ? 0.82 : 0.76, props: { preview: it.url, behind: Boolean(it.behind), back: "board.focus" } });
 
 function pickerKey(view, e, cx) {
   const rows = linkedRows(view, view.picker.it.url);
@@ -319,9 +342,9 @@ function clearSearch(view) {
 function searchKey(view, e) {
   const m = e.modifiers;
   const ctrl = m.control && !m.alt && !m.platform;
+  const down = e.key === "down" || (ctrl && e.key === "j");
   if (e.key === "escape") clearSearch(view);
-  else if (e.key === "down" || (ctrl && e.key === "j")) move(view, "down");
-  else if (e.key === "up" || (ctrl && e.key === "k")) move(view, "up");
+  else if (down || e.key === "up" || (ctrl && e.key === "k")) move(view, down ? "down" : "up");
   else return false;
   return true;
 }
@@ -336,13 +359,14 @@ function key(view, e, cx) {
   view.note = "";
   if (e.key === "escape") return view.text ? clearSearch(view) : closeOverlay(props().overlay), true;
   if (e.key === "/" && plain) return (view.searching = true), view.input.focus(), true;
-  if (e.key === "space" && plain) return it?.kind === "jira" ? (view.note = "No preview for Jira issues yet: ↵ opens it.") : preview(it), true;
+  if (e.key === "space" && plain) return preview(it), true;
   if (e.key === "enter") {
     if (m.control) it && openUrl(it, cx);
     else if (m.alt) linked(view, it);
     else if (it) pickItem(view, it, cx);
     return true;
   }
+  if (view.model.tab.id === "jira" && jiraKey(view, e)) return true;
   if (m.control && !m.alt && !m.platform) {
     const half = Math.max(1, Math.floor((view.listHeight ?? 340) / 2 / ROW));
     const by = { d: half, u: half, j: 5, k: 5 }[e.key];
@@ -356,6 +380,74 @@ function key(view, e, cx) {
   const dir = { h: "left", left: "left", j: "down", down: "down", k: "up", up: "up", l: "right", right: "right" }[e.key];
   if (!dir) return false;
   move(view, dir);
+  return true;
+}
+
+// Read once, then kept here: render asks on every live data change.
+let folded = null;
+function foldedSet() {
+  if (folded) return folded;
+  let raw = FOLDED;
+  try {
+    raw = JSON.parse(localStorage.getItem("jira.folded")) ?? FOLDED;
+  } catch {}
+  return (folded = new Set(raw.map(foldKey)));
+}
+
+function toggleFold(name) {
+  const f = foldedSet();
+  const k = foldKey(name);
+  f.has(k) ? f.delete(k) : f.add(k);
+  try {
+    localStorage.setItem("jira.folded", JSON.stringify([...f]));
+  } catch {}
+}
+
+// The columns, the selected column (col) and card in it (at; -1 on a folded or empty column).
+function jiraModel(model) {
+  const f = foldedSet();
+  const cols = model.sections.map((s) => ({ ...s, folded: f.has(foldKey(s.name)) }));
+  const s = memory.sel.jira ?? {};
+  let c = cols.findIndex((x) => x.name === s.col);
+  // Clearing the search keeps only the card's url: find its column.
+  if (c < 0) c = cols.findIndex((x) => x.items.some((i) => i.url === s.url));
+  if (c < 0) c = Math.max(0, cols.findIndex((x) => !x.folded && x.items.length));
+  const col = cols[c];
+  let at = -1;
+  if (col && !col.folded && col.items.length) {
+    at = col.items.findIndex((i) => i.url === s.url);
+    if (at < 0) at = Math.max(0, Math.min(s.i ?? 0, col.items.length - 1));
+  }
+  Object.assign(model, { cols, col: c, at, item: at >= 0 ? col.items[at] : null });
+}
+
+function jiraGo(view, c, i) {
+  const x = view.model.cols[c];
+  memory.sel.jira = { col: x.name, url: x.items[i]?.url, i };
+  view.reveal = true;
+}
+
+// Up or down in the selected column, by cards (±Infinity: to its end).
+function jiraStep(view, by) {
+  const { cols, col, at } = view.model;
+  if (at >= 0) jiraGo(view, col, Math.max(0, Math.min(cols[col].items.length - 1, at + by)));
+}
+
+// hjkl, g G, ^D ^U ^J ^K and z on the Jira columns. Other keys go on to key().
+function jiraKey(view, e) {
+  const md = view.model;
+  const m = e.modifiers;
+  const plain = !m.control && !m.alt && !m.platform;
+  const ctrl = m.control && !m.alt && !m.platform;
+  const col = md.cols[md.col];
+  if (!col) return false;
+  const side = plain && { h: -1, left: -1, l: 1, right: 1 }[e.key];
+  if (side) return md.cols[md.col + side] && jiraGo(view, md.col + side, memory.sel.jira?.i ?? 0), true;
+  if (plain && e.key === "z") return toggleFold(col.name), (memory.sel.jira = { ...memory.sel.jira, col: col.name }), (view.reveal = true), true;
+  const half = Math.max(1, Math.floor((view.listHeight ?? 400) / 2 / CARD));
+  const by = plain ? { j: 1, down: 1, k: -1, up: -1, g: -Infinity, G: Infinity }[e.key] : ctrl ? { d: half, u: -half, j: 5, k: -5 }[e.key] : 0;
+  if (!by) return false;
+  jiraStep(view, e.key === "g" && m.shift ? Infinity : by);
   return true;
 }
 
@@ -373,7 +465,7 @@ function counts(url, view, t) {
     .children([...chip(ICON("terminal"), graph.sessions.get(url) ?? 0), ...chip(GH.open.icon, k.pr), ...chip(GH["issue-open"].icon, k.issue)]);
 }
 
-const pick = (c, dark) => c[dark ? 1 : 0];
+export const pick = (c, dark) => c[dark ? 1 : 0];
 const stateIcon = (it, dark, t, size = 13) => {
   const s = GH[it.state];
   const fallback = it.kind === "issue" ? GH["issue-open"].icon : GH.open.icon;
@@ -460,16 +552,102 @@ function issueRow(view, it, i, on, t, dark, login) {
     .child(div().w(30).flex_none().text_right().text_size(11).text_color(t.dim).child(ago(it.updated)));
 }
 
-function jiraRow(view, it, i, on, t) {
+// The person's picture once downloaded, else initials on a color per person; an empty ring when nobody.
+export const avatar = (name, t, size, url) => {
+  const el = div().size(size).flex_none().flex().items_center().justify_center().rounded_full().overflow_hidden();
+  if (url && avatars[url]) return el.child(image(avatars[url]).size(size).rounded_full());
+  if (!name) return el.border_1().border_color(t.border);
+  return el.text_size(size * 0.45).font_semibold().bg(hue(name, t)).text_color(t.background).child(initials(name));
+};
+export const colorOf = (map, key, dark, t) => (map[key] ? pick(map[key], dark) : t.dim);
+// A see-through version of a #rrggbb or #rrggbbaa color, for soft backgrounds.
+export const tint = (c, alpha = "26") => (/^#[0-9a-f]{6}([0-9a-f]{2})?$/i.test(c) ? c.slice(0, 7) + alpha : c);
+
+export const chip = (text, color, t, dot) => h_flex().flex_none().gap(5).px(6).h(18).items_center().rounded(4).text_size(10.5).font_medium()
+  .bg(tint(color, "22")).text_color(dot ? t.muted : color)
+  .when(Boolean(dot), (el) => el.child(div().size(6).flex_none().rounded_full().bg(color)))
+  .child(div().truncate().child(text));
+
+function jiraCard(view, it, col, i, on, t, dark) {
   const done = it.statusCategory === "done";
-  return rowBase(`jira-${it.key}`, on, t)
-    .on_click((e, cx) => select(view, "jira", { url: it.url, i }, e, cx, it))
-    .child(div().w(84).flex_none().text_size(11.5).text_color(t.dim).child(it.key))
-    .child(div().flex_1().min_w(0).truncate().text_color(done ? t.muted : t.foreground).child(it.title))
-    .child(div().w(90).flex_none().truncate().text_size(11.5).text_color(t.dim).child(it.type))
-    .child(div().w(60).flex_none().truncate().text_size(11.5).text_color(t.dim).child(it.priority))
-    .child(div().w(140).flex_none().truncate().text_size(11.5).text_color(it.assignee ? t.muted : t.dim).child(it.assignee || "unassigned"))
-    .child(div().w(30).flex_none().text_right().text_size(11).text_color(t.dim).child(ago(it.updated)));
+  const p = it.parent;
+  const priority = colorOf(PRIORITY_COLOR, it.priority, dark, t);
+  const tags = [
+    it.blockedBy.length && div().id(`jb-${it.key}`).child(chip("blocked", pick(RED, dark), t)).tooltip(`blocked by ${it.blockedBy.join(", ")}`),
+    p && div().id(`jp-${it.key}`).min_w(0).child(chip(p.title, hue(p.key, t), t, true)).tooltip(p.key),
+  ].filter(Boolean);
+  return v_flex()
+    .id(`jira-${it.key}`)
+    .flex_none()
+    .relative()
+    .gap(8)
+    .pt(10)
+    .pb(9)
+    .pl(15)
+    .pr(10)
+    .rounded(8)
+    .border_1()
+    .border_color(on ? t.accent : "#00000000")
+    .bg(on ? t.selected : t.raised)
+    .shadow_sm()
+    .cursor_pointer()
+    .when(!on, (el) => el.hover((s) => s.bg(t.hover)))
+    .on_click((e, cx) => select(view, "jira", { col: col.name, url: it.url, i }, e, cx, it))
+    .child(div().absolute().left(5).top(10).bottom(10).w(3).rounded(2).bg(tint(priority, done ? "44" : "cc")))
+    .child(div().text_size(13).text_color(done ? t.muted : t.foreground).child(it.title))
+    .when(tags.length > 0, (el) => el.child(h_flex().min_w(0).gap(6).flex_wrap().children(tags)))
+    .child(h_flex().gap(6).items_center().text_size(11).text_color(t.dim)
+      .child(div().id(`jt-${it.key}`).size(8).flex_none().rounded(2).bg(colorOf(TYPE_COLOR, it.type, dark, t)).tooltip(it.type || "no type"))
+      .child(div().when(done, (el) => el.line_through()).child(it.key))
+      .child(div().text_color(t.border).child("·"))
+      .child(div().child(it.priority))
+      .child(div().flex_1())
+      .child(avatar(it.assignee, t, 20, it.assigneeAvatar).id(`ja-${it.key}`).tooltip(it.assignee || "unassigned")));
+}
+
+function jiraColumns(view, t, dark) {
+  const { tab, cols, col: sel, at } = view.model;
+  if (!cols.some((c) => c.items.length)) {
+    const none = !memory.data.jira ? (view.busy.jira ? tab.asking : "") : view.text.trim() ? "Nothing matches the search." : tab.empty;
+    return v_flex().flex_1().min_h(0).child(div().p(10).text_color(t.dim).child(none));
+  }
+  const fold = (c) => (_e, cx) => {
+    toggleFold(c.name);
+    memory.sel.jira = { ...memory.sel.jira, col: c.name };
+    view.reveal = true;
+    cx.notify();
+  };
+  const red = pick(RED, dark);
+  const count = (c, over, short) => div().flex_none().px(6).h(16).flex().items_center().rounded_full().text_size(10.5).font_medium()
+    .bg(over ? tint(red, "2e") : t.hover).text_color(over ? red : t.muted)
+    .child(over && !short ? `${c.items.length} / ${c.max}` : String(c.items.length));
+  return h_flex()
+    .id("jira-cols")
+    .on_size_change((size) => (view.listHeight = size.height))
+    .flex_1()
+    .min_h(0)
+    .gap(10)
+    .items_stretch()
+    .children(cols.map((c, ci) => {
+      const over = c.max != null && c.items.length > c.max;
+      const ring = ci === sel && at < 0 ? t.accent : "#00000000";
+      if (c.folded) {
+        return v_flex().id(`jf-${c.name}`).w(32).flex_none().pt(10).gap(10).items_center().rounded(10).border_1().border_color(ring).bg(t.surface)
+          .cursor_pointer().hover((s) => s.bg(t.hover)).on_click(fold(c)).tooltip(`${c.name}${over ? ` · over max ${c.max}` : ""} · z open`)
+          .child(count(c, over, true))
+          .child(v_flex().gap(1).items_center().text_size(10).font_semibold().text_color(t.dim)
+            .children([...c.name.toUpperCase()].map((ch) => (ch === " " ? div().h(6) : div().child(ch)))));
+      }
+      const scroll = view.colScroll[ci];
+      if (scroll && view.reveal && ci === sel && at >= 0) scroll.scroll_to_item(at);
+      return v_flex().id(`jc-${c.name}`).flex_1().min_w(0).min_h(0).px(8).pt(4).pb(8).gap(4).rounded(10).border_1().border_color(ring).bg(t.surface)
+        .child(h_flex().id(`jh-${c.name}`).flex_none().h(32).px(6).gap(8).items_center().rounded(6).cursor_pointer()
+          .on_click(fold(c)).tooltip(over ? `over the board's max of ${c.max} · z fold` : "z · fold")
+          .child(div().min_w(0).truncate().text_size(11).font_semibold().text_color(over ? red : t.muted).child(c.name.toUpperCase()))
+          .child(count(c, over)))
+        .child(v_flex().id(`jl-${c.name}`).flex_1().min_h(0).gap(8).overflow_y_scrollbar().when(Boolean(scroll), (el) => el.track_scroll(scroll))
+          .children(c.items.map((it, i) => jiraCard(view, it, c, i, ci === sel && i === at, t, dark))));
+    }));
 }
 
 function listBody(view, t, dark) {
@@ -555,13 +733,10 @@ export function boardRender(view) {
   const items = known();
   const model = { tab, items, graph: graphOf(items) };
   model.sections = sectionsOf(tab, view.text);
-  model.rows = model.sections.flatMap((s) => s.items);
-  let n = 0;
-  model.starts = model.sections.map((s) => ((n += s.items.length), n - s.items.length));
-  model.at = listAt(tab, model.rows);
-  model.item = model.rows[model.at] ?? null;
+  if (tab.id === "jira") jiraModel(model);
+  else listModel(model);
   view.model = model;
-  const body = listBody(view, t, dark);
+  const body = tab.id === "jira" ? jiraColumns(view, t, dark) : listBody(view, t, dark);
   if (view.reveal) {
     view.reveal = false;
     view.listScroll.scroll_to_item(model.childOf?.[model.at] ?? 0);
@@ -591,7 +766,7 @@ export function boardRender(view) {
   const hint = view.picker ? "" : view.searching
     ? ["↓↑ ^J ^K move", "↵ keep filter", "esc clear"].join(" · ")
     : ["/ search", ...tab.keys, view.text ? "esc clear search" : "esc close"].join(" · ");
-  const allKeys = ["hjkl move", "^D ^U ^J ^K scroll", "g G first, last", "/ search", ...(tab.github ? ["space preview", "↵ sessions", "⌃↵ open on GitHub", "⌥↵ linked", "b show or hide Dependabot"] : tab.keys), "tab next tab", "1-9 a tab", "r refresh", "esc close"].join(" · ");
+  const allKeys = ["hjkl move", "^D ^U ^J ^K scroll", "g G first, last", "/ search", ...(tab.github ? ["space preview", "↵ sessions", "⌃↵ open on GitHub", "⌥↵ linked", "b show or hide Dependabot"] : ["z fold or open a column", "space preview", "↵ open in Jira"]), "tab next tab", "1-9 a tab", "r refresh", "esc close"].join(" · ");
   return v_flex()
     .id("board")
     .relative()
