@@ -130,6 +130,8 @@ const rootOf = (g) => {
 // When an agent in the space last changed state (0: not since Herdr started).
 const activity = (w) => Math.max(0, ...w.tabs.map((t) => t.changed_at ?? 0));
 const URGENT = { blocked: 3, done: 2, working: 1 };
+// A section's fold mark; folded, it takes the most urgent status's color.
+const chevron = (folded, top, t) => svg(`mods/workspace-chrome/chevron-${folded ? "right" : "down"}.svg`).size(11).flex_none().when(Boolean(folded && top), (el) => el.text_color(t[top]));
 const urgent = (rows) => rows.map((r) => r.w.status).reduce((m, st) => ((URGENT[st] ?? 0) > (URGENT[m] ?? 0) ? st : m), null);
 
 function loadState() {
@@ -1145,7 +1147,7 @@ export default class Spaces extends View {
     cx.notify();
   }
 
-  // A folder: click folds it (folded, its count takes the most urgent status's color),
+  // A folder: click folds it,
   // right-click for its menu, drag onto another to move it; spaces dragged onto it go in.
   folderHead(f, color, members, folded, t, list) {
     const top = urgent(members);
@@ -1171,7 +1173,6 @@ export default class Spaces extends View {
       .on_mouse_down("right", () => openOverlay({ mod: "mh-menu", kind: "popup", width: 240, height: 260, props: { tab: "folder", target: { id: f.id } } }))
       .on_mouse_move((_e, cx) => this.overHead(f.id, cx))
       .on_mouse_up("left", (_e, cx) => this.upOnHead(f.id, cx))
-      .child(svg(`mods/workspace-chrome/chevron-${folded ? "right" : "down"}.svg`).size(11).flex_none())
       .child(svg("mods/workspace-chrome/folder.svg").size(12).flex_none().text_color(color))
       .child(div().flex_1().min_w(0).truncate().child(f.name))
       .when(Boolean(add), (el) => el.child(div().id(`folder-add-${f.id}`).flex_none().px(4).rounded(4).tooltip(add.tip)
@@ -1179,7 +1180,7 @@ export default class Spaces extends View {
         .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
         .on_click((_e, cx) => { cx.stop_propagation(); run("space.new", add.args); })
         .child("+")))
-      .child(div().flex_none().text_color(folded && top ? t[top] : t.dim).child(String(members.length)));
+      .child(chevron(folded, top, t));
   }
 
   // Spaces in no folder; spaces dragged onto it leave theirs.
@@ -1191,9 +1192,8 @@ export default class Spaces extends View {
       .on_mouse_down("left", () => { this.moving = "other"; })
       .on_mouse_move((_e, cx) => this.overHead("other", cx))
       .on_mouse_up("left", (_e, cx) => this.upOnHead("other", cx))
-      .child(svg(`mods/workspace-chrome/chevron-${folded ? "right" : "down"}.svg`).size(11).flex_none())
       .child(div().flex_1().child("Other"))
-      .child(div().flex_none().text_color(folded && top ? t[top] : t.dim).child(String(members.length)));
+      .child(chevron(folded, top, t));
   }
 
   // Spaces mh-ssh opened (ctrl-a s): click folds.
@@ -1202,9 +1202,8 @@ export default class Spaces extends View {
     return h_flex().id("ssh-head").h(26).mt(6).flex_none().px(8).gap(7).items_center().rounded(6)
       .text_size(11).text_color(t.dim).cursor_pointer().hover((st) => st.bg(t.hover).text_color(t.foreground))
       .on_click(() => this.fold("ssh"))
-      .child(svg(`mods/workspace-chrome/chevron-${folded ? "right" : "down"}.svg`).size(11).flex_none())
       .child(div().flex_1().child("SSH"))
-      .child(div().flex_none().text_color(folded && top ? t[top] : t.dim).child(String(members.length)));
+      .child(chevron(folded, top, t));
   }
 
   // A folder on the rail: a line (thicker folded) that folds it.
@@ -1234,7 +1233,7 @@ export default class Spaces extends View {
   }
 
   // Waiting spaces, under a header that folds them (shared("waiting.open"), this
-  // screen's, closed at first); folded, its count takes the most urgent status's color.
+  // screen's, closed at first).
   waitingSection(t, collapsed, waiting, draw) {
     if (!waiting.length) return [];
     const open = Boolean(shared("waiting.open"));
@@ -1243,9 +1242,8 @@ export default class Spaces extends View {
       .text_size(11).text_color(t.dim).cursor_pointer().hover((st) => st.bg(t.hover).text_color(t.foreground))
       .when(collapsed, (el) => el.w(RAIL_CELL).justify_center().tooltip(`Waiting · ${waiting.length}`))
       .on_click((_e, cx) => { setShared("waiting.open", !open); cx.notify(); })
-      .child(svg(`mods/workspace-chrome/chevron-${open ? "down" : "right"}.svg`).size(11).flex_none())
       .when(!collapsed, (el) => el.child(div().flex_1().child("Waiting")))
-      .child(div().flex_none().text_color(!open && top ? t[top] : t.dim).child(String(waiting.length)));
+      .child(chevron(!open, top, t));
     return [collapsed ? railCell(head) : head, ...(open ? waiting.map(draw) : [])];
   }
 
@@ -1352,7 +1350,9 @@ export default class Spaces extends View {
     return v_flex()
       .relative()
       .id(`space-${w.id}`)
-      .px(8)
+      // Under a header, the title lines up with the folder's name (8 + 12 icon + 7 gap).
+      .pl(this.filed || r.ssh || r.waiting ? 27 : 8)
+      .pr(8)
       .h(30)
       .flex_none()
       .justify_center()
