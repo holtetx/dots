@@ -70,10 +70,10 @@
                     "width": 1,
                     "color": "accent"
                   },
+                  "veil": 0.3,
                   "radius": 0,
                   "gap": 0,
-                  "lone": true,
-                  "veil": 0.3
+                  "lone": true
                 }
               }
             },
@@ -113,6 +113,19 @@
           ],
           "padding": 0,
           "gap": 0
+        },
+        {
+          "id": "git",
+          "type": "block",
+          "content": {
+            "mod": "mh-spaces",
+            "props": {
+              "bar": true
+            }
+          },
+          "size": {
+            "px": 26
+          }
         }
       ],
       "resizable": false

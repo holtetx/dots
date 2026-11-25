@@ -9,7 +9,7 @@ import { div, svg } from "gpui-kit";
 import { h_flex } from "gpui-base";
 import { exec, settings, shared, setShared } from "herdr";
 
-export const PR = "__typename url number title state isDraft isInMergeQueue reviewDecision repository { nameWithOwner }";
+export const PR = "__typename url number title state isDraft isInMergeQueue reviewDecision headRefName baseRefName repository { nameWithOwner }";
 export const ISSUE = "__typename url number title state stateReason repository { nameWithOwner }";
 const PR_LINKED = `${PR} body closingIssuesReferences(first: 10) { nodes { ${ISSUE} body } }`;
 const ISSUE_LINKED = `${ISSUE} body closedByPullRequestsReferences(first: 10, includeClosedPrs: true) { nodes { ${PR} body } }`;
@@ -57,7 +57,7 @@ export function stateOf(n) {
 const parseUrl = (url) => url.match(/github\.com\/([^/]+\/[^/]+)\/(pull|issues)\/(\d+)/);
 
 export function itemOf(n, at) {
-  return { kind: n.__typename === "Issue" ? "issue" : "pr", url: n.url, repo: n.repository?.nameWithOwner ?? "", number: n.number, title: n.title ?? "", state: stateOf(n), review: n.reviewDecision ?? null, at, links: linkedOf(n).map((l) => l.url) };
+  return { kind: n.__typename === "Issue" ? "issue" : "pr", url: n.url, repo: n.repository?.nameWithOwner ?? "", number: n.number, title: n.title ?? "", state: stateOf(n), review: n.reviewDecision ?? null, at, links: linkedOf(n).map((l) => l.url), ...(n.__typename === "Issue" ? {} : { branch: n.headRefName ?? null, base: n.baseRefName ?? null }) };
 }
 
 // A node and those it's linked to, into `items`. Those come without `links` of their
@@ -132,10 +132,10 @@ export async function graphql(fields) {
 // A repo's open PRs, yours first, then the most recently updated.
 export async function openPrs(repo) {
   const [owner, name] = repo.split("/");
-  const data = await graphql(`viewer { login } r: repository(owner: ${JSON.stringify(owner)}, name: ${JSON.stringify(name)}) { pullRequests(states: OPEN, first: 100, orderBy: {field: UPDATED_AT, direction: DESC}) { nodes { ${PR} headRefName author { login } } } }`);
+  const data = await graphql(`viewer { login } r: repository(owner: ${JSON.stringify(owner)}, name: ${JSON.stringify(name)}) { pullRequests(states: OPEN, first: 100, orderBy: {field: UPDATED_AT, direction: DESC}) { nodes { ${PR} author { login } } } }`);
   if (!data?.r) throw new Error(`Couldn't list ${repo}'s open PRs.`);
   const at = Date.now();
-  const prs = data.r.pullRequests.nodes.map((n) => ({ ...itemOf(n, at), branch: n.headRefName, author: n.author?.login ?? "", mine: n.author?.login === data.viewer?.login }));
+  const prs = data.r.pullRequests.nodes.map((n) => ({ ...itemOf(n, at), author: n.author?.login ?? "", mine: n.author?.login === data.viewer?.login }));
   return [...prs.filter((p) => p.mine), ...prs.filter((p) => !p.mine)];
 }
 
