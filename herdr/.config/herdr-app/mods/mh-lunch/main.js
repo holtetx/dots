@@ -1,11 +1,16 @@
-// This week's dishes in the Transperia canteen (izy), today highlighted. Without a week the API gives this week.
+// This week's dishes in a canteen (izy), today highlighted. Without a week the API gives this week.
+// The canteen is per Mac, shared("mh-lunch") from mh-state.json: { canteen, building }, izy's IDs.
 
 import { View, div } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { props, closeOverlay, theme } from "herdr";
+import { props, closeOverlay, theme, shared } from "herdr";
 import { emojis } from "./emoji.js";
 
-const URL = "https://api.izy.as/api/dishes?canteen_id=2036155";
+const OFF = "No canteen on this Mac: add mh-lunch to mh-state.json.";
+const canteen = () => {
+  const c = shared("mh-lunch");
+  return /^\d+$/.test(c?.canteen ?? "") && /^\d+$/.test(c?.building ?? "") ? c : null;
+};
 const pad = (n) => String(n).padStart(2, "0");
 const today = (d = new Date()) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const tidy = (name) => name.replace(/\s*,\s*/g, ", ").replace(/\s+/g, " ").trim();
@@ -19,9 +24,14 @@ export default class Lunch extends View {
     this.week = "";
     this.place = "";
     this.error = "";
+    const c = canteen();
+    if (!c) {
+      this.error = OFF;
+      return;
+    }
     cx.spawn(async (cx) => {
       try {
-        const res = await fetch(URL, { headers: { "Building-Id": "2036148" } });
+        const res = await fetch(`https://api.izy.as/api/dishes?canteen_id=${c.canteen}`, { headers: { "Building-Id": String(c.building) } });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const body = (await res.json()).body ?? {};
         this.week = body.week ?? "";

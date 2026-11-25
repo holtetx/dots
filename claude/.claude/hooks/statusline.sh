@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Claude Code status line that prints nothing: it gives Herdr the rate limits (a cache file) and this session's context use, id and project folder (labels on its herdr-core terminal).
 set -u
-PATH="$HOME/.local/bin:$PATH:/usr/bin:/opt/homebrew/bin"
+PATH="$HOME/.local/bin:$PATH:/usr/bin:/opt/homebrew/bin:/usr/local/bin"
 
 input=$(cat)
 dir="$HOME/.cache/herdr-claude"

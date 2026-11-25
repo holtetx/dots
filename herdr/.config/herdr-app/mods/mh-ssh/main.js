@@ -3,49 +3,25 @@
 // mh.ssh=<host>, so mh-spaces lists the space under SSH and a second pick focuses it.
 // Per Mac, shared("mh-ssh") from mh-state.json: { op, hostname, folder }, all optional. op is an
 // op:// reference, or { "<alias ending>": ref, "*": ref }; askpass.sh fills password prompts from
-// it, only for hosts whose HostName starts with hostname. folder is where Claude starts.
+// it, only for hosts whose HostName hostname covers (hosts.js). folder is where Claude starts.
 
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, ScrollHandle } from "gpui-base";
 import { spaces, terminals, theme, props, run, exec, home, appHome, readTextFile, shared, closeOverlay, notify } from "herdr";
+import { covers, readHosts } from "./hosts.js";
 
 const LIST = 440;
 const ICON = (name) => `mods/workspace-chrome/${name}.svg`;
 
 const expand = (path) => path.replace(/^~(?=\/|$)/, home());
 
-// Host blocks in ~/.ssh/config and the files it Includes (no globs). A "# comment" line
-// right above a Host line is its note ("Office PC").
-async function readHosts(file = `${home()}/.ssh/config`, seen = new Set(), out = new Map()) {
-  if (seen.has(file) || seen.size > 20) return out;
-  seen.add(file);
-  const text = await readTextFile(file).catch(() => null);
-  let note = "";
-  let current = [];
-  for (const raw of (text ?? "").split("\n")) {
-    const line = raw.trim();
-    if (line.startsWith("#")) {
-      note = line.replace(/^#+\s*/, "");
-      continue;
-    }
-    const [key = "", ...rest] = line.split(/[\s=]+/);
-    const value = rest.join(" ");
-    const k = key.toLowerCase();
-    if (k === "include") {
-      for (const p of rest) {
-        const path = expand(p);
-        await readHosts(path.startsWith("/") ? path : `${home()}/.ssh/${path}`, seen, out);
-      }
-    } else if (k === "host") {
-      current = rest.filter((a) => !/[*?!]/.test(a) && !out.has(a)).map((alias) => ({ alias, note, hostname: "", port: "" }));
-      for (const h of current) out.set(h.alias, h);
-    } else if (k === "match") current = [];
-    else if (k === "hostname") for (const h of current) h.hostname = value;
-    else if (k === "port") for (const h of current) h.port = value;
-    note = "";
-  }
-  return out;
-}
+// ~/.ssh/config's hosts (hosts.js). IFS= keeps a path with spaces whole; the glob still expands.
+const io = () => ({
+  home: home(),
+  read: (file) => readTextFile(file).catch(() => null),
+  glob: async (pattern) => ((await exec("sh", ["-c", 'IFS=; for f in $1; do [ -f "$f" ] && printf "%s\\n" "$f"; done', "sh", pattern]).catch(() => null))?.stdout ?? "").split("\n").filter(Boolean),
+});
+const loadHosts = () => readHosts(`${home()}/.ssh/config`, io());
 
 function brief(h, sock) {
   const where = [h.note, h.hostname && (h.port ? `${h.hostname}:${h.port}` : h.hostname)].filter(Boolean).join(", ");
@@ -79,7 +55,7 @@ while :; do rm -f "$1"; ssh -o ControlMaster=yes -o ControlPath="$1" "$2"; [ $? 
   // Only hosts on the given network get a password: any other host that asks must not get it.
   // ssh -G: the HostName ssh really uses, and no jump host (ProxyJump, or ssh in ProxyCommand) that could ask for the password.
   const resolved = cfg.hostname ? (await exec("ssh", ["-G", "--", h.alias], { timeout: 5000 }).catch(() => null))?.stdout ?? "" : "";
-  const trusted = Boolean(cfg.hostname) && resolved.split("\n").some((l) => l.startsWith(`hostname ${cfg.hostname}`)) && !/^proxyjump (?!none$)/m.test(resolved) && !/^proxycommand .*\bssh\b/m.test(resolved);
+  const trusted = Boolean(cfg.hostname) && resolved.split("\n").some((l) => l.startsWith("hostname ") && covers(cfg.hostname, l.slice(9))) && !/^proxyjump (?!none$)/m.test(resolved) && !/^proxycommand .*\bssh\b/m.test(resolved);
   const op = !trusted ? null : typeof cfg.op === "string" ? cfg.op : cfg.op?.[Object.keys(cfg.op).find((end) => end !== "*" && h.alias.endsWith(end)) ?? "*"];
   const argv = op ? ["env", `HERDR_APP_HOME=${appHome()}`, `SSH_ASKPASS=${appHome()}/mods/mh-ssh/askpass.sh`, "SSH_ASKPASS_REQUIRE=force", `MH_SSH_OP=${op}`, ...ssh] : ["env", `HERDR_APP_HOME=${appHome()}`, ...ssh];
   run("space.new", { name: h.alias, folder: home(), argv });
@@ -103,7 +79,7 @@ export default class Ssh extends View {
     this.input.on("submit", (e) => this.go(this.items()[this.at], e.secondary));
     this.input.focus();
     cx.spawn(async (cx) => {
-      this.hosts = [...(await readHosts()).values()];
+      this.hosts = [...(await loadHosts()).values()];
       cx.notify();
     });
   }

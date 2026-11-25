@@ -10,9 +10,11 @@ Read these first. They are in `~/.config/herdr-app`:
 - `~/.config/herdr-app` is a link to `~/dots/herdr/.config/herdr-app`. The `.gitignore` there lists the tracked files. All other files are Herdr's.
 - Do not edit Herdr's own mods and layouts. Clone them (`mod.clone`, `layout.clone`).
 - The `mh-*` mods are git only. `mh-ssh` (ssh passwords) and the board's Jira tab use `op` (1Password).
-- Claude Code side: stow package `claude` in dots. `hooks/statusline.sh` sets the `claude.session`, `claude.cwd`, `claude.context` and `claude.context_size` labels and writes `~/.cache/herdr-claude/limits.json`. `hooks/herdr-activity.sh` sets `claude.subagents` and `claude.shells`, and removes all `claude.*` labels at SessionEnd. `claude.cwd` is the project folder. `~/.claude/settings.json` (not in dots) runs both.
+- Claude Code side: stow package `claude` in dots. `hooks/statusline.sh` sets the `claude.session`, `claude.cwd`, `claude.context` and `claude.context_size` labels and writes `~/.cache/herdr-claude/limits.json`. `hooks/herdr-activity.sh` removes those labels at SessionEnd. `claude.cwd` is the project folder. `~/.claude/settings.json` (not in dots) runs both.
 
 ## Where state lives
+
+All `mh-state.json` keys, their shape and which Mac needs them: README.md in dots, "Herdr: this Mac's settings". Keep that list in step with `FILES` in `mods/mh-footer/settings.js`.
 
 | What | Where | Writer |
 |---|---|---|
@@ -23,6 +25,7 @@ Read these first. They are in `~/.config/herdr-app`:
 | Space folders | herdr-core doc `mh-folders` | mh-spaces only. Other mods ask through `shared("space-folders.ask")`. |
 | Session title | label `mh.description` | skills, with `hc label` |
 | SSH: 1Password reference, Claude's folder (`mh-ssh`) | `mh-state.json` | by hand, on the work Mac only |
+| Jira board (`mh-jira`), lunch canteen (`mh-lunch`) | `mh-state.json` | by hand, on the work Mac only |
 | Which space is an SSH space | label `mh.ssh=<host>` on its ssh terminal | `mods/mh-ssh` |
 
 ## Key list (`cmd-/`, `ctrl-a ?`)
@@ -35,9 +38,9 @@ One list: folders (projects), then spaces. A space is one session. Its row shows
 
 ## SSH (`ctrl-a s`)
 
-- `mods/mh-ssh` lists the hosts in `~/.ssh/config` and its `Include`s. Enter opens a space named after the host with ssh in it. ⌘Enter also opens Claude on the right with a system prompt about the host; on a host that is already open it adds Claude to its space. In an SSH space the dialog starts with its host selected, so `ctrl-a s`, ⌘Enter adds Claude there.
+- `mods/mh-ssh` lists the hosts in `~/.ssh/config` and its `Include`s, globs too (`mods/mh-ssh/hosts.js`, test: `node mods/mh-ssh/hosts.test.mjs`). Enter opens a space named after the host with ssh in it. ⌘Enter also opens Claude on the right with a system prompt about the host; on a host that is already open it adds Claude to its space. In an SSH space the dialog starts with its host selected, so `ctrl-a s`, ⌘Enter adds Claude there.
 - The ssh pane is the control master (`~/.ssh/mh-<host>.sock`). Claude runs commands through it with `ssh -S <sock> -o ProxyCommand=false`, so a closed connection fails at once and never starts a new login. Logout (ctrl-d, `exit`) or ctrl-c in the ssh pane closes the space. A lost connection (ssh exit 255) waits for Enter and connects again, so Claude keeps its session. Closing the space ends both.
-- `mh-ssh` in `mh-state.json`, all optional: `op` (an `op://` reference, or a map from Host alias ending, e.g. `-ruter`, to reference with `"*"` for the rest: `askpass.sh` fills password prompts from it), `hostname` (only hosts whose HostName in `ssh -G` starts with it, and with no ProxyJump and no ssh in ProxyCommand, get a password; without it, no host does; end it with a dot, e.g. `10.0.0.`) and `folder` (where Claude starts, default `~`). Set only on the work Mac. At home, keys come from the 1Password ssh agent.
+- `mh-ssh` in `mh-state.json`, all optional: `op` (an `op://` reference, or a map from Host alias ending, e.g. `-ruter`, to reference with `"*"` for the rest: `askpass.sh` fills password prompts from it), `hostname` (only hosts whose HostName in `ssh -G` it covers, and with no ProxyJump and no ssh in ProxyCommand, get a password; without it, no host does; ending in a dot it is a network prefix, e.g. `10.0.0.`, else one exact HostName) and `folder` (where Claude starts, default `~`). Set only on the work Mac. At home, keys come from the 1Password ssh agent.
 - A new host key: with `StrictHostKeyChecking ask`, `askpass.sh` fails the question, so run `ssh <host>` once by hand. With `accept-new` (set by some team ssh configs), ssh takes a new key without asking and then sends the password.
 - Claude is told not to run `op` (`--disallowedTools "Bash(op *)"`). This is a soft guard: a full path or `sh -c` gets past it.
 - The sidebar lists these spaces under SSH, after Other.
@@ -56,7 +59,7 @@ The `git` block under the terminal is `mh-spaces` with props `{ bar: true }` (`m
 
 Choices the owner made. Do not change them without a question.
 
-- Repos: those found in the sidebar folders, plus `mh-board.repos`. `mh-board` is in `mh-state.json`, not in dots: this repo is public and the repo names are internal. A `git@<host>:owner/repo` remote counts as GitHub (ssh host aliases).
+- Repos: those found in the sidebar folders, but those in `mh-board.skip` (`owner/repo`, any case), plus `mh-board.repos`. `mh-board` is in `mh-state.json`, not in dots: this repo is public and the repo names are internal. A `git@<host>:owner/repo` remote counts as GitHub (ssh host aliases).
 - Repos whose `owner/repo` name contains an entry of `mh-board.hide` are hidden.
 - PRs are asked for in three separate `gh` calls. One combined query gives HTTP 502.
 - The PR and issue tabs are grouped by repo. There are no status groups. A stacked PR (its base is the branch of another open PR in the repo) sits under its parent with an indent (`mods/mh-spaces/stack.js`, test: `node mods/mh-spaces/stack.test.mjs`).
@@ -75,7 +78,7 @@ Choices the owner made. Do not change them without a question.
 - One Jira board only, read only. `mods/mh-spaces/jira-data.js` sends only `GET` to three paths: `/rest/agile/1.0/board/<board>/configuration` and `/rest/software/1.0/board/<board>/issue` (the `/rest/agile/1.0` issue path is deprecated), and `/rest/api/3/issue/<key>` for the preview (only on `space`). Never add other Jira calls without a question.
 - Cards: open issues and those done in the last 14 days (`statusCategory != Done OR resolved >= -14d`), in the board's columns side by side, in Jira's rank order. Swimlanes are not shown: the public API does not return their queries.
 - A card: title, parent (epic) tag, priority word, a red `blocked` tag when an open issue blocks it (`issuelinks`), type color, key (struck through when done), assignee initials. The left edge has the priority color. A column header is red when it has more cards than the board's max.
-- `h l` move between columns, `j k` between cards, `z` folds or opens a column (also a click on its header). Backlog, Analyse and Ferdig start folded; the choice is kept in the mod's `localStorage` (`jira.folded`), names in lower case and trimmed.
+- `h l` move between columns, `j k` between cards, `z` folds or opens a column (also a click on its header). Backlog and the columns in `mh-jira.folded` (a list of names) start folded; the choice is kept in the mod's `localStorage` (`jira.folded`), names in lower case and trimmed.
 - `space` previews an issue in `preview.js`, laid out as Jira shows it: title on top, description, linked issues and comments on the left, fields on the right. On a linked issue `↵` previews it and `^O` goes back. The text is Jira's rich text (ADF) made markdown by `adfToMd` in `jira.js`. Attachments need a login, so they are a link to the issue.
 - The token: one `op item get` per Herdr run, when the Jira tab first shows, and again after a 401 (a replaced token). Kept in memory only, sent with `fetch`, never in a process list. `op` needs `--account` (3 accounts: without it, op asks once per account) and `</dev/null` (op reads stdin when it is not a terminal, and `exec` never closes stdin, so op waits forever and Herdr freezes).
 - No retries: a 429 says to press `r` later. The tab asks Jira only while it shows.
@@ -90,7 +93,7 @@ Choices the owner made. Do not change them without a question.
 
 ## Lunch (`ctrl-a l`)
 
-- `mods/mh-lunch`: this week's dishes in the Transperia canteen from `api.izy.as` (header `Building-Id`). Without a `week` the API gives the current week. Today is a large card, past days are dimmed.
+- `mods/mh-lunch`: this week's dishes in a canteen from `api.izy.as` (header `Building-Id`). The canteen is `mh-lunch` in `mh-state.json`: `{ "canteen": "<id>", "building": "<id>" }`, strings of digits, set by hand on the work Mac only. Without it the popup says there is no canteen. Without a `week` the API gives the current week. Today is a large card, past days are dimmed.
 - Emojis come from a word list in `mods/mh-lunch/emoji.js`, in the order the words come in the dish name. A dish with no known word gets 🍽️. Test: `node mods/mh-lunch/emoji.test.mjs`.
 
 ## Decided against
@@ -111,6 +114,7 @@ A second window closes with `cmd-q`.
 ## Working on mods
 
 - Check: `herdr-app check mods/<mod>` after each change. It renders only the default state of a mod.
+- Tests: `node --test mods/*/*.test.mjs`. Code a test needs lives in a file with no Herdr imports (`jira.js`, `stack.js`, `remote.js`, `mh-ssh/hosts.js`, `mh-footer/report.js`).
 - Errors and focus: `herdr-app status`. Screenshot: `herdr-app shot <file>.png`. Labels: `hc get <terminal> --json`.
 - Reload: Herdr does not always see an edit made through a link. Run `touch -h` on the link of the mod or of `keys.json` in `~/.config/herdr-app`.
 - Layout: change it with `herdr-app do layout.set`.

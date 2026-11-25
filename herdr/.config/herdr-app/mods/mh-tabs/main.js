@@ -27,17 +27,6 @@ function label(tab, lead) {
   return (tab.name === prog || !tab.named) && telling ? live : base;
 }
 
-// tmux's rotate-window: each pane of the focused tab moves one place up (the
-// first to the end) or down (the last to the start), as a run of swaps.
-function rotate(up) {
-  const tab = focused()?.tab;
-  const order = panes().filter((p) => p.tab === tab);
-  if (order.length < 2 || order.some((p) => p.zoomed)) return;
-  const ids = order.map((p) => p.pane);
-  const moving = up ? ids[0] : ids.at(-1);
-  for (const target of up ? ids.slice(1) : ids.slice(0, -1).reverse()) run("pane.swap", { pane: moving, target });
-}
-
 // Space and agent next/prev, as the sidebar lists them (shared("spaces.order"): folders'
 // spaces, but those folded away, and Waiting's only while its section is open).
 function spaceOrder() {
@@ -89,7 +78,7 @@ export default class Tabs extends View {
     try { this.panels = JSON.parse(localStorage.getItem("panels") ?? "{}"); } catch { this.panels = {}; }
     if (!this.panels || typeof this.panels !== "object" || Array.isArray(this.panels)) this.panels = {};
     this.swipe = { acc: 0, steps: 0, at: 0, last: 0 };
-    // Pane keys (keys.json "mh-tabs.<command>") act on the focused terminal through mh-panes and mh-copy.
+    // Keys (keys.json "mh-tabs.<command>"); copy-mode and fingers act on the focused terminal through mh-copy.
     cx.spawn(async () => {
       for (;;) {
         const command = await nextCommand();
@@ -122,13 +111,8 @@ export default class Tabs extends View {
         }
         const terminal = focused()?.terminal;
         if (!terminal) continue;
-        if (command === "rotate-up" || command === "rotate-down") rotate(command === "rotate-up");
-        else if (command === "pane-space") openOverlay({ mod: "mh-panes", kind: "dialog", width: 420, height: 360, props: { action: "space", terminal } });
-        else if (command === "pane-tab") openOverlay({ mod: "mh-panes", kind: "window", frame: "none", width: 1, height: 1, at: { x: 0, y: 0 }, props: { action: "tab", terminal } });
-        else if (command.startsWith("layout-")) openOverlay({ mod: "mh-panes", kind: "window", frame: "none", width: 1, height: 1, at: { x: 0, y: 0 }, props: { action: "layout", layout: command.slice(7), terminal } });
-        else if (command === "copy-mode") openOverlay({ mod: "mh-copy", kind: "dialog", width: 0.92, height: 0.88, props: { action: "copy", terminal } });
+        if (command === "copy-mode") openOverlay({ mod: "mh-copy", kind: "dialog", width: 0.92, height: 0.88, props: { action: "copy", terminal } });
         else if (command === "fingers" && focused()?.pane) openOverlay({ mod: "mh-copy", kind: "window", frame: "none", width: 2, height: 2, at: { x: 0, y: 0 }, props: { action: "fingers", terminal, pane: focused().pane, cwd: focused().cwd } });
-        else if (command === "capture" || command === "capture-colors") openOverlay({ mod: "mh-copy", kind: "window", frame: "none", width: 1, height: 1, at: { x: 0, y: 0 }, props: { action: "nvim", terminal, cwd: focused()?.cwd, colors: command === "capture-colors" } });
       }
     });
   }

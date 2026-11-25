@@ -52,14 +52,17 @@ async function capture(cx, terminal, cwd, colors) {
 }
 
 const RUNNING = "mh-copy.fingers";
+// A copy of mh-spaces/remote.js (a mod cannot import from another): keep them the same.
 const githubRepo = (remote) => (remote ?? "").trim().match(/(?:github\.com[:/]|^git@[^:/\s]+:)([^/\s]+)\/([^/\s]+?)(?:\.git)?\/?$/)?.slice(1).join("/") ?? null;
 const short = (text) => (text.length > 80 ? `${text.slice(0, 79)}…` : text);
 
-// Where Ctrl+hint goes: { target } to `open`, or { why } it can't.
+// Where Ctrl+hint goes: { target } to `open`, or { why } it can't. Only web links open;
+// a path is shown in Finder (`open -R`), as screen text could name an app or a script.
 async function openable({ text, kind }, cwd, on) {
   if (kind === "url") {
     const ssh = text.match(/^(?:git@|ssh:\/\/(?:[^@/]+@)?)([^:/]+)[:/](.+?)(?:\.git)?$/);
-    return { target: ssh ? `https://${ssh[1]}/${ssh[2]}` : text.replace(/^git:\/\//, "https://") };
+    const target = ssh ? `https://${ssh[1]}/${ssh[2]}` : text.replace(/^git:\/\//, "https://");
+    return /^https?:\/\//.test(target) ? { target } : { why: "only web links open" };
   }
   if (["sha", "github"].includes(kind)) {
     const remote = cwd ? await exec("git", ["remote", "get-url", "origin"], { cwd, on }).catch(() => null) : null;
@@ -72,7 +75,7 @@ async function openable({ text, kind }, cwd, on) {
   let path = text.replace(/(:\d+){1,2}$/, "").replace(/^~(?=\/|$)/, home());
   if (!path.startsWith("/")) path = `${cwd || home()}/${path}`;
   if ((await exec("test", ["-e", path]).catch(() => null))?.code !== 0) return { why: `${path} doesn't exist` };
-  return { target: path };
+  return { target: path, reveal: true };
 }
 
 // Hint mode on a pane: the helper reads its screen, is shown in its place until a
@@ -113,7 +116,7 @@ async function fingers(cx, { terminal, pane, cwd }) {
     if (result.action === "open") {
       const o = await openable(result, cwd, on);
       if (o.target) {
-        await exec("open", [o.target]);
+        await exec("open", o.reveal ? ["-R", o.target] : [o.target]);
         return;
       }
       cx.write_to_clipboard(result.text);

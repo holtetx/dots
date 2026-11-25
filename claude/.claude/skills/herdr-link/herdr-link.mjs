@@ -1,9 +1,10 @@
 // Links a GitHub PR or issue URL to the agent in this terminal (herdr-core doc `mh-links`, see mods/mh-spaces/docs.js). Outside Herdr it does nothing.
 import { execFileSync } from "node:child_process";
 
-const url = process.argv[2];
+// Only a GitHub PR or issue: the sidebar opens links with `open`, so nothing else may get in.
+const url = process.argv[2]?.match(/^https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/(?:pull|issues)\/\d+(?=[/?#]|$)/)?.[0];
 if (!url) {
-  console.error("usage: node herdr-link.mjs <url>");
+  console.error("usage: node herdr-link.mjs https://github.com/<owner>/<repo>/(pull|issues)/<number>");
   process.exit(2);
 }
 const terminal = process.env.HC_TERMINAL_ID;

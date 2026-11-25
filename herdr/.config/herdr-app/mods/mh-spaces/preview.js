@@ -1,7 +1,7 @@
 import { div, svg, image } from "gpui-kit";
 import { v_flex, h_flex, ScrollHandle, TextView } from "gpui-base";
-import { props, closeOverlay, theme, settings, exec } from "herdr";
-import { GH, FINAL } from "./github.js";
+import { props, closeOverlay, theme, settings } from "herdr";
+import { GH, FINAL, open } from "./github.js";
 import { ago, avatar, chip, colorOf, pick } from "./board.js";
 import { REVIEW_WORD, canCache, cacheImage, fetchPreview, loadAvatars, pruneCache } from "./preview-data.js";
 import { fetchJiraPreview } from "./jira-data.js";
@@ -14,7 +14,6 @@ const MERGE_COLOR = { conflicts: RED, "checks failing": RED, "ready to merge": G
 // The last answer per URL: shown at once on the next opening while it asks again.
 const memory = {};
 
-const open = (url, cx) => /^https:\/\//.test(url ?? "") && cx.spawn(async () => { await exec("open", [url]).catch(() => null); });
 
 export function previewInit(view, cx) {
   view.handle = cx.focus_handle();

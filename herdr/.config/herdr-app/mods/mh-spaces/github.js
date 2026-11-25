@@ -8,6 +8,7 @@
 import { div, svg } from "gpui-kit";
 import { h_flex } from "gpui-base";
 import { exec, settings, shared, setShared } from "herdr";
+export { githubRepo } from "./remote.js";
 
 export const PR = "__typename url number title state isDraft isInMergeQueue reviewDecision headRefName baseRefName repository { nameWithOwner }";
 export const ISSUE = "__typename url number title state stateReason repository { nameWithOwner }";
@@ -77,7 +78,7 @@ export function unknown(url, at) {
   return { kind: m?.[2] === "issues" ? "issue" : "pr", url, repo: m?.[1] ?? "", number: Number(m?.[3]) || null, title: "", state: "unknown", at, links: [] };
 }
 
-export function tipOf(it, s) {
+function tipOf(it, s) {
   return [`${it.repo}#${it.number ?? "?"}`, s?.label, reviewOf(it)?.label, unreadOf(it) && "New activity", it.title].filter(Boolean).join(" · ");
 }
 
@@ -96,12 +97,6 @@ export function expand(urls, items, { related = true } = {}) {
   return out;
 }
 
-// "owner/name" of a GitHub remote URL, or null.
-// shortcut: a git@<host>: remote counts as GitHub (ssh host aliases), upgrade if a non-GitHub ssh remote shows up
-export function githubRepo(remote) {
-  const m = (remote ?? "").trim().match(/(?:github\.com[:/]|^git@[^:/\s]+:)([^/\s]+)\/([^/\s]+?)(?:\.git)?\/?$/);
-  return m ? `${m[1]}/${m[2]}` : null;
-}
 
 // A branch from the spaces list's label (git's branch), or null for main, master
 // and "(detached)".
@@ -126,7 +121,10 @@ export async function scanAgent(sid, on) {
 export async function graphql(fields) {
   const r = await exec("gh", ["api", "graphql", "-f", `query=query { ${fields} }`], { timeout: 30000 });
   // A missing PR or repo is an error beside the rest of the data, and gh exits 1.
-  return JSON.parse(r.stdout || "null")?.data ?? null;
+  const data = JSON.parse(r.stdout || "null")?.data ?? null;
+  // No data at all (logged out, an expired token, no network): say why.
+  if (!data && r.code !== 0) throw new Error((r.stderr || r.stdout || `gh exited ${r.code}`).trim());
+  return data;
 }
 
 // A repo's open PRs, yours first, then the most recently updated.
@@ -170,7 +168,7 @@ export async function fetchUnread() {
 }
 
 // Each URL's state, and each { repo, branch }'s newest PR (an open one first).
-// ok: false when GitHub couldn't be asked at all.
+// ok: false, with error, when GitHub couldn't be asked at all.
 export async function fetchGitHub(urls, branches) {
   const at = Date.now();
   const out = { items: {}, branches: {}, ok: true };
@@ -195,14 +193,15 @@ export async function fetchGitHub(urls, branches) {
   for (let i = 0; i < parts.length; i += 40) {
     const chunk = parts.slice(i, i + 40);
     let data = null;
-    try { data = await graphql(chunk.map((p, j) => `a${j}: ${p.q}`).join("\n")); } catch {}
+    try { data = await graphql(chunk.map((p, j) => `a${j}: ${p.q}`).join("\n")); } catch (e) { out.error = String(e?.message ?? e); }
     if (!data) { out.ok = false; continue; }
     chunk.forEach((p, j) => p.done(data[`a${j}`]));
   }
   return out;
 }
 
-export const open = (url, cx) => cx.spawn(async () => { await exec("open", [url]).catch(() => null); });
+// Only https: links come from GitHub, Jira and hand-added docs, and `open` runs files and apps too.
+export const open = (url, cx) => /^https:\/\//.test(url ?? "") && cx.spawn(async () => { await exec("open", [url]).catch(() => null); });
 const iconOf = (it, s) => s?.icon ?? (it.kind === "issue" ? GH["issue-open"].icon : GH.open.icon);
 const colorOf = (s, t) => (s ? s.color[settings()?.dark ? 1 : 0] : t.dim);
 
