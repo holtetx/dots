@@ -1,8 +1,8 @@
 // Workspace spaces: stable colored avatars, every machine's in one list, in the
 // folders you make (folders.js: by path, or dragged there; the rest in Other), a
 // server icon on another machine's. Machines show only while they need you (asleep, a
-// login, rebuilt, loading). After a space's name, where its first terminal is now,
-// only where unusual: ahead/behind (its folder says the repo). A space is one session: its row is
+// login, rebuilt, loading). A space's branch and ahead/behind show in the git bar (bar.js), not
+// on its row. A space is one session: its row is
 // called by its name if someone named it, else by its lead agent's title, with that agent's state. Click to
 // switch, right-click for its menu, drag onto a folder. Newest activity first. Spaces put in Waiting (kept on
 // their machine, docs.js) go to a section of their own at the bottom, folded at first.
@@ -240,6 +240,7 @@ export default class Spaces extends View {
     const ps = panes();
     const due = this.due(now, sp, ps);
     if (due.size) this.refreshGit(due, cx);
+    this.publishGit(sp, ps);
     this.claudeDue(cx);
     this.githubDue(now, sp, ps, cx);
     this.unreadDue(now, cx);
@@ -286,12 +287,11 @@ export default class Spaces extends View {
     this.linkAsksDue();
   }
 
-  // Each space's git by space id, for the git bar (bar.js).
   publishGit(sp, ps) {
     const git = {};
     for (const s of sp) {
       const g = this.git[where(s, ps)];
-      if (g) git[s.id] = { machine: s.machine ?? null, top: g.top, branch: g.branch, ahead: g.ahead, behind: g.behind, linked: g.linked };
+      if (g) git[s.id] = { machine: s.machine ?? null, top: g.top, branch: g.branch, ahead: g.ahead, behind: g.behind, linked: g.linked, gh: g.gh, base: this.branchPrs[this.branchKey(s, ps)]?.base ?? null };
     }
     const text = JSON.stringify(git);
     if (text !== this.gitPublished) {
@@ -763,7 +763,7 @@ export default class Spaces extends View {
       try {
         const r = await fetchGitHub(urls, keys.map((key) => { const [repo, branch] = key.split("\0"); return { key, repo, branch }; }));
         for (const [url, it] of Object.entries(r.items)) this.items[url] = { links: this.items[url]?.links, ...it };
-        for (const [k, url] of Object.entries(r.branches)) this.branchPrs[k] = { url, at: Date.now() };
+        for (const [k, url] of Object.entries(r.branches)) this.branchPrs[k] = { url, at: Date.now(), base: r.items[url]?.base ?? null };
         if (!r.ok) this.ghRetry = Date.now() + GH_RETRY;
       } catch {
         this.ghRetry = Date.now() + GH_RETRY;
@@ -838,7 +838,7 @@ export default class Spaces extends View {
       if (mine.length) unexpanded[a.address] = mine;
     }
     const unread = Object.fromEntries(Object.entries(this.unread).filter(([k, u]) => !(this.dismissed[k] >= u.at)));
-    const gh = { items: this.items, agents: this.agentLinks, branches, shown: { direct: unexpanded }, unread };
+    const gh = { items: this.items, agents: this.agentLinks, branches, shown: { direct: unexpanded, spaces: Object.fromEntries(this.links) }, unread };
     const text = JSON.stringify(gh);
     if (text !== this.published) {
       this.published = text;
@@ -1339,19 +1339,6 @@ export default class Spaces extends View {
     return null;
   }
 
-  gitTail(g, t) {
-    return h_flex()
-      .flex_1()
-      .min_w(0)
-      .gap(5)
-      .justify_end()
-      .items_center()
-      .text_size(11.5)
-      .text_color(t.dim)
-      .when(g.ahead > 0, (el) => el.child(div().flex_none().text_color(t.ansi2).child(`\u2191${g.ahead}`)))
-      .when(g.behind > 0, (el) => el.child(div().flex_none().text_color(t.ansi1).child(`\u2193${g.behind}`)));
-  }
-
   // A server icon names another machine's space. Dropped on a space in another folder,
   // a space goes into that folder.
   row(r, t) {
@@ -1422,7 +1409,7 @@ export default class Spaces extends View {
           .child(div().id(`space-name-${w.id}`).flex_shrink(1).min_w(48).truncate().text_color(t.foreground).child(label)
             .when(Boolean(where), (el) => el.tooltip(where)))
           .when(Boolean(w.machine), (el) => el.child(div().flex_none().text_color(t.dim).child(svg("mods/workspace-chrome/server.svg").size(11))))
-          .child(g ? this.gitTail(g, t) : div().flex_1())
+          .child(div().flex_1())
           .when(this.links?.get(w.id)?.length > 0, (el) => el.child(kinds(this.links.get(w.id), this.items, t, `gh-${w.id}`, () => openLinks(w.id))))
           .when(w.tabs.length > 1, (el) => el.child(this.tabDots(w, t)))
           .when(Boolean(mark), (el) => el.child(mark)),
@@ -1467,7 +1454,6 @@ export default class Spaces extends View {
     }
     if (changed) setShared("space.colors", kept);
     this.publish(sp, panes());
-    this.publishGit(sp, panes());
     this.publishFolders();
     const list = this.grouped(t, collapsed);
     // Bring the active space into view when it, or its place in the list, changes; a row already in view stays put.
