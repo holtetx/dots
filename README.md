@@ -52,7 +52,7 @@ You can edit the file while Herdr runs. Herdr reads it again within 2 seconds, a
 | `mh-board` | both | Board repos (`ctrl-a T`). `repos`: more `owner/repo` to show. `skip`: found repos to leave out. `hide`: parts of `owner/repo` names never shown. |
 | `mh-ssh` | work | SSH passwords from 1Password (`ctrl-a s`). See below. Without it, ssh uses only keys (the 1Password ssh agent). |
 | `mh-jira` | work | The Jira tab on the board. Without it, there is no Jira tab. |
-| `mh-lunch` | work | The canteen for the lunch popup (`ctrl-a l`). Without it, the popup says there is no canteen. |
+| `mh-lunch` | work | The canteen for the lunch popup (`ctrl-a l`). Without it, `ctrl-a l` does nothing and the key list leaves it out. |
 
 Work Mac example (all values are placeholders):
 ```json

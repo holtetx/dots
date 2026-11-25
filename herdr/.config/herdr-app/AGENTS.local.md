@@ -100,7 +100,7 @@ Choices the owner made. Do not change them without a question.
 
 - No `cmd-s` key, no tmux split, rename or layout keys.
 - No agents list and no session archive in the sidebar.
-- `review-pr` (a shared team skill) does not call herdr-link. A rule in `~/.claude/CLAUDE.md` does that.
+- `review-pr` (a shared team skill) does not call herdr-link. A rule in `~/.claude/CLAUDE.md` does that. Both are on the work Mac only, not in dots.
 - The worktree options stay (`alt-shift-c`, picker, board and tasks rows).
 - No generated lunch images: Claude's SVG drawings looked bad, and the Gemini free tier allows 0 image requests.
 
