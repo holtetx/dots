@@ -61,16 +61,23 @@ function askWaiting(id, waiting) {
   setShared("spaces.waiting.ask", [...(shared("spaces.waiting.ask") ?? []), { id, waiting }]);
 }
 
+// A visit moves a space up the sidebar, so a run of steps keeps the order it started with.
+let held = { order: [], last: null };
+
 function navigate(command) {
   const by = command.endsWith("-next") ? 1 : -1;
-  const order = spaceOrder();
-  if (command.startsWith("space-")) {
-    const id = step(order, focused()?.space ?? spaces().find((s) => s.active)?.id, by);
-    if (id) run("space.select", { id });
+  const spaceStep = command.startsWith("space-");
+  const current = spaceStep ? (focused()?.space ?? spaces().find((s) => s.active)?.id) : focused()?.terminal;
+  if (current !== held.last) held.order = spaceOrder();
+  const ids = new Set(spaces().map((s) => s.id));
+  const order = held.order.filter((id) => ids.has(id));
+  if (spaceStep) {
+    held.last = step(order, current, by);
+    if (held.last) run("space.select", { id: held.last });
   } else {
     const list = agents().filter((a) => order.includes(a.space)).sort((a, b) => order.indexOf(a.space) - order.indexOf(b.space));
-    const terminal = step(list.map((a) => a.address), focused()?.terminal, by);
-    if (terminal) run("agent.focus", { terminal });
+    held.last = step(list.map((a) => a.address), current, by);
+    if (held.last) run("agent.focus", { terminal: held.last });
   }
 }
 

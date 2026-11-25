@@ -4,7 +4,7 @@
 // login, rebuilt, loading). After a space's name, where its first terminal is now,
 // only where unusual: ahead/behind (its folder says the repo). A space is one session: its row is
 // called by its name if someone named it, else by its lead agent's title, with that agent's state. Click to
-// switch, right-click for its menu, drag to reorder or onto a folder. Spaces put in Waiting (kept on
+// switch, right-click for its menu, drag onto a folder. Newest activity first. Spaces put in Waiting (kept on
 // their machine, docs.js) go to a section of their own at the bottom, folded at first.
 // Then its GitHub PRs and issues: linked from its menu, its branch's PR, and
 // those its Claude sessions opened, each with the issues or PRs it's linked to.
@@ -127,6 +127,8 @@ const rootOf = (g) => {
   return repo.endsWith("/.git") ? repo.slice(0, -5) : g.top;
 };
 
+// When an agent in the space last changed state (0: not since Herdr started).
+const activity = (w) => Math.max(0, ...w.tabs.map((t) => t.changed_at ?? 0));
 const URGENT = { blocked: 3, done: 2, working: 1 };
 const urgent = (rows) => rows.map((r) => r.w.status).reduce((m, st) => ((URGENT[st] ?? 0) > (URGENT[m] ?? 0) ? st : m), null);
 
@@ -172,7 +174,7 @@ export default class Spaces extends View {
     this.scroll = ScrollHandle.new(); // brings the active space into view
     this.activeAt = -1; // the active space's place among the list's children, -1 when not drawn
     this.pressed = null; // a space dragged
-    this.over = null; // the space row it would land next to
+    this.over = null; // the space row under the pointer
     this.overFolder = null; // the folder (or "other") it would go in
     this.moving = null; // a folder header pressed (or "other")
     this.overMove = null; // the folder header it would land next to
@@ -563,6 +565,12 @@ export default class Spaces extends View {
     const taught = matchOf(applyChange(JSON.parse(JSON.stringify(st)), teach), this.homes, key, places) === folder;
     this.change([teach, ...pin(taught ? null : folder)]);
     notify({ title: st.folders[folder].name, body: `Spaces in ${tilde(path, this.homes[key])}${key ? ` on ${key}` : ""} go in this folder now.`, level: "info" });
+  }
+
+  // A space dropped on row r goes into r's folder.
+  files(from, r) {
+    const source = this.rowsById?.get(from);
+    return Boolean(this.filed && source && !source.waiting && !r.waiting && !source.ssh && !r.ssh && source.folder !== r.folder);
   }
 
   // A folder dragged onto another: it goes where that one is.
@@ -1025,9 +1033,9 @@ export default class Spaces extends View {
     const other = [];
     const ssh = [];
     const waiting = [];
-    sp.forEach((w, i) => {
+    sp.forEach((w) => {
       const g = this.git[where(w, ps)] ?? null;
-      const r = { w, i, g, folder: null, waiting: parked.has(w.id) };
+      const r = { w, g, folder: null, waiting: parked.has(w.id) };
       if (r.waiting) return waiting.push(r);
       if (!w.machine && remote.has(w.id)) return ssh.push({ ...r, ssh: true });
       r.folder = folderOf(st, this.homes, w.machine ?? "", split(w.id)[1], [place(w, ps), rootOf(g)]);
@@ -1035,6 +1043,8 @@ export default class Spaces extends View {
       if (!bucket) r.folder = null;
       (bucket ?? other).push(r);
     });
+    const recent = (a, b) => activity(b.w) - activity(a.w);
+    for (const members of [...inside.values(), other, ssh]) members.sort(recent);
     return { list, inside, other, ssh, waiting };
   }
 
@@ -1327,12 +1337,11 @@ export default class Spaces extends View {
       .when(g.behind > 0, (el) => el.child(div().flex_none().text_color(t.ansi1).child(`\u2193${g.behind}`)));
   }
 
-  // A server icon names another machine's space. Dropped on a space of the same
-  // machine, a space moves next to it (into its folder); on another machine's, into its folder.
+  // A server icon names another machine's space. Dropped on a space in another folder,
+  // a space goes into that folder.
   row(r, t) {
-    const { w, i, g } = r;
+    const { w, g } = r;
     const on = w.active;
-    const fromIndex = this.pressed === null ? -1 : spaces().findIndex(s => s.id === this.pressed);
     const colors = shared("space.colors") ?? {};
     const color = colors[w.id] ?? "ansi6";
     const fill = color.startsWith("#") ? color : (MARK[color] ?? t[color]);
@@ -1351,11 +1360,7 @@ export default class Spaces extends View {
       .when(on, (el) => el.bg(t.selected))
       .when(!on, (el) => el.hover((s) => s.bg(t.hover)))
       .when(this.pressed === w.id && this.over !== w.id, (el) => el.opacity(0.5))
-      .when(this.pressed !== null && this.over === w.id && this.pressed !== w.id, (el) => el.child(
-        div().absolute().left(0).right(0).h(2).bg(t.accent)
-          .when(fromIndex < i, line => line.bottom(0))
-          .when(fromIndex > i, line => line.top(0)),
-      ))
+      .when(this.pressed !== w.id && this.over === w.id && this.files(this.pressed, r), (el) => el.border_1().border_color(t.accent))
       .on_mouse_down("left", () => {
         this.pressed = w.id;
         this.over = w.id;
@@ -1384,11 +1389,10 @@ export default class Spaces extends View {
         const { pressed: from, over, overFolder } = this;
         this.endDrag();
         if (from !== null && over === w.id && from !== w.id) {
-          const source = this.rowsById?.get(from);
-          if (this.filed && source && !source.waiting && !r.waiting && !source.ssh && !r.ssh && source.folder !== r.folder) this.dropSpace(from, r.folder ?? "");
-          const index = spaces().findIndex(s => s.id === w.id);
-          if (index !== -1) run("space.move", { id: from, index: index + 1 });
+          if (this.files(from, r)) this.dropSpace(from, r.folder ?? "");
         } else if (from === w.id) run("space.select", { id: w.id });
+        // Another row sorted in under a pointer that did not move: still a click on the pressed one.
+        else if (from !== null && over === from) run("space.select", { id: from });
         else if (from !== null && overFolder !== null) this.dropSpace(from, overFolder === "other" ? "" : overFolder);
         cx.notify();
       })
