@@ -202,7 +202,8 @@ export async function fetchGitHub(urls, branches) {
   return out;
 }
 
-export const open = (url, cx) => cx.spawn(async () => { await exec("open", [url]).catch(() => null); });
+// Only https: links come from GitHub, Jira and hand-added docs, and `open` runs files and apps too.
+export const open = (url, cx) => /^https:\/\//.test(url ?? "") && cx.spawn(async () => { await exec("open", [url]).catch(() => null); });
 const iconOf = (it, s) => s?.icon ?? (it.kind === "issue" ? GH["issue-open"].icon : GH.open.icon);
 const colorOf = (s, t) => (s ? s.color[settings()?.dark ? 1 : 0] : t.dim);
 

@@ -12,14 +12,13 @@
 import { div, svg } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, ScrollHandle } from "gpui-base";
 import { props, closeOverlay, theme, spaces, panes, agents, terminals, exec, shared, setShared } from "herdr";
-import { badge, expand, githubRepo, openPrs, resolve } from "./github.js";
+import { badge, expand, githubRepo, open, openPrs, resolve } from "./github.js";
 import { editLinks, forgetHistory, linksOf, split } from "./docs.js";
 
 const spaceOf = () => spaces().find((s) => s.id === props()?.link);
 const agentOf = () => agents().find((a) => a.address === props()?.agent);
 const nameOf = (a) => a.tab_name || a.title || a.address;
 const targetOf = () => (props()?.agent ? { agent: props().agent } : { space: props()?.link });
-const open = (url, cx) => cx.spawn(async () => { await exec("open", [url]).catch(() => null); });
 
 export function linkInit(view, cx) {
   view.resolved = {}; // url -> item, until the sidebar has asked GitHub itself

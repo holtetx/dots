@@ -179,7 +179,8 @@ function go(view, row, cx, here = false, bringIt = false) {
   if (row.kind === "new") return start(view, { id: row.key }, () => startNew({ path: row.place.path, machine: row.place.machine, worktree: row.worktree, name: row.name, branch: row.branch, url: props().url }), cx);
   if (row.kind === "task") {
     hide();
-    return cx.spawn(async () => { await exec("open", [row.task.url]).catch(() => null); });
+    // Only https: `open` runs files and apps too.
+    return /^https:\/\//.test(row.task.url ?? "") && cx.spawn(async () => { await exec("open", [row.task.url]).catch(() => null); });
   }
   const s = row.s;
   if (s.running) {
