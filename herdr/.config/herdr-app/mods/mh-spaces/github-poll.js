@@ -27,22 +27,25 @@ export function githubDue(view, now, sp, ps, cx) {
       for (const [url, it] of Object.entries(r.items)) view.items[url] = { links: view.items[url]?.links, ...it };
       for (const [k, url] of Object.entries(r.branches)) view.branchPrs[k] = { url, at: Date.now(), base: r.items[url]?.base ?? null };
       if (!r.ok) view.ghRetry = Date.now() + GH_RETRY;
-      ghFailed(view, r.ok ? null : r.error ?? "GitHub gave no data.");
+      ghFailed(view, "badges", r.ok ? null : r.error ?? "GitHub gave no data.");
     } catch (e) {
       view.ghRetry = Date.now() + GH_RETRY;
-      ghFailed(view, e);
+      ghFailed(view, "badges", e);
     }
     view.fetching = false;
     cx.notify();
   });
 }
 
-// Badges keep their last state while GitHub can't be asked: say so once, until it works again.
-function ghFailed(view, error) {
-  if (!error) return void (view.ghWarned = false);
-  if (view.ghWarned) return;
-  view.ghWarned = true;
-  notify({ title: "GitHub badges are not updating", body: `${String(error?.message ?? error).slice(0, 300)}\nChecked again in ${GH_RETRY / 60000} minutes.`, level: "warning" });
+// Badges and news keep their last state while GitHub can't be asked: say so once per poll,
+// until that poll works again. One flag each: the other poll working says nothing about this one.
+const FAILED = { badges: "GitHub badges are not updating", news: "GitHub PR news is not updating" };
+function ghFailed(view, poll, error) {
+  view.ghWarned ??= {};
+  if (!error) return void (view.ghWarned[poll] = false);
+  if (view.ghWarned[poll]) return;
+  view.ghWarned[poll] = true;
+  notify({ title: FAILED[poll], body: `${String(error?.message ?? error).slice(0, 300)}\nChecked again in ${GH_RETRY / 60000} minutes.`, level: "warning" });
 }
 
 // GitHub's unread notifications about PRs, each minute while the window is active and
@@ -63,10 +66,10 @@ export function unreadDue(view, now, cx) {
       view.unread = await fetchUnread();
       for (const [key, at] of Object.entries(view.dismissed)) if (!view.unread[key] || view.unread[key].at > at) delete view.dismissed[key];
       view.unreadAt = Date.now() + GH_UNREAD;
-      ghFailed(view, null);
+      ghFailed(view, "news", null);
     } catch (e) {
       view.unreadAt = Date.now() + GH_RETRY;
-      ghFailed(view, e);
+      ghFailed(view, "news", e);
     }
     view.unreading = false;
     cx.notify();
