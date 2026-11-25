@@ -5,8 +5,8 @@
 !/keys.json
 !/programs.json
 !/layouts/
-!/themes/
-/layouts/.state/
+/layouts/*
+!/layouts/mh.json
 !/mh-settings.json
 !/new-window.sh
 !/CLAUDE.md
