@@ -19,7 +19,7 @@ export function worktree(cwd) {
   return m ? { repo: m[1], name: m[2], root: m[0] } : null;
 }
 
-// "repo › branch" for a workspace kept inside or beside its repo, else the folder's name.
+// "repo › branch" for a workspace kept inside or beside its repo, else the folder's name. mh-open/main.js has a copy.
 export function label(cwd) {
   const claude = worktree(cwd);
   if (claude) return `${base(claude.repo)} › ${claude.name}`;

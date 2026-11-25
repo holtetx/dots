@@ -18,6 +18,7 @@ const parent = (path) => tilde(path.replace(/\/+$/, "").replace(/\/[^/]*$/, "") 
 const zoxide = (args, on) => exec("zoxide", args, { on, timeout: 8000 });
 
 // "repo › branch" for a workspace kept inside or beside its repo, else the folder's name.
+// A copy of label() in mh-sessions/sessions.js (a mod cannot import from another): keep them the same.
 function label(cwd) {
   const claude = cwd.match(/^(.*)\/\.claude\/worktrees\/([^/]+)/);
   if (claude) return `${base(claude[1])} › ${claude[2]}`;
