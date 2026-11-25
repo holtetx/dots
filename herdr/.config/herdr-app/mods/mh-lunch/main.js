@@ -44,8 +44,6 @@ export default class Lunch extends View {
       .on_key_down((e) => {
         if (e.key === "escape" || e.key === "enter") hide();
       })
-      .size_full()
-      .min_h(0)
       .p(16)
       .gap(8)
       .bg(t.popover)
@@ -59,8 +57,8 @@ export default class Lunch extends View {
       )
       .when(!!text, (el) => el.child(div().text_color(t.dim).child(text)))
       .when(!text, (el) =>
-        el.child(
-          v_flex().id("mh-lunch-days").flex_1().min_h(0).overflow_y_scrollbar().gap(8).children(this.days.map((day) => {
+        el.children(
+          this.days.map((day) => {
             const on = day.date === now;
             return v_flex()
               .gap(6)
@@ -86,7 +84,7 @@ export default class Lunch extends View {
                     .child(div().flex_1().min_w(0).text_size(on ? 14 : 13).text_color(on ? t.foreground : t.dim).child(name)),
                 ),
               );
-          })),
+          }),
         ),
       );
   }
