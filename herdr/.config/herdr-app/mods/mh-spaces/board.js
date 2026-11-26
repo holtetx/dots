@@ -74,8 +74,9 @@ export function boardInit(view, cx) {
     if (moved && moved.at !== view.moveSeen) {
       view.moveSeen = moved.at;
       view.note = `${moved.key} moved to ${moved.to}.`;
-      memory.sel.jira = { url: moved.url };
-      memory.at.jira = 0; // due again, without asking GitHub too
+      // A linked issue moved in the preview may not be on the board: keep the selection then.
+      if (memory.data.jira?.sections.some((c) => c.items.some((i) => i.url === moved.url))) memory.sel.jira = { url: moved.url };
+      memory.at.jira = 0; // due again; force would ask GitHub too
       refresh(view, cx, false);
       cx.notify();
     }
