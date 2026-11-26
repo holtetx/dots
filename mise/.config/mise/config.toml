@@ -2,5 +2,6 @@
 node = "lts"
 python = "3"
 pnpm = "latest"
-"npm:typescript-language-server" = "latest"
-"npm:typescript" = "latest"
+# the server needs typescript next to it; mise installs each npm tool alone, and TS 7 has no tsserver.js
+"npm:typescript-language-server" = { version = "latest", postinstall = "ln -sfn $HOME/.local/share/mise/installs/npm-typescript/6/node_modules/typescript $MISE_TOOL_INSTALL_PATH/node_modules/typescript" }
+"npm:typescript" = "6"
