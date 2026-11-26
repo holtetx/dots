@@ -115,7 +115,7 @@ A second window closes with `cmd-q`.
 ## Working on mods
 
 - Check: `herdr-app check mods/<mod>` after each change. It renders only the default state of a mod.
-- Tests: `node --test mods/*/*.test.mjs`. Code a test needs lives in a file with no Herdr imports (`jira.js`, `stack.js`, `remote.js`, `mh-ssh/hosts.js`, `mh-footer/report.js`).
+- Tests: `node --test mods/*/*.test.mjs`. Code a test needs lives in a file with no Herdr imports (`jira.js`, `stack.js`, `remote.js`, `title.js`, `mh-ssh/hosts.js`, `mh-footer/report.js`).
 - Errors and focus: `herdr-app status`. Screenshot: `herdr-app shot <file>.png`. Labels: `hc get <terminal> --json`.
 - Reload: Herdr does not always see an edit made through a link. Run `touch -h` on the link of the mod or of `keys.json` in `~/.config/herdr-app`.
 - Layout: change it with `herdr-app do layout.set`.
