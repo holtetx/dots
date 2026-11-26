@@ -6,7 +6,8 @@
 // starts one in its repo (mh-sessions' tasks list for that item), ⌃↵ opens
 // it, ⌥↵ lists what it's linked to, space previews it (preview.js), / searches the tab shown.
 // The Jira tab (jira-data.js, only with shared("mh-jira")): one Jira board as columns of cards; hl
-// moves between columns, z folds or opens one, ↵ opens an issue in the browser, space previews it.
+// moves between columns, z folds or opens one, s changes an issue's status (status.js), ↵ opens
+// it in the browser, space previews it.
 // It asks Jira only while it's shown.
 // What was fetched is kept for the next opening.
 // A mh-spaces overlay with props { board: true }.
@@ -19,7 +20,7 @@ import { GH, FINAL, markRead, open, prKey, unknown } from "./github.js";
 import { boardRepos, fetchIssues, fetchPrs } from "./board-data.js";
 import { fetchJira, jiraSettings } from "./jira-data.js";
 import { avatars, loadAvatars } from "./preview-data.js";
-import { PRIORITY_COLOR, TYPE_COLOR, foldKey, hue, initials } from "./jira.js";
+import { BLUE, PRIORITY_COLOR, TYPE_COLOR, foldKey, hue, initials } from "./jira.js";
 
 const FRESH = 2 * 60000;
 const ICON = (name) => `mods/workspace-chrome/${name}.svg`;
@@ -51,7 +52,7 @@ const GITHUB_KEYS = ["space preview", "↵ sessions", "⌃↵ GitHub"];
 const tabsOf = () => [
   { id: "prs", name: "Pull requests", list: () => memory.data.prs?.prs, row: prRow, empty: "No open PRs.", asking: "Asking GitHub…", keys: GITHUB_KEYS, github: true },
   { id: "issues", name: "Issues", list: () => memory.data.issues?.issues, row: issueRow, empty: "No open issues.", asking: "Asking GitHub…", keys: GITHUB_KEYS, github: true },
-  ...(jiraSettings() ? [{ id: "jira", name: "Jira", list: () => memory.data.jira?.sections.flatMap((s) => s.items), empty: "No issues on the board.", asking: "Asking Jira… (approve 1Password if it asks)", keys: ["hl column", "z fold", "space preview", "↵ open in Jira"] }] : []),
+  ...(jiraSettings() ? [{ id: "jira", name: "Jira", list: () => memory.data.jira?.sections.flatMap((s) => s.items), empty: "No issues on the board.", asking: "Asking Jira… (approve 1Password if it asks)", keys: ["hl column", "z fold", "s status", "space preview", "↵ open in Jira"] }] : []),
 ];
 
 export function boardInit(view, cx) {
@@ -66,7 +67,19 @@ export function boardInit(view, cx) {
   view.handle.focus();
   // The session picker over it gives the keyboard back when it closes (shared("board.focus")).
   view.focusAsk = shared("board.focus");
-  cx.timer.every(150, () => {
+  // A status move (status.js, here or in a preview over it) reloads the Jira tab.
+  view.moveSeen = shared("jira.moved")?.at;
+  cx.timer.every(150, (cx) => {
+    const moved = shared("jira.moved");
+    if (moved && moved.at !== view.moveSeen) {
+      view.moveSeen = moved.at;
+      view.note = `${moved.key} moved to ${moved.to}.`;
+      // A linked issue moved in the preview may not be on the board: keep the selection then.
+      if (memory.data.jira?.sections.some((c) => c.items.some((i) => i.url === moved.url))) memory.sel.jira = { url: moved.url };
+      memory.at.jira = 0; // due again; force would ask GitHub too
+      refresh(view, cx, false);
+      cx.notify();
+    }
     if (shared("board.focus") === view.focusAsk) return;
     view.focusAsk = shared("board.focus");
     (view.searching ? view.input : view.handle).focus();
@@ -433,7 +446,7 @@ function jiraStep(view, by) {
   if (at >= 0) jiraGo(view, col, Math.max(0, Math.min(cols[col].items.length - 1, at + by)));
 }
 
-// hjkl, g G, ^D ^U ^J ^K and z on the Jira columns. Other keys go on to key().
+// hjkl, g G, ^D ^U ^J ^K, s and z on the Jira columns. Other keys go on to key().
 function jiraKey(view, e) {
   const md = view.model;
   const m = e.modifiers;
@@ -443,6 +456,7 @@ function jiraKey(view, e) {
   if (!col) return false;
   const side = plain && { h: -1, left: -1, l: 1, right: 1 }[e.key];
   if (side) return md.cols[md.col + side] && jiraGo(view, md.col + side, memory.sel.jira?.i ?? 0), true;
+  if (plain && e.key === "s") return md.item && openStatus(md.item, "board.focus"), true;
   if (plain && e.key === "z") return toggleFold(col.name), (memory.sel.jira = { ...memory.sel.jira, col: col.name }), (view.reveal = true), true;
   const half = Math.max(1, Math.floor((view.listHeight ?? 400) / 2 / CARD));
   const by = plain ? { j: 1, down: 1, k: -1, up: -1, g: -Infinity, G: Infinity }[e.key] : ctrl ? { d: half, u: -half, j: 5, k: -5 }[e.key] : 0;
@@ -562,6 +576,13 @@ export const avatar = (name, t, size, url) => {
 export const colorOf = (map, key, dark, t) => (map[key] ? pick(map[key], dark) : t.dim);
 // A see-through version of a #rrggbb or #rrggbbaa color, for soft backgrounds.
 export const tint = (c, alpha = "26") => (/^#[0-9a-f]{6}([0-9a-f]{2})?$/i.test(c) ? c.slice(0, 7) + alpha : c);
+
+const STATUS_COLOR = { done: GREEN, indeterminate: BLUE };
+export const statusChip = (text, category, t, dark) => chip(text, STATUS_COLOR[category] ? pick(STATUS_COLOR[category], dark) : t.muted, t);
+
+// s: the status dialog (status.js) for a Jira card or preview. back: the shared key it sets when it
+// closes, so the view under it takes the keyboard back.
+export const openStatus = (it, back) => openOverlay({ mod: "mh-spaces", kind: "dialog", width: 420, height: 440, props: { status: it.key, url: it.url, title: it.title ?? "", from: { id: it.statusId, name: it.status, category: it.statusCategory }, back } });
 
 export const chip = (text, color, t, dot) => h_flex().flex_none().gap(5).px(6).h(18).items_center().rounded(4).text_size(10.5).font_medium()
   .bg(tint(color, "22")).text_color(dot ? t.muted : color)
@@ -766,7 +787,7 @@ export function boardRender(view) {
   const hint = view.picker ? "" : view.searching
     ? ["↓↑ ^J ^K move", "↵ keep filter", "esc clear"].join(" · ")
     : ["/ search", ...tab.keys, view.text ? "esc clear search" : "esc close"].join(" · ");
-  const allKeys = ["hjkl move", "^D ^U ^J ^K scroll", "g G first, last", "/ search", ...(tab.github ? ["space preview", "↵ sessions", "⌃↵ open on GitHub", "⌥↵ linked", "b show or hide Dependabot"] : ["z fold or open a column", "space preview", "↵ open in Jira"]), "tab next tab", "1-9 a tab", "r refresh", "esc close"].join(" · ");
+  const allKeys = ["hjkl move", "^D ^U ^J ^K scroll", "g G first, last", "/ search", ...(tab.github ? ["space preview", "↵ sessions", "⌃↵ open on GitHub", "⌥↵ linked", "b show or hide Dependabot"] : ["z fold or open a column", "s change status", "space preview", "↵ open in Jira"]), "tab next tab", "1-9 a tab", "r refresh", "esc close"].join(" · ");
   return v_flex()
     .id("board")
     .relative()
