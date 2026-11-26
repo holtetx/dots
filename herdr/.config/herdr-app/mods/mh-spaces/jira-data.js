@@ -1,4 +1,4 @@
-// The Jira tab's data: one board and the previewed issue, GET only (AGENTS.local.md, "Jira tab on the board").
+// The Jira tab's data: one board, the previewed issue and status moves (AGENTS.local.md, "Jira tab on the board").
 
 import { exec, shared } from "herdr";
 import { adfBlocks, adfToMd, avatarOf, byColumn, columnsOf, issueOf, linksOf, validBoard, validKey, validSite } from "./jira.js";
@@ -35,18 +35,24 @@ async function readItem(cfg) {
 }
 
 // No retries: the board asks only when opened or on r, and a 429 says to wait.
-async function get(a, path, params = {}) {
+async function call(a, method, path, params = {}, body) {
   const query = Object.entries(params).map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join("&");
-  const r = await fetch(`https://${a.site}${path}${query ? `?${query}` : ""}`, { method: "GET", headers: { Authorization: a.header, Accept: "application/json" } });
+  const headers = { Authorization: a.header, Accept: "application/json", ...(body && { "Content-Type": "application/json" }) };
+  const r = await fetch(`https://${a.site}${path}${query ? `?${query}` : ""}`, { method, headers, ...(body && { body: JSON.stringify(body) }) });
   if (r.status === 401) {
     auth = null; // r reads the item again, after the token is replaced in 1Password
     throw new Error("Jira refused the token (401). It may have expired.");
   }
-  if (r.status === 403) throw new Error(`Jira says this account has no access to board ${a.board} (403).`);
+  if (r.status === 403) throw new Error(method === "GET" ? `Jira says this account has no access to board ${a.board} (403).` : "Jira says this account may not change this issue (403).");
   if (r.status === 429) throw new Error("Jira says too many requests: press r in a minute.");
-  if (!r.ok) throw new Error(`Jira answered ${r.status}.`);
-  return r.json();
+  if (!r.ok) {
+    const j = await r.json().catch(() => null);
+    const why = [...(j?.errorMessages ?? []), ...Object.values(j?.errors ?? {})].join(" ");
+    throw new Error(`Jira answered ${r.status}${why ? `: ${why}` : "."}`);
+  }
+  return r.status === 204 ? null : r.json();
 }
+const get = (a, path, params) => call(a, "GET", path, params);
 
 // The enhanced board endpoint (the /rest/agile/1.0 one is deprecated) pages with nextPageToken.
 async function boardIssues(a) {
@@ -71,12 +77,16 @@ export async function fetchJira(cfg) {
   return { name: config.name ?? "", sections: byColumn(columnsOf(config), issues) };
 }
 
-// The preview (space on a Jira card), in preview.js's shape: one issue's description and comments.
-export async function fetchJiraPreview(key) {
+async function issueAuth(key) {
   const cfg = jiraSettings();
   if (!cfg) throw new Error("There is no mh-jira in mh-state.json.");
   if (!validKey(key)) throw new Error(`${key} is not a Jira key.`);
-  const a = await credentials(cfg);
+  return credentials(cfg);
+}
+
+// The preview (space on a Jira card), in preview.js's shape: one issue's description and comments.
+export async function fetchJiraPreview(key) {
+  const a = await issueAuth(key);
   const n = await get(a, `/rest/api/3/issue/${key}`, { fields: "summary,status,issuetype,priority,assignee,reporter,created,updated,labels,parent,description,comment,issuelinks" });
   const f = n.fields ?? {};
   const url = `https://${a.site}/browse/${n.key}`;
@@ -89,4 +99,15 @@ export async function fetchJiraPreview(key) {
     body: adfBlocks(f.description, url).map((md) => ({ md })),
     posts: (f.comment?.comments ?? []).map((c) => ({ who: c.author?.displayName ?? "someone", avatar: avatarOf(c.author), at: Date.parse(c.created) || 0, url: `${url}?focusedCommentId=${c.id}`, parts: [{ md: adfToMd(c.body, url) }] })),
   };
+}
+
+// s on a card: the moves Jira's workflow allows from the issue's status now.
+export async function jiraTransitions(key) {
+  const r = await get(await issueAuth(key), `/rest/api/3/issue/${key}/transitions`);
+  return (r.transitions ?? []).map((x) => ({ id: x.id, name: x.name ?? "", to: x.to?.name ?? "" }));
+}
+
+// The tab's only write: one of those moves.
+export async function jiraTransition(key, id) {
+  await call(await issueAuth(key), "POST", `/rest/api/3/issue/${key}/transitions`, {}, { transition: { id } });
 }
