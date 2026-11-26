@@ -10,6 +10,7 @@ const clean = (s) => (s ?? "").replace(/^(?:\[ [!.] \] |[✋⏳]️?(?=\s)|(?!(?
 export function telling(a) {
   const live = clean(a?.title);
   // clean() would strip a path's leading ~ or /: test the title with only its status glyph gone.
-  const path = /^[~/]|^[A-Za-z]:\\/.test((a?.title ?? "").replace(/^[^\p{L}\p{N}~/]+/u, ""));
+  // No spaces, so a slash command ("/review-all with x") is a title, not a path.
+  const path = /^(?:[~/]|[A-Za-z]:\\)\S*$/.test((a?.title ?? "").replace(/^[^\p{L}\p{N}~/]+/u, ""));
   return live && live !== a?.address && live !== a?.program?.name && !path && !live.includes("@") && live.toLowerCase() !== a?.program?.key ? live : null;
 }

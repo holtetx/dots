@@ -22,7 +22,8 @@ function label(tab, lead) {
   if (!lead?.program?.agent) return base;
   const live = clean(lead.title);
   // clean() would strip a path's leading ~ or /: test the title with only its status glyph gone.
-  const path = /^[~/]|^[A-Za-z]:\\/.test((lead.title ?? "").replace(/^[^\p{L}\p{N}~/]+/u, ""));
+  // No spaces, so a slash command ("/review-all with x") is a title, not a path.
+  const path = /^(?:[~/]|[A-Za-z]:\\)\S*$/.test((lead.title ?? "").replace(/^[^\p{L}\p{N}~/]+/u, ""));
   const telling = live && live !== lead.terminal && live !== prog && !path && !live.includes("@") && live.toLowerCase() !== lead.program.key;
   return (tab.name === prog || !tab.named) && telling ? live : base;
 }
