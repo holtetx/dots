@@ -6,8 +6,8 @@
 // starts one in its repo (mh-sessions' tasks list for that item), ⌃↵ opens
 // it, ⌥↵ lists what it's linked to, space previews it (preview.js), / searches the tab shown.
 // The Jira tab (jira-data.js, only with shared("mh-jira")): one Jira board as columns of cards; hl
-// moves between columns, z folds or opens one, s changes an issue's status, ↵ opens it in the
-// browser, space previews it.
+// moves between columns, z folds or opens one, s changes an issue's status (status.js), ↵ opens
+// it in the browser, space previews it.
 // It asks Jira only while it's shown.
 // What was fetched is kept for the next opening.
 // A mh-spaces overlay with props { board: true }.
@@ -18,7 +18,8 @@ import { v_flex, h_flex, ScrollHandle, InputState, Input } from "gpui-base";
 import { props, closeOverlay, openOverlay, theme, settings, shared, terminals } from "herdr";
 import { GH, FINAL, markRead, open, prKey, unknown } from "./github.js";
 import { boardRepos, fetchIssues, fetchPrs } from "./board-data.js";
-import { fetchJira, jiraSettings, jiraTransition, jiraTransitions } from "./jira-data.js";
+import { fetchJira, jiraSettings } from "./jira-data.js";
+import { openStatus } from "./status.js";
 import { avatars, loadAvatars } from "./preview-data.js";
 import { PRIORITY_COLOR, TYPE_COLOR, foldKey, hue, initials } from "./jira.js";
 
@@ -67,7 +68,18 @@ export function boardInit(view, cx) {
   view.handle.focus();
   // The session picker over it gives the keyboard back when it closes (shared("board.focus")).
   view.focusAsk = shared("board.focus");
-  cx.timer.every(150, () => {
+  // A status move (status.js, here or in a preview over it) reloads the Jira tab.
+  view.moveSeen = shared("jira.moved")?.at;
+  cx.timer.every(150, (cx) => {
+    const moved = shared("jira.moved");
+    if (moved && moved.at !== view.moveSeen) {
+      view.moveSeen = moved.at;
+      view.note = `${moved.key} moved to ${moved.to}.`;
+      memory.sel.jira = { url: moved.url };
+      memory.at.jira = 0; // due again, without asking GitHub too
+      refresh(view, cx, false);
+      cx.notify();
+    }
     if (shared("board.focus") === view.focusAsk) return;
     view.focusAsk = shared("board.focus");
     (view.searching ? view.input : view.handle).focus();
@@ -294,70 +306,8 @@ function linkedRows(view, url) {
 // ⌥↵: what the item is linked to.
 function linked(view, it) {
   if (!it) return;
-  const rows = linkedRows(view, it.url);
-  if (!rows.length) return (view.note = "Nothing is linked to this.");
-  view.picker = {
-    title: `Linked to ${refOf(it)} ${it.title ?? ""}`,
-    rows,
-    at: 0,
-    hint: "space preview · ↵ go to · ⌃↵ open · esc back",
-    space: (row) => preview(row.it),
-    enter: (row, m, cx) => {
-      const at = !m.control && find(row.url);
-      if (!at) return openUrl(row.it, cx);
-      clearSearch(view);
-      memory.sel[at.tab] = at.sel;
-      showTab(view, at.tab, cx);
-      view.picker = null;
-    },
-    cells: (r, t, dark) => [
-      h_flex().w(14).flex_none().justify_center().child(stateIcon(r.it, dark, t)),
-      div().w(150).flex_none().truncate().text_size(11.5).text_color(t.dim).child(refOf(r.it)),
-      div().flex_1().min_w(0).truncate().text_color(t.foreground).child(r.it.title || r.url),
-      div().flex_none().text_size(11).text_color(t.dim).child(r.why),
-    ],
-  };
-}
-
-// s on a Jira card: the moves its workflow allows; ↵ makes one and reloads the board.
-function statusPicker(view, it, cx) {
-  if (it?.kind !== "jira") return;
-  const p = {
-    title: `Move ${it.key} ${it.title ?? ""}`,
-    rows: [],
-    at: 0,
-    note: "Asking Jira…",
-    hint: "↵ move · esc back",
-    enter: (row, _m, cx) => {
-      view.picker = null;
-      view.note = `Moving ${it.key} to ${row.to}…`;
-      cx.spawn(async (cx) => {
-        try {
-          await jiraTransition(it.key, row.id);
-          view.note = `${it.key} moved to ${row.to}.`;
-          memory.sel.jira = { url: it.url };
-          refresh(view, cx, true);
-        } catch (e) {
-          view.note = String(e?.message ?? e);
-        }
-        cx.notify();
-      });
-    },
-    cells: (r, t) => [
-      div().flex_1().min_w(0).truncate().text_color(t.foreground).child(r.name),
-      div().flex_none().text_size(11).text_color(t.dim).child(r.to === r.name ? "" : `→ ${r.to}`),
-    ],
-  };
-  view.picker = p;
-  cx.spawn(async (cx) => {
-    try {
-      p.rows = await jiraTransitions(it.key);
-      p.note = p.rows.length ? "" : "Jira allows no move from this status.";
-    } catch (e) {
-      p.note = String(e?.message ?? e);
-    }
-    cx.notify();
-  });
+  if (!linkedRows(view, it.url).length) return (view.note = "Nothing is linked to this.");
+  view.picker = { it, at: 0 };
 }
 
 // The tab and selection that show `url`, or null when the board doesn't have it.
@@ -369,16 +319,23 @@ function find(url) {
 
 const preview = (it) => it?.url && openOverlay({ mod: "mh-spaces", kind: "dialog", width: it.kind === "jira" ? 0.62 : 0.8, height: it.kind === "jira" ? 0.82 : 0.76, props: { preview: it.url, behind: Boolean(it.behind), back: "board.focus" } });
 
-// view.picker: { title, rows, at, hint, note?, cells(row, t, dark), enter(row, modifiers, cx), space?(row) }.
 function pickerKey(view, e, cx) {
-  const p = view.picker;
-  const row = p.rows[p.at];
+  const rows = linkedRows(view, view.picker.it.url);
+  const m = e.modifiers;
   if (e.key === "escape") view.picker = null;
-  else if (e.key === "space") row && p.space?.(row);
-  else if (e.key === "j" || e.key === "down") p.at = Math.max(0, Math.min(p.rows.length - 1, p.at + 1));
-  else if (e.key === "k" || e.key === "up") p.at = Math.max(0, p.at - 1);
-  else if (e.key === "enter") row && p.enter(row, e.modifiers, cx);
-  else return false;
+  else if (e.key === "space") preview(rows[view.picker.at]?.it);
+  else if (e.key === "j" || e.key === "down") view.picker.at = Math.min(rows.length - 1, view.picker.at + 1);
+  else if (e.key === "k" || e.key === "up") view.picker.at = Math.max(0, view.picker.at - 1);
+  else if (e.key === "enter") {
+    const row = rows[view.picker.at];
+    if (!row) return true;
+    const at = !m.control && find(row.url);
+    if (!at) return openUrl(row.it, cx), true;
+    clearSearch(view);
+    memory.sel[at.tab] = at.sel;
+    showTab(view, at.tab, cx);
+    view.picker = null;
+  } else return false;
   view.pickScroll.scroll_to_item(view.picker?.at ?? 0);
   return true;
 }
@@ -422,7 +379,7 @@ function key(view, e, cx) {
     else if (it) pickItem(view, it, cx);
     return true;
   }
-  if (view.model.tab.id === "jira" && jiraKey(view, e, cx)) return true;
+  if (view.model.tab.id === "jira" && jiraKey(view, e)) return true;
   if (m.control && !m.alt && !m.platform) {
     const half = Math.max(1, Math.floor((view.listHeight ?? 340) / 2 / ROW));
     const by = { d: half, u: half, j: 5, k: 5 }[e.key];
@@ -490,7 +447,7 @@ function jiraStep(view, by) {
 }
 
 // hjkl, g G, ^D ^U ^J ^K, s and z on the Jira columns. Other keys go on to key().
-function jiraKey(view, e, cx) {
+function jiraKey(view, e) {
   const md = view.model;
   const m = e.modifiers;
   const plain = !m.control && !m.alt && !m.platform;
@@ -499,7 +456,7 @@ function jiraKey(view, e, cx) {
   if (!col) return false;
   const side = plain && { h: -1, left: -1, l: 1, right: 1 }[e.key];
   if (side) return md.cols[md.col + side] && jiraGo(view, md.col + side, memory.sel.jira?.i ?? 0), true;
-  if (plain && e.key === "s") return statusPicker(view, md.item, cx), true;
+  if (plain && e.key === "s") return md.item && openStatus(md.item, "board.focus"), true;
   if (plain && e.key === "z") return toggleFold(col.name), (memory.sel.jira = { ...memory.sel.jira, col: col.name }), (view.reveal = true), true;
   const half = Math.max(1, Math.floor((view.listHeight ?? 400) / 2 / CARD));
   const by = plain ? { j: 1, down: 1, k: -1, up: -1, g: -Infinity, G: Infinity }[e.key] : ctrl ? { d: half, u: -half, j: 5, k: -5 }[e.key] : 0;
@@ -743,7 +700,8 @@ function listBody(view, t, dark) {
 }
 
 function pickerPanel(view, t, dark) {
-  const p = view.picker;
+  const { it, at } = view.picker;
+  const rows = linkedRows(view, it.url);
   return div()
     .absolute()
     .top(0)
@@ -755,7 +713,7 @@ function pickerPanel(view, t, dark) {
     .justify_center()
     .bg("#00000055")
     .child(v_flex()
-      .id("picker")
+      .id("linked")
       .w(620)
       .p(14)
       .gap(8)
@@ -764,17 +722,20 @@ function pickerPanel(view, t, dark) {
       .border_color(t.border)
       .bg(t.popover)
       .shadow_lg()
-      .child(div().flex_none().truncate().font_semibold().text_color(t.foreground).child(p.title))
-      .when(Boolean(p.note), (el) => el.child(div().flex_none().text_color(t.muted).child(p.note)))
-      .child(v_flex().id("picker-list").h(Math.min(360, p.rows.length * ROW)).flex_none().overflow_y_scrollbar().track_scroll(view.pickScroll)
-        .children(p.rows.map((r, i) => rowBase(`pk-${i}`, i === p.at, t)
+      .child(div().flex_none().truncate().font_semibold().text_color(t.foreground).child(`Linked to ${refOf(it)} ${it.title ?? ""}`))
+      .child(v_flex().id("linked-list").h(Math.min(360, rows.length * ROW)).flex_none().overflow_y_scrollbar().track_scroll(view.pickScroll)
+        .children(rows.map((r, i) => rowBase(`ln-${r.url}`, i === at, t)
           .on_click((e, cx) => {
-            p.at = i;
-            if (e.modifiers.control || e.click_count >= 2) pickerKey(view, { key: "enter", modifiers: e.modifiers }, cx);
+            view.picker.at = i;
+            if (e.modifiers.control) openUrl(r.it, cx);
+            else if (e.click_count >= 2) pickerKey(view, { key: "enter", modifiers: e.modifiers }, cx);
             cx.notify();
           })
-          .children(p.cells(r, t, dark)))))
-      .child(h_flex().flex_none().justify_end().text_size(11).text_color(t.dim).child(p.hint)));
+          .child(h_flex().w(14).flex_none().justify_center().child(stateIcon(r.it, dark, t)))
+          .child(div().w(150).flex_none().truncate().text_size(11.5).text_color(t.dim).child(refOf(r.it)))
+          .child(div().flex_1().min_w(0).truncate().text_color(t.foreground).child(r.it.title || r.url))
+          .child(div().flex_none().text_size(11).text_color(t.dim).child(r.why)))))
+      .child(h_flex().flex_none().justify_end().text_size(11).text_color(t.dim).child("space preview · ↵ go to · ⌃↵ open · esc back")));
 }
 
 export function boardRender(view) {

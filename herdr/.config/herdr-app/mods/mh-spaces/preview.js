@@ -1,10 +1,11 @@
 import { div, svg, image } from "gpui-kit";
 import { v_flex, h_flex, ScrollHandle, TextView } from "gpui-base";
-import { props, closeOverlay, theme, settings } from "herdr";
+import { props, closeOverlay, theme, settings, shared } from "herdr";
 import { GH, FINAL, open } from "./github.js";
 import { ago, avatar, chip, colorOf, pick } from "./board.js";
 import { REVIEW_WORD, canCache, cacheImage, fetchPreview, loadAvatars, pruneCache } from "./preview-data.js";
 import { fetchJiraPreview } from "./jira-data.js";
+import { openStatus } from "./status.js";
 import { BLUE, PRIORITY_COLOR, TYPE_COLOR, hue } from "./jira.js";
 
 const GREEN = ["#1a7f37", "#3fb950"], RED = ["#cf222e", "#f85149"], YELLOW = ["#9a6700", "#d29922"];
@@ -24,6 +25,19 @@ export function previewInit(view, cx) {
   view.images = {};
   pruneCache();
   load(view, cx);
+  // The status list over it (s) gives the keyboard back when it closes, and a move reloads it.
+  view.focusAsk = shared("preview.focus");
+  view.moveSeen = shared("jira.moved")?.at;
+  cx.timer.every(150, (cx) => {
+    const moved = shared("jira.moved");
+    if (moved && moved.at !== view.moveSeen) {
+      view.moveSeen = moved.at;
+      if (moved.url === view.url) load(view, cx, view.at);
+    }
+    if (shared("preview.focus") === view.focusAsk) return;
+    view.focusAsk = shared("preview.focus");
+    view.handle.focus();
+  });
 }
 
 // at: the block to select, for ^O back to where ↵ left.
@@ -80,6 +94,8 @@ function key(view, e, cx) {
   if (e.key === "k" || e.key === "up") return go(view, view.at - 1), true;
   if (e.key === "g" || e.key === "G") return go(view, m.shift || e.key === "G" ? Infinity : 0), true;
   if (e.key === "r") return load(view, cx), true;
+  const d = memory[view.url];
+  if (e.key === "s" && d?.jira) return openStatus({ key: d.ref, url: view.url, title: d.title }, "preview.focus"), true;
   return false;
 }
 
@@ -248,7 +264,7 @@ export function previewRender(view) {
   const hint = ["j k move", "^D ^U 3 blocks", "g G top, end",
     ...(view.blocks[view.at]?.preview ? ["↵ preview it"] : []),
     ...(view.trail?.length ? ["^O back"] : []),
-    d?.jira ? "⌃↵ open in Jira" : "⌃↵ open on GitHub", "r refresh", "space close"].join(" · ");
+    ...(d?.jira ? ["s status", "⌃↵ open in Jira"] : ["⌃↵ open on GitHub"]), "r refresh", "space close"].join(" · ");
   const footer = h_flex().flex_none().gap(12).items_center().text_size(11).text_color(t.dim)
     .child(div().flex_1().min_w(0).truncate().text_color(view.error ? t.blocked : t.dim).child(d ? note : ""))
     .child(div().flex_none().child(hint));
