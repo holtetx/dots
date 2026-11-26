@@ -2,11 +2,10 @@ import { div, svg, image } from "gpui-kit";
 import { v_flex, h_flex, ScrollHandle, TextView } from "gpui-base";
 import { props, closeOverlay, theme, settings, shared } from "herdr";
 import { GH, FINAL, open } from "./github.js";
-import { ago, avatar, chip, colorOf, pick } from "./board.js";
+import { ago, avatar, chip, colorOf, openStatus, pick, statusChip } from "./board.js";
 import { REVIEW_WORD, canCache, cacheImage, fetchPreview, loadAvatars, pruneCache } from "./preview-data.js";
 import { fetchJiraPreview } from "./jira-data.js";
-import { openStatus } from "./status.js";
-import { BLUE, PRIORITY_COLOR, TYPE_COLOR, hue } from "./jira.js";
+import { PRIORITY_COLOR, TYPE_COLOR, hue } from "./jira.js";
 
 const GREEN = ["#1a7f37", "#3fb950"], RED = ["#cf222e", "#f85149"], YELLOW = ["#9a6700", "#d29922"];
 const CHECK_COLOR = { failed: RED, running: YELLOW, passed: GREEN };
@@ -95,7 +94,7 @@ function key(view, e, cx) {
   if (e.key === "g" || e.key === "G") return go(view, m.shift || e.key === "G" ? Infinity : 0), true;
   if (e.key === "r") return load(view, cx), true;
   const d = memory[view.url];
-  if (e.key === "s" && d?.jira) return openStatus({ key: d.ref, url: view.url, title: d.title }, "preview.focus"), true;
+  if (e.key === "s" && d?.jira) return openStatus({ ...d, key: d.ref, url: view.url }, "preview.focus"), true;
   return false;
 }
 
@@ -117,8 +116,6 @@ function parts(id, list, view, t) {
   }));
 }
 
-const STATUS_COLOR = { done: GREEN, indeterminate: BLUE };
-
 function field(name, value, t) {
   return h_flex().gap(12).items_start().min_h(24)
     .child(div().w(64).flex_none().pt(3).text_size(11.5).text_color(t.dim).child(name))
@@ -127,7 +124,6 @@ function field(name, value, t) {
 
 const person = (name, url, t) => h_flex().gap(8).items_center().min_w(0).child(avatar(name, t, 22, url)).child(div().min_w(0).truncate().text_color(name ? t.foreground : t.muted).child(name || "Unassigned"));
 
-const statusChip = (text, category, t, dark) => chip(text, STATUS_COLOR[category] ? pick(STATUS_COLOR[category], dark) : t.muted, t);
 
 // One row per linked issue; the link word only on the first of its group.
 function linkRow(l, first, t, dark) {

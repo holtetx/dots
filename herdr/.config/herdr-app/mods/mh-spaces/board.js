@@ -19,9 +19,8 @@ import { props, closeOverlay, openOverlay, theme, settings, shared, terminals } 
 import { GH, FINAL, markRead, open, prKey, unknown } from "./github.js";
 import { boardRepos, fetchIssues, fetchPrs } from "./board-data.js";
 import { fetchJira, jiraSettings } from "./jira-data.js";
-import { openStatus } from "./status.js";
 import { avatars, loadAvatars } from "./preview-data.js";
-import { PRIORITY_COLOR, TYPE_COLOR, foldKey, hue, initials } from "./jira.js";
+import { BLUE, PRIORITY_COLOR, TYPE_COLOR, foldKey, hue, initials } from "./jira.js";
 
 const FRESH = 2 * 60000;
 const ICON = (name) => `mods/workspace-chrome/${name}.svg`;
@@ -576,6 +575,13 @@ export const avatar = (name, t, size, url) => {
 export const colorOf = (map, key, dark, t) => (map[key] ? pick(map[key], dark) : t.dim);
 // A see-through version of a #rrggbb or #rrggbbaa color, for soft backgrounds.
 export const tint = (c, alpha = "26") => (/^#[0-9a-f]{6}([0-9a-f]{2})?$/i.test(c) ? c.slice(0, 7) + alpha : c);
+
+const STATUS_COLOR = { done: GREEN, indeterminate: BLUE };
+export const statusChip = (text, category, t, dark) => chip(text, STATUS_COLOR[category] ? pick(STATUS_COLOR[category], dark) : t.muted, t);
+
+// s: the status dialog (status.js) for a Jira card or preview. back: the shared key it sets when it
+// closes, so the view under it takes the keyboard back.
+export const openStatus = (it, back) => openOverlay({ mod: "mh-spaces", kind: "dialog", width: 420, height: 440, props: { status: it.key, url: it.url, title: it.title ?? "", from: { id: it.statusId, name: it.status, category: it.statusCategory }, back } });
 
 export const chip = (text, color, t, dot) => h_flex().flex_none().gap(5).px(6).h(18).items_center().rounded(4).text_size(10.5).font_medium()
   .bg(tint(color, "22")).text_color(dot ? t.muted : color)

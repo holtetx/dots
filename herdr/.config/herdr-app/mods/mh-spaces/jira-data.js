@@ -104,7 +104,7 @@ export async function fetchJiraPreview(key) {
 // s on a card: the moves Jira's workflow allows from the issue's status now.
 export async function jiraTransitions(key) {
   const r = await get(await issueAuth(key), `/rest/api/3/issue/${key}/transitions`);
-  return (r.transitions ?? []).map((x) => ({ id: x.id, name: x.name ?? "", to: x.to?.name ?? "" }));
+  return (r.transitions ?? []).map((x) => ({ id: x.id, name: x.name ?? "", to: x.to?.name ?? "", toId: String(x.to?.id ?? ""), category: x.to?.statusCategory?.key ?? "" }));
 }
 
 // The tab's only write: one of those moves.
