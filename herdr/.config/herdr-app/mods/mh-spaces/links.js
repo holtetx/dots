@@ -6,6 +6,7 @@ import { props, closeOverlay, theme, spaces, panes, agents, terminals, exec, sha
 import { GH, badge, expand, githubRepo, open, openPrs, resolve, stateMarks } from "./github.js";
 import { editLinks, forgetHistory, linksOf, split } from "./docs.js";
 import { bindPanelKeys, darkOf, frame, helpKey, keyPanel, panelKeys, spinner } from "./pixel.js";
+import { track, trackKey, trackSubmit } from "./stats.js";
 import { GREEN, RED } from "./jira.js";
 
 const spaceOf = () => spaces().find((s) => s.id === props()?.link);
@@ -27,7 +28,7 @@ export function linkInit(view, cx) {
   view.handle = cx.focus_handle();
   view.input = InputState.new({ placeholder: "Filter open PRs, or paste a PR or issue URL, owner/repo#12 or #12" });
   view.input.on("change", (_e, cx) => { view.error = ""; view.at = 0; cx.notify(); });
-  view.input.on("submit", (_e, cx) => enter(view, cx));
+  view.input.on("submit", (e, cx) => { trackSubmit("mh-spaces.link", e); enter(view, cx); });
   view.input.focus();
   const s = spaceOf();
   if (!s) return;
@@ -201,17 +202,17 @@ export function linkRender(view) {
     .when(i !== view.at, (el) => el.hover((el) => el.bg(t.hover)));
   const linkedRow = (r, i) => base(r, i)
     .when(r.hidden, (el) => el.opacity(0.5))
-    .on_click((_e, cx) => open(r.url, cx))
+    .on_click((_e, cx) => { track("mh-spaces.link.open-click", "click"); open(r.url, cx); })
     .child(div().w(64).flex_none().child(badge(r.url, items, t, `link-badge-${r.url}`)))
     .child(div().flex_1().min_w(0).truncate().text_color(t.foreground).child(items[r.url]?.title || r.url.replace(/^https:\/\/(github\.com\/)?/, "")))
     .child(div().flex_none().max_w(160).truncate().text_size(11).text_color(t.dim).child(r.hidden ? `hidden · ${r.from}` : r.from))
     .child(div().id(`drop-${r.url}`).flex_none().p(2).rounded(6).text_color(t.dim)
       .hover((el) => el.bg(t.selected).text_color(t.foreground))
       .tooltip(r.owner ? "Unlink" : r.hidden ? "Show in the sidebar" : "Hide from the sidebar")
-      .on_click((_e, cx) => { cx.stop_propagation(); drop(view, id, r, cx); })
+      .on_click((_e, cx) => { cx.stop_propagation(); track("mh-spaces.link.drop-click", "click"); drop(view, id, r, cx); })
       .child(svg(`mods/workspace-chrome/${r.hidden ? "plus" : "x"}.svg`).size(12)));
   const openRow = (r, i) => base(r, i)
-    .on_click((_e, cx) => { link(view, r.pr, cx); cx.notify(); })
+    .on_click((_e, cx) => { track("mh-spaces.link.link-click", "click"); link(view, r.pr, cx); cx.notify(); })
     .child(div().w(64).flex_none().child(badge(r.url, { [r.url]: r.pr }, t, `open-badge-${r.url}`)))
     .child(div().flex_1().min_w(0).truncate().text_color(t.foreground).child(r.pr.title))
     .child(div().flex_none().max_w(200).truncate().text_size(11).text_color(t.dim).child(r.pr.mine ? r.pr.branch : `${r.pr.author} · ${r.pr.branch}`));
@@ -243,6 +244,7 @@ export function linkRender(view) {
     .track_focus(view.handle)
     .map((el) => panelKeys(el, Boolean(view.help)))
     .on_key_down((e, cx) => {
+      trackKey("mh-spaces.link", e, true);
       const m = e.modifiers;
       const ctrl = m.control && !m.platform && !m.alt && !m.shift;
       const count = view.rows.length;

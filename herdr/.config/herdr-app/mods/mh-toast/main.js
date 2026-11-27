@@ -2,6 +2,7 @@
 
 import { View, div, image, svg } from "gpui-kit";
 import { action, chip, frame, WORDS } from "./pixel.js";
+import { track } from "./stats.js";
 import { v_flex, h_flex } from "gpui-base";
 import { props, closeOverlay, run, theme, agents, terminals, panes } from "herdr";
 
@@ -67,6 +68,7 @@ export default class Toast extends View {
       .cursor_pointer()
       .hover((s) => s.opacity(0.96))
       .on_click(() => {
+        track(`mh-toast.${p.action?.name ?? "close"}`, "click");
         if (p.action?.name) run(p.action.name, p.action.args ?? {});
         closeOverlay(p.overlay);
       })

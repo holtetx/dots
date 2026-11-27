@@ -6,6 +6,7 @@ import { props, closeOverlay, setShared, theme } from "herdr";
 import { jiraTransition, jiraTransitions } from "./jira-data.js";
 import { statusChip, statusLegend } from "./board.js";
 import { darkOf, helpKey, keyPanel } from "./pixel.js";
+import { track, trackKey } from "./stats.js";
 
 export function statusInit(view, cx) {
   const { status: issue, from } = props();
@@ -33,6 +34,7 @@ export function statusInit(view, cx) {
 function move(view, cx) {
   const row = view.rows[view.at];
   if (!row || view.moving) return;
+  track("mh-spaces.status.done", "do");
   const { status: issue, url, overlay } = props();
   view.moving = true;
   view.failed = false;
@@ -53,6 +55,7 @@ function move(view, cx) {
 
 function key(view, e, cx) {
   const m = e.modifiers;
+  trackKey("mh-spaces.status", e, false);
   if (helpKey(view, e)) return true;
   if (m.control || m.alt || m.platform) return false;
   if (e.key === "escape") return closeOverlay(props().overlay), true;

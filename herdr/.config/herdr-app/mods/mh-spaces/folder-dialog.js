@@ -5,6 +5,7 @@ import { v_flex, h_flex, InputState, Input } from "gpui-base";
 import { props, closeOverlay, theme, spaces, panes, exec, shared, setShared, pickFolder } from "herdr";
 import { MARK, base, expand, tilde, trim } from "./folders.js";
 import { action, bindPanelKeys, button, frame, helpKey, keyPanel, panelKeys } from "./pixel.js";
+import { track } from "./stats.js";
 
 const COLORS = [null, ...Object.keys(MARK)];
 const info = () => shared("space-folders") ?? {};
@@ -78,6 +79,7 @@ function fail(view, error, cx) {
 
 function save(view, cx) {
   if (view.busy) return;
+  track("mh-spaces.folder.done", "do");
   const homes = info().homes ?? {};
   const paths = {};
   for (const r of view.rows) {

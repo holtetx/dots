@@ -6,6 +6,7 @@ import { v_flex, h_flex } from "gpui-base";
 import { props, closeOverlay, theme, shared, checking } from "herdr";
 import { emojis } from "./emoji.js";
 import { action, frame, helpKey, keyPanel } from "./pixel.js";
+import { track, trackKey } from "./stats.js";
 
 const canteen = () => {
   const c = shared("mh-lunch");
@@ -18,6 +19,7 @@ const hide = () => closeOverlay(props().overlay);
 
 export default class Lunch extends View {
   init(_props, cx) {
+    track("mh-lunch.open", "open");
     this.handle = cx.focus_handle();
     this.handle.focus();
     this.days = null;
@@ -101,6 +103,7 @@ export default class Lunch extends View {
       .relative()
       .track_focus(this.handle)
       .on_key_down((e, cx) => {
+        trackKey("mh-lunch", e, false);
         if (helpKey(this, e)) return cx.stop_propagation(), cx.notify();
         if (e.key === "escape" || e.key === "enter") hide();
       })

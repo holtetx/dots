@@ -5,6 +5,7 @@ import { View, div } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, Scrollbar } from "gpui-base";
 import { run, props, closeOverlay, theme, spaces, panes, terminals, exec, home } from "herdr";
 import { bindPanelKeys, frame, helpKey, keyPanel, panelKeys, spinner } from "./pixel.js";
+import { track, trackKey, trackSubmit } from "./stats.js";
 
 // Where a space is now: its first terminal's live folder, else where it was made.
 function place(s, all = panes()) {
@@ -119,12 +120,14 @@ export default class Worktree extends View {
     this.on = this.space()?.machine;
     this.userHome = this.on ? null : home();
     this.opening = props()?.action === "open";
+    this.area = `mh-worktree.${props()?.action ?? "make"}`;
+    track(this.area, "open");
     this.text = props()?.branch ?? "";
     this.list = undefined; // open: the checkouts, once read
     this.at = 0;
     this.input = InputState.new({ value: this.text, placeholder: this.opening ? "filter worktrees" : "branch name" });
     this.input.on("change", (_e, cx) => { this.text = this.input.value(); this.error = ""; this.at = 0; cx.notify(); });
-    this.input.on("submit", (_e, cx) => this.go(cx));
+    this.input.on("submit", (e, cx) => { trackSubmit(this.area, e); this.go(cx); });
     this.inputFocused = true;
     this.input.on("focus", (_e, cx) => { this.inputFocused = true; cx.notify(); });
     this.input.on("blur", (_e, cx) => { this.inputFocused = false; cx.notify(); });
@@ -260,6 +263,7 @@ export default class Worktree extends View {
   }
 
   key(e, cx) {
+    trackKey(this.area, e, this.inputFocused);
     if (this.opening && helpKey(this, e, this.input, !this.text && Boolean(this.list))) return cx.stop_propagation(), cx.notify();
     if (e.key === "escape") return this.close();
     if (this.opening) {
@@ -292,7 +296,7 @@ export default class Worktree extends View {
         .cursor_pointer()
         .when(on, (el) => el.bg(t.selected))
         .when(!on, (el) => el.hover((s) => s.bg(t.hover)))
-        .on_click(() => this.open(c))
+        .on_click(() => { track(`${this.area}.click`, "click"); this.open(c); })
         .child(
           h_flex()
             .gap(8)

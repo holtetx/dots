@@ -5,6 +5,7 @@ import { h_flex, HoverCard } from "gpui-base";
 import { theme, home, readTextFile, watchFolder, layout, run, window as appWindow } from "herdr";
 import { syncSettings } from "./settings.js";
 import { button } from "./pixel.js";
+import { track } from "./stats.js";
 import { contextPanel, measure, shownSession } from "./context.js";
 
 function find(node, id) {
@@ -72,7 +73,7 @@ export default class Footer extends View {
     const collapsed = narrow();
     const iconButton = (id, icon, tip, action) => button(div(), t, false).id(id).flex_none().size(18).flex().items_center().justify_center().text_color(t.muted)
       .cursor_pointer().hover((s) => s.text_color(t.foreground)).tooltip(tip)
-      .on_click(action)
+      .on_click((e, cx) => { track(`mh-footer.${id}`, "click"); action(e, cx); })
       .child(svg(icon).size(11));
     const settings = iconButton("settings", "mods/workspace-chrome/settings.svg", "Settings", () => run("app.settings"));
     const context = (s) => {

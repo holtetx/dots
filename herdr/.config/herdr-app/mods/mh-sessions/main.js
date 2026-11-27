@@ -5,6 +5,7 @@ import { v_flex, h_flex, InputState, Input, ScrollHandle } from "gpui-base";
 import { agents, spaces, panes, theme, shared, setShared, props, run, exec, hc, home, appHome, readTextFile, closeOverlay } from "herdr";
 import { base, ago, worktree, label, place, missing, resume } from "./sessions.js";
 import { bindPanelKeys, frame, helpKey, ink, keyPanel, mark, panelKeys, statusMarks, WORDS } from "./pixel.js";
+import { track, trackKey, trackSubmit } from "./stats.js";
 import { taskInit, taskRender } from "./tasks.js";
 
 const LIST = 440;
@@ -59,6 +60,7 @@ export default class Sessions extends View {
   init(_props, cx) {
     const p = props() ?? {};
     this.mode = p.tasks ? "tasks" : "search";
+    track(`mh-sessions.${this.mode}`, "open");
     this.error = "";
     this.handle = cx.focus_handle();
     this.handle.focus();
@@ -113,7 +115,7 @@ export default class Sessions extends View {
       this.error = "";
       cx.notify();
     });
-    this.input.on("submit", (e, cx) => this.go(this.items()[this.at], cx, Boolean(e?.shift)));
+    this.input.on("submit", (e, cx) => { trackSubmit("mh-sessions.search", e); this.go(this.items()[this.at], cx, Boolean(e?.shift)); });
     this.input.focus();
     // Orders are taken once: the selection is a row number, so rows must not move under it.
     this.rank = new Map([...spaces()].sort((a, b) => activity(b) - activity(a)).map((w, i) => [w.id, i]));
@@ -206,7 +208,7 @@ export default class Sessions extends View {
         .cursor_pointer()
         .when(on, (el) => el.bg(t.selected))
         .when(!on, (el) => el.hover((st) => st.bg(t.hover)))
-        .on_click((e, cx) => this.go({ kind, s }, cx, e.modifiers.shift))
+        .on_click((e, cx) => { track("mh-sessions.search.click", "click"); this.go({ kind, s }, cx, e.modifiers.shift); })
         .child(h_flex().w(14).flex_none().justify_center().child(icon))
         .child(div().flex_1().min_w(0).truncate().text_color(t.foreground).child(s.title))
         .child(div().flex_none().max_w(220).truncate().text_size(11.5).text_color(t.dim).child(this.busy === s.id ? "resuming…" : `${s.machine ? `${s.machine} · ` : ""}${label(s.cwd)}${this.gone[s.cwd] && kind !== "open" ? " · gone" : ""}`))
@@ -232,6 +234,7 @@ export default class Sessions extends View {
       .track_focus(this.handle)
       .map((el) => panelKeys(el, Boolean(this.help)))
       .on_key_down((e, cx) => {
+        trackKey("mh-sessions.search", e, true);
         if (helpKey(this, e, this.input, !this.text)) return cx.stop_propagation(), cx.notify();
         const count = items.length;
         const ctrl = e.modifiers.control && !e.modifiers.platform && !e.modifiers.alt && !e.modifiers.shift;

@@ -5,6 +5,7 @@ import { v_flex, h_flex, InputState, Input, ScrollHandle } from "gpui-base";
 import { agents, terminals, shared, setShared, props, run, exec, closeOverlay, openOverlay } from "herdr";
 import { ago, base, bring, label, missing, resume, startNew, worktree } from "./sessions.js";
 import { darkOf, frame, helpKey, keyPanel, mark, panelKeys, statusMarks } from "./pixel.js";
+import { track, trackKey, trackSubmit } from "./stats.js";
 
 const ICON = (name) => `mods/workspace-chrome/${name}.svg`;
 // Catppuccin [Latte, Mocha] pairs, as in mh-spaces/jira.js.
@@ -83,7 +84,7 @@ export function taskInit(view, cx) {
     view.error = "";
     cx.notify();
   });
-  view.input.on("submit", (e, cx) => go(view, view.rows[view.at], cx, Boolean(e?.shift), Boolean(e?.secondary)));
+  view.input.on("submit", (e, cx) => { trackSubmit("mh-sessions.tasks", e); go(view, view.rows[view.at], cx, Boolean(e?.shift), Boolean(e?.secondary)); });
   view.input.focus();
   // The preview over it gives the keyboard back when it closes (shared("tasks.focus")).
   view.focusAsk = shared("tasks.focus");
@@ -254,7 +255,7 @@ export function taskRender(view, t) {
       .cursor_pointer()
       .when(i === view.at, (el) => el.bg(t.selected))
       .when(i !== view.at, (el) => el.hover((st) => st.bg(t.hover)))
-      .on_click((e, cx) => go(view, row, cx, e.modifiers.shift, e.modifiers.platform));
+      .on_click((e, cx) => { track("mh-sessions.tasks.click", "click"); go(view, row, cx, e.modifiers.shift, e.modifiers.platform); });
   const taskRow = (task, i, row) => {
     const { it } = task;
     const s = GH[it.state];
@@ -310,6 +311,7 @@ export function taskRender(view, t) {
     .track_focus(view.handle)
     .map((el) => panelKeys(el, Boolean(view.help)))
     .on_key_down((e, cx) => {
+      trackKey("mh-sessions.tasks", e, true);
       if (helpKey(view, e, view.input, !view.text)) return cx.stop_propagation(), cx.notify();
       const count = view.rows.length;
       const ctrl = e.modifiers.control && !e.modifiers.platform && !e.modifiers.alt && !e.modifiers.shift;

@@ -6,6 +6,7 @@ import { exec, shared, setShared } from "herdr";
 import { GRAY, GREEN, PURPLE, RED, YELLOW } from "./jira.js";
 import { darkOf } from "./pixel.js";
 import { rollupState } from "./checks-data.js";
+import { track } from "./stats.js";
 export { githubRepo } from "./remote.js";
 
 export const PR = "__typename url number title state isDraft isInMergeQueue reviewDecision headRefName baseRefName repository { nameWithOwner } commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }";
@@ -260,7 +261,7 @@ export function badge(url, items, t, id) {
     .cursor_pointer()
     .tooltip(tipOf(it, s))
     .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
-    .on_click((_e, cx) => { cx.stop_propagation(); markRead([it]); open(url, cx); })
+    .on_click((_e, cx) => { cx.stop_propagation(); track("mh-spaces.badge", "click"); markRead([it]); open(url, cx); })
     .map((el) => marks(el, it, s, Boolean(unreadOf(it)), t))
     .child(String(it.number ?? "?"));
 }
@@ -291,6 +292,7 @@ export function kinds(urls, items, t, id, many) {
         .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
         .on_click((_e, cx) => {
           cx.stop_propagation();
+          track(g.length > 1 ? "mh-spaces.badge-group" : "mh-spaces.badge", "click");
           if (g.length > 1) return many();
           markRead([it]);
           open(lead, cx);

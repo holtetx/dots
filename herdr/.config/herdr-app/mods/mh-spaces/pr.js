@@ -8,6 +8,7 @@ import { CHECKS, checksOf, countLine, fixPrompt, groupsOf, splitName, took, wors
 import { find } from "./find.js";
 import { GREEN, RED } from "./jira.js";
 import { button, chip, darkOf, helpKey } from "./pixel.js";
+import { track, trackKey } from "./stats.js";
 import { pick, verdict } from "./board.js";
 import { MERGE } from "./preview-data.js";
 import { mergeChip } from "./preview.js";
@@ -111,6 +112,7 @@ function load(view, url, cx) {
 const sentKey = (c) => `${c.url}@${c.started}`;
 
 function fix(view, c, prUrl, agent, cx) {
+  track("mh-spaces.pr.fix", "do");
   view.sent.add(sentKey(c));
   cx.spawn(async (cx) => {
     const r = await hc(["send", agent.address, fixPrompt(c, prUrl)]).catch((e) => ({ code: 1, stderr: String(e?.message ?? e) }));
@@ -146,7 +148,7 @@ function row(view, c, id, prUrl, agent, t, dark, on) {
     .child(h_flex().flex_1().min_w(0).h_full().px(8).gap(10).items_center().rounded(6).border_1().border_color(on ? t.accent : "#00000000")
       .when(on, (el) => el.bg(t.raised))
       .when(c.state === "skipped", (el) => el.opacity(0.6))
-      .when(Boolean(c.url), (el) => el.cursor_pointer().hover((s) => s.bg(t.raised)).tooltip(`${c.name} · open the log`).on_click((_e, cx) => open(c.url, cx)))
+      .when(Boolean(c.url), (el) => el.cursor_pointer().hover((s) => s.bg(t.raised)).tooltip(`${c.name} · open the log`).on_click((_e, cx) => { track("mh-spaces.pr.log-click", "click"); open(c.url, cx); }))
       .child(mark(c.state, t, dark))
       .child(h_flex().flex_1().min_w(0).overflow_hidden()
         .when(Boolean(caller), (el) => el.child(div().flex_shrink(1).min_w(0).truncate().text_color(t.dim).child(caller)))
@@ -160,7 +162,7 @@ function header(view, g, id, t, dark, on) {
     .border_1().border_color(on ? t.accent : "#00000000")
     .when(on, (el) => el.bg(t.raised))
     .hover((s) => s.bg(t.raised))
-    .on_click((_e, cx) => { view.open.set(g.key, !g.opened); view.sel = g.key; cx.notify(); })
+    .on_click((_e, cx) => { track("mh-spaces.pr.fold-click", "click"); view.open.set(g.key, !g.opened); view.sel = g.key; cx.notify(); })
     .child(svg(`mods/workspace-chrome/chevron-${g.opened ? "down" : "right"}.svg`).size(12).flex_none().text_color(t.dim))
     .child(mark(g.state, t, dark))
     .child(div().flex_1().min_w(0).truncate().text_size(11.5).font_semibold().text_color(t.foreground).child(g.name.toUpperCase()))
@@ -187,6 +189,7 @@ const PANE = { h: "left", j: "down", k: "up", l: "right" };
 
 // True when the key was the panel's.
 function key(view, e, cx) {
+  trackKey("mh-spaces.pr", e, false);
   if (helpKey(view, e, null)) return true;
   const m = e.modifiers;
   if (m.alt && PANE[e.key]) return run("pane.go", { direction: PANE[e.key] }), true;

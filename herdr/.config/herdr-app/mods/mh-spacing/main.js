@@ -5,6 +5,7 @@ import { v_flex, h_flex } from "gpui-base";
 import { layout, run, theme, props, closeOverlay, appHome, readTextFile, shared, setShared } from "herdr";
 import { boardTab, boardTabInit, boardKey, check } from "./board-tab.js";
 import { button, helpKey, keyPanel } from "./pixel.js";
+import { track, trackKey } from "./stats.js";
 
 const DEFAULT = { gap: 8, padX: 16, padY: 14 };
 const ROWS = [
@@ -119,6 +120,7 @@ function toggle(p) {
 
 export default class Spacing extends View {
   init(_props, cx) {
+    track("mh-spacing.open", "open");
     this.at = 0;
     this.hint = 0;
     this.link = 0;
@@ -171,6 +173,7 @@ export default class Spacing extends View {
   }
 
   key(e) {
+    trackKey(`mh-spacing.${this.tab}`, e, this.editing);
     if (helpKey(this, e, this.editing ? this.addRepo : null, !(this.editing && this.addRepo.value()))) return true;
     if (this.editing) return false;
     const up = e.key === "up" || e.key === "k";

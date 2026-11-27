@@ -3,6 +3,7 @@
 import { View, div, svg, image } from "gpui-kit";
 import { h_flex } from "gpui-base";
 import { chip, mark, WORDS } from "./pixel.js";
+import { track } from "./stats.js";
 import { panes, props, run, theme, home, layout, terminals } from "herdr";
 
 // Match the first visible tab frame, including the active child of a stack.
@@ -56,6 +57,7 @@ export default class Pane extends View {
       .hover((s) => s.bg(t.hover).text_color(t.foreground))
       .on_click((_e, cx) => {
         cx.stop_propagation();
+        track(`mh-pane.${icon}`, "click");
         run(command, args);
       })
       .child(svg(`mods/mh-pane/${icon}.svg`).size(14));

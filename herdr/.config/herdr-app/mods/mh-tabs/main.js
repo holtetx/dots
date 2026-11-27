@@ -1,6 +1,9 @@
 import { View, div, svg, image } from "gpui-kit";
 import { h_flex, ScrollHandle } from "gpui-base";
 import { button } from "./pixel.js";
+import { track } from "./stats.js";
+import { watchUsage } from "./usage.js";
+import { find } from "./usage-data.js";
 import { spaces, panes, agents, run, openOverlay, theme, window, shared, setShared, layout, settings, focused, nextCommand, exec, home, notify, setBadge } from "herdr";
 
 const CI = { failed: ["circle-x", "ansi1"], running: ["circle-dot", "ansi3"], passed: ["circle-check", "ansi2"] };
@@ -12,15 +15,6 @@ function togglePanel(id) {
   run("layout.select", { stack: "panel-body", child: id });
   run("layout.show", { id: "panel" });
   return true;
-}
-
-function find(node, id) {
-  if (node?.id === id) return node;
-  for (const child of node?.children ?? []) {
-    const found = find(child, id);
-    if (found) return found;
-  }
-  return null;
 }
 
 // Same as mh-spaces/title.js (mods can't import each other): drops a status glyph, keeps a leading bracket or quote.
@@ -109,10 +103,12 @@ export default class Tabs extends View {
     try { this.panels = JSON.parse(localStorage.getItem("panels") ?? "{}"); } catch { this.panels = {}; }
     if (!this.panels || typeof this.panels !== "object" || Array.isArray(this.panels)) this.panels = {};
     this.swipe = { acc: 0, steps: 0, at: 0, last: 0 };
+    watchUsage(cx);
     // Keys (keys.json "mh-tabs.<command>"); copy-mode and fingers act on the focused terminal through mh-copy.
     cx.spawn(async () => {
       for (;;) {
         const command = await nextCommand();
+        track(`mh-tabs.${command}`, "key");
         if (/^(space|agent)-(next|prev)$/.test(command)) {
           navigate(command);
           continue;
@@ -163,7 +159,10 @@ export default class Tabs extends View {
   // most one every 100 ms so each shows.
   wheel(e) {
     if (e.delta_lines) {
-      if (e.delta_lines.y) run(e.delta_lines.y > 0 ? "tab.prev" : "tab.next");
+      if (e.delta_lines.y) {
+        track("mh-tabs.wheel", "wheel");
+        run(e.delta_lines.y > 0 ? "tab.prev" : "tab.next");
+      }
       return;
     }
     const s = this.swipe, now = Date.now();
@@ -177,6 +176,7 @@ export default class Tabs extends View {
     s.acc -= Math.sign(s.acc) * need;
     s.steps++;
     s.last = now;
+    track("mh-tabs.wheel", "wheel");
     run(e.delta.y > 0 ? "tab.prev" : "tab.next");
   }
 
@@ -266,7 +266,7 @@ export default class Tabs extends View {
       return button(h_flex(), t, on).id(`panel-${id}`).h(24).px(9).gap(5).flex_none().items_center()
         .text_size(10.5).font_bold().text_color(on ? t.foreground : t.muted)
         .hover(s => s.text_color(t.foreground)).on_mouse_down("left", stop)
-        .on_click(() => togglePanel(id))
+        .on_click(() => { track(`mh-tabs.panel-${id}`, "click"); togglePanel(id); })
         .child(svg(icon).size(13).when(Boolean(color), el => el.text_color(color))).child(label);
     };
     // Set by mh-spaces' git bar.

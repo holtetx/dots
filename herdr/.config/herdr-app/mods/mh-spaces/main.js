@@ -4,6 +4,7 @@
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex, ScrollHandle } from "gpui-base";
 import { WORDS, action, button, chip, ink, mark, spinner } from "./pixel.js";
+import { track } from "./stats.js";
 import { spaces, machines, panes, terminals, agents, focused, props, nextCommand, run, openOverlay, closeOverlay, exec, hc, home, appHome, readTextFile, theme, shared, setShared, window, layout, notify } from "herdr";
 import { branchName, expand, kinds, scanAgent } from "./github.js";
 import { githubDue, unreadDue } from "./github-poll.js";
@@ -120,6 +121,8 @@ function openLinks(id, agent) {
 
 export default class Spaces extends View {
   init(_props, cx) {
+    const area = ["link", "folder", "board", "preview", "status", "create"].find((k) => props()?.[k]);
+    if (area) track(`mh-spaces.${area}`, "open");
     if (props()?.link) return linkInit(this, cx);
     if (props()?.folder) return folderInit(this, cx);
     if (props()?.board) return boardInit(this, cx);
@@ -183,6 +186,7 @@ export default class Spaces extends View {
         const command = await nextCommand();
         // focusable (mod.json) is for the PR panel: alt-h onto the sidebar goes straight back.
         if (command === "focus") { run("pane.go", { direction: "right" }); continue; }
+        track(`mh-spaces.${command}`, "key");
         // Shared, as the tasks list's: the board is another copy of this mod, and Esc closes it there.
         if (command === "board") setShared("board.overlay", shared("board.overlay") ? closeOverlay(shared("board.overlay")) : openOverlay({ mod: "mh-spaces", kind: "dialog", width: 0.8, height: 0.8, props: { board: true } }));
         // The tasks list (mh-sessions) clears shared("tasks.overlay") when it closes.
@@ -527,6 +531,7 @@ export default class Spaces extends View {
   // its own there, no space of it) learns its repo as a path there, for its neighbours
   // too; otherwise the space is pinned there.
   dropSpace(id, folder) {
+    track("mh-spaces.sidebar.drop-space", "drag");
     const s = spaces().find((x) => x.id === id);
     const st = this.folderState;
     if (!s || (folder && (!st.folders[folder] || st.folders[folder].gone))) return;
@@ -557,6 +562,7 @@ export default class Spaces extends View {
 
   // A folder dragged onto another: it goes where that one is.
   reorder(from, to) {
+    track("mh-spaces.sidebar.move-folder", "drag");
     const ids = live(this.folderState).map((f) => f.id);
     const i = ids.indexOf(from);
     const j = ids.indexOf(to);
@@ -571,6 +577,7 @@ export default class Spaces extends View {
   }
 
   fold(id) {
+    track("mh-spaces.sidebar.fold", "click");
     const now = shared("space-folders.folded") ?? [];
     setShared("space-folders.folded", now.includes(id) ? now.filter((x) => x !== id) : [...now, id]);
   }
@@ -818,6 +825,7 @@ export default class Spaces extends View {
   }
 
   reconnect(machine, cx) {
+    track("mh-spaces.sidebar.reconnect", "click");
     const name = machine.name;
     if (this.reconnecting[name]?.busy) return;
     const state = this.reconnecting[name] ??= { machine, removed: false };
@@ -859,6 +867,7 @@ export default class Spaces extends View {
   }
 
   menu(w) {
+    track("mh-spaces.sidebar.menu", "click");
     // A popup is as tall as its items; height is only the most.
     openOverlay({ mod: "mh-menu", kind: "popup", width: 220, height: 380, props: { tab: "space", target: { id: w.id } } });
   }
@@ -1027,7 +1036,7 @@ export default class Spaces extends View {
       .when(Boolean(add), (el) => el.child(div().id(`folder-add-${f.id}`).flex_none().px(4).rounded(6).tooltip(add.tip)
         .hover((st) => st.bg(t.selected).text_color(t.foreground))
         .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
-        .on_click((_e, cx) => { cx.stop_propagation(); run("space.new", add.args); })
+        .on_click((_e, cx) => { cx.stop_propagation(); track("mh-spaces.sidebar.folder-new", "click"); run("space.new", add.args); })
         .child("+")))
       .child(chevron(folded, top, t));
   }
@@ -1073,7 +1082,7 @@ export default class Spaces extends View {
   emptyRow(t, collapsed) {
     const el = h_flex().id("spaces-new").h(28).flex_none().px(collapsed ? 0 : 8).gap(7).items_center().rounded(6)
       .text_size(12).text_color(t.dim).hover((st) => st.bg(t.hover).text_color(t.foreground))
-      .on_click(() => run("space.new", { machine: "" }))
+      .on_click(() => { track("mh-spaces.sidebar.empty-new", "click"); run("space.new", { machine: "" }); })
       .when(collapsed, (el) => el.w(RAIL_CELL).justify_center().tooltip("New space")
         .child(button(h_flex(), t, false).size(18).items_center().justify_center()
           .child(svg("mods/workspace-chrome/plus.svg").size(10))))
@@ -1088,7 +1097,7 @@ export default class Spaces extends View {
     const head = h_flex().id("waiting-head").h(26).mt(6).flex_none().px(collapsed ? 0 : 8).gap(7).items_center().rounded(6)
       .text_size(11).font_semibold().text_color(t.dim).cursor_pointer().hover((st) => st.bg(t.hover).text_color(t.foreground))
       .when(collapsed, (el) => el.w(RAIL_CELL).justify_center().tooltip(`Waiting · ${waiting.length}`))
-      .on_click((_e, cx) => { setShared("waiting.open", !open); cx.notify(); })
+      .on_click((_e, cx) => { track("mh-spaces.sidebar.waiting", "click"); setShared("waiting.open", !open); cx.notify(); })
       .when(!collapsed, (el) => el.child(div().flex_1().child("WAITING")))
       .child(chevron(!open, top, t));
     waiting.forEach((r, i) => (r.last = i === waiting.length - 1));
@@ -1111,7 +1120,7 @@ export default class Spaces extends View {
       const icon = svg("mods/workspace-chrome/server.svg").size(13).flex_none();
       const badge = div().absolute().right(-3).bottom(-2).size(6).rounded(1).border_1().border_color(t.chrome).bg(connected ? t.ansi2 : t.dim);
       const head = h_flex().id(`machine-${m}`).h(26).mt(6).flex_none().px(collapsed ? 0 : 8).gap(7).items_center().rounded(6).text_size(11).font_semibold().text_color(t.dim)
-        .when(!rebuilt && !loading, (el) => el.cursor_pointer().hover((st) => st.bg(t.hover)).on_click(() => run("app.settings", { section: "machines" })))
+        .when(!rebuilt && !loading, (el) => el.cursor_pointer().hover((st) => st.bg(t.hover)).on_click(() => { track("mh-spaces.sidebar.machines", "click"); run("app.settings", { section: "machines" }); }))
         .when(collapsed, (el) => el.w(RAIL_CELL).justify_center().tooltip(login ? `${m} needs a login: run ${login}. Click for Settings.` : `${m} · ${rebuilt ? "rebuilt" : state}`)
           .child(div().relative().flex_none().child(icon).child(badge)))
         .when(!collapsed, (el) => el.child(icon).child(div().flex_1().truncate().child(m.toUpperCase()))
@@ -1228,7 +1237,10 @@ export default class Spaces extends View {
         this.endDrag();
         if (from !== null && over === w.id && from !== w.id) {
           if (this.files(from, r)) this.dropSpace(from, r.folder ?? "");
-        } else if (from === w.id) run("space.select", { id: w.id });
+        } else if (from === w.id) {
+          track("mh-spaces.sidebar.row", "click");
+          run("space.select", { id: w.id });
+        }
         // Another row sorted in under a pointer that did not move: still a click on the pressed one.
         else if (from !== null && over === from) run("space.select", { id: from });
         else if (from !== null && overFolder !== null) this.dropSpace(from, overFolder === "other" ? "" : overFolder);
@@ -1303,6 +1315,7 @@ export default class Spaces extends View {
 
   // One peek per file: a second click shows it again. The file path is local to its machine.
   follow(w, it, cx) {
+    track(`mh-spaces.sidebar.follow-${it.kind}`, "click");
     run("space.select", { id: w.id });
     if (!it.file || w.machine) return;
     this.followers ??= new Map();
@@ -1334,7 +1347,7 @@ export default class Spaces extends View {
       .items_center()
       .when(w.active, (el) => el.bg(t.selected))
       .when(!w.active, (el) => el.hover((s) => s.bg(t.hover)))
-      .on_click(() => run("space.select", { id: w.id }))
+      .on_click(() => { track("mh-spaces.sidebar.rail-row", "click"); run("space.select", { id: w.id }); })
       .child(div().text_color(w.active ? t.foreground : t.muted).child(String(n)))
       .when(Boolean(sign), (el) => el.child(div().absolute().right(5).child(sign))));
   }
@@ -1378,7 +1391,7 @@ export default class Spaces extends View {
         .when(!collapsed, el => el.font_semibold().child("SPACES"))
         .child(button(div(), t, false).id("space-new").size(24).flex_none().flex().items_center().justify_center().text_color(t.muted).hover(s => s.text_color(t.foreground))
           .tooltip("New space · right-click: on another machine, or a folder")
-          .on_click(() => run("space.new"))
+          .on_click(() => { track("mh-spaces.sidebar.new", "click"); run("space.new"); })
           .on_mouse_down("right", () => openOverlay({ mod: "mh-menu", kind: "popup", width: 240, height: 300, props: { tab: "new" } }))
           .child(svg("mods/workspace-chrome/plus.svg").size(14))))
       .child(v_flex().flex_1().min_h(0).px(collapsed ? 0 : 8).pb(14).overflow_y_scrollbar().mode("always").track_scroll(this.scroll)

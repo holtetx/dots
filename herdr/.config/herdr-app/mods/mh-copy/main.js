@@ -9,6 +9,7 @@ import { v_flex, h_flex, InputState, Input } from "gpui-base";
 import { props, theme, settings, terminals, run, exec, hc, appHome, home, notify, closeOverlay, shared, setShared, readTextFile } from "herdr";
 import * as vim from "./vim.js";
 import { chip, keyPanel } from "./pixel.js";
+import { track, trackKey } from "./stats.js";
 
 const HISTORY = "100000";
 const sleep = (cx, ms) => new Promise((resolve) => cx.timer.after(ms, () => resolve()));
@@ -139,6 +140,7 @@ export default class Copy extends View {
   init(_props, cx) {
     const p = props() ?? {};
     this.action = p.action ?? "copy";
+    track(`mh-copy.${this.action}`, "open");
     if (this.action === "fingers") {
       cx.spawn(async (cx) => {
         try {
@@ -263,6 +265,7 @@ export default class Copy extends View {
       cx.stop_propagation();
       return cx.notify();
     }
+    trackKey("mh-copy.copy", e, false);
     const n = Math.max(1, parseInt(this.count || "1", 10));
     const counted = this.count !== "";
     const pending = this.pending;

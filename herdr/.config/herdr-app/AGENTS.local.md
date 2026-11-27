@@ -42,6 +42,16 @@ All `mh-state.json` keys, their shape and which Mac needs them: README.md in dot
 | SSH: 1Password reference, Claude's folder (`mh-ssh`) | `mh-state.json` | by hand, on the work Mac only |
 | Jira board (`mh-jira`), lunch canteen (`mh-lunch`) | `mh-state.json` | by hand, on the work Mac only |
 | Which space is an SSH space | label `mh.ssh=<host>` on its ssh terminal | `mods/mh-ssh` |
+| Usage log (`mh-stats/YYYY-MM-DD.jsonl`, one file a day, this Mac, not in dots) | `~/.config/herdr-app/mh-stats` | `stats.js` in each mh-* mod, `mods/mh-tabs/usage.js` |
+
+## Usage log
+
+- For `/herdr-usage` (skill in dots, `claude/.claude/skills/herdr-usage`), which runs `node mods/mh-tabs/usage-report.mjs`.
+- `mods/mh-tabs/stats.js`, copied unchanged into each mh-* mod like `pixel.js`: `track(f, via)` adds one line with `exec` and `>>`. `trackKey(area, e, typing)` logs a dialog key, but not moves and, while a field has the keyboard, not plain text. `trackSubmit(area, e)` logs an input's enter. Nothing is logged without a window (`herdr-app check`).
+- A new feature gets a `track()` at its entry point: `<mod>.<area>.<what>`. A new dialog: `track(area, "open")` in `init` and `trackKey` first in its key handler.
+- No mod sees Herdr's own keys, so `mods/mh-tabs/usage.js` compares `spaces()`, layout and the sidebar every 2 s and logs the commands that explain a change (`changes()` in `usage-data.js`). Not focus moves: mh-* keys and clicks cause most of them. New and closed spaces count only on this Mac: remote ones come and go with their connection. Only the main window logs them.
+- Tips: once a day, after 10 min with the window active, an INFO toast for the first entry of `mods/mh-tabs/tips.json` with no use and no tip in 7 days (`WINDOW` in `usage-data.js`). Shown tips are in `localStorage` (`tips.shown`).
+- Test: `node mods/mh-tabs/usage-data.test.mjs`.
 
 ## Key list (`cmd-/`, `ctrl-a ?`)
 
