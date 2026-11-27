@@ -16,13 +16,13 @@ import { ago, base, bring, label, missing, resume, startNew, worktree } from "./
 
 const ICON = (name) => `mods/workspace-chrome/${name}.svg`;
 // mh-spaces/github.js's: GitHub's colors, [light, dark].
-const GREEN = ["#1a7f37", "#3fb950"], PURPLE = ["#8250df", "#a371f7"], GRAY = ["#59636e", "#9198a1"];
+const GREEN = ["#40a02b", "#a6e3a1"], PURPLE = ["#8839ef", "#cba6f7"], GRAY = ["#7c7f93", "#9399b2"];
 const GH = {
   open: { icon: "mods/mh-spaces/git-pull-request.svg", color: GREEN, label: "Open" },
   draft: { icon: "mods/mh-spaces/git-pull-request-draft.svg", color: GRAY, label: "Draft" },
-  queued: { icon: "mods/mh-spaces/git-pull-request.svg", color: ["#9a6700", "#d29922"], label: "Merge queued" },
+  queued: { icon: "mods/mh-spaces/git-pull-request.svg", color: ["#df8e1d", "#f9e2af"], label: "Merge queued" },
   merged: { icon: "mods/mh-spaces/git-merge.svg", color: PURPLE, label: "Merged" },
-  closed: { icon: "mods/mh-spaces/git-pull-request-closed.svg", color: ["#cf222e", "#f85149"], label: "Closed" },
+  closed: { icon: "mods/mh-spaces/git-pull-request-closed.svg", color: ["#d20f39", "#f38ba8"], label: "Closed" },
   "issue-open": { icon: "mods/mh-spaces/circle-dot.svg", color: GREEN, label: "Open" },
   "issue-done": { icon: "mods/workspace-chrome/circle-check.svg", color: PURPLE, label: "Closed" },
   "issue-skip": { icon: "mods/mh-spaces/circle-slash.svg", color: GRAY, label: "Not planned" },

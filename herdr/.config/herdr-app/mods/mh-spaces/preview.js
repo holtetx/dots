@@ -2,12 +2,12 @@ import { div, svg, image } from "gpui-kit";
 import { v_flex, h_flex, ScrollHandle, TextView } from "gpui-base";
 import { props, closeOverlay, theme, settings, shared } from "herdr";
 import { GH, FINAL, open } from "./github.js";
-import { ago, avatar, chip, colorOf, openStatus, pick, statusChip } from "./board.js";
+import { ago, avatar, chip, colorOf, openStatus, pick, statusChip, tint } from "./board.js";
 import { REVIEW_WORD, canCache, cacheImage, fetchPreview, loadAvatars, pruneCache } from "./preview-data.js";
 import { fetchJiraPreview } from "./jira-data.js";
 import { PRIORITY_COLOR, TYPE_COLOR, hue } from "./jira.js";
 
-const GREEN = ["#1a7f37", "#3fb950"], RED = ["#cf222e", "#f85149"], YELLOW = ["#9a6700", "#d29922"];
+const GREEN = ["#40a02b", "#a6e3a1"], RED = ["#d20f39", "#f38ba8"], YELLOW = ["#df8e1d", "#f9e2af"];
 const CHECK_COLOR = { failed: RED, running: YELLOW, passed: GREEN };
 const REVIEW_COLOR = { APPROVED: GREEN, CHANGES_REQUESTED: RED };
 const MERGE_COLOR = { conflicts: RED, "checks failing": RED, "ready to merge": GREEN };
@@ -100,7 +100,7 @@ function key(view, e, cx) {
 
 const md = (id, text) => TextView.markdown(id, text).selectable(true).on_link_click((url, cx) => open(url, cx));
 
-const tag = (text, color) => div().flex_none().px(5).rounded(4).text_size(10.5).text_color(color).border_1().border_color(color).child(text);
+const tag = (text, color) => div().flex_none().px(5).rounded(2).text_size(10.5).text_color(color).border_1().border_color(tint(color, "88")).bg(tint(color, "22")).child(text);
 
 function parts(id, list, view, t) {
   return v_flex().gap(6).children(list.map((p, i) => {

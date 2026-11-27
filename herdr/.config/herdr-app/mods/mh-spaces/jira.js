@@ -5,9 +5,9 @@ export const validSite = (s) => /^[a-z0-9-]+\.atlassian\.net$/.test(s ?? "");
 export const validBoard = (b) => /^\d+$/.test(b ?? "");
 export const validProject = (p) => /^[A-Z][A-Z0-9_]*$/.test(p ?? "");
 
-// [light, dark], as Jira colors them. Type names in English and Norwegian.
-export const RED = ["#cf222e", "#f85149"], GREEN = ["#1a7f37", "#3fb950"], BLUE = ["#0969da", "#4493f8"];
-const ORANGE = ["#bc4c00", "#f0883e"], PURPLE = ["#8250df", "#a371f7"];
+// Catppuccin [Latte, Mocha], in Jira's color roles. Type names in English and Norwegian.
+export const RED = ["#d20f39", "#f38ba8"], GREEN = ["#40a02b", "#a6e3a1"], BLUE = ["#1e66f5", "#89b4fa"];
+const ORANGE = ["#fe640b", "#fab387"], PURPLE = ["#8839ef", "#cba6f7"];
 export const PRIORITY_COLOR = { Highest: RED, High: RED, Medium: ORANGE, Low: GREEN, Lowest: BLUE };
 // A color per name (an epic, a person), from the theme so it follows light and dark.
 export const hue = (text, t) => [t.ansi3, t.ansi4, t.ansi5, t.ansi6, t.ansi2, t.ansi1][[...text].reduce((h, c) => (Math.imul(h, 31) + c.charCodeAt(0)) >>> 0, 7) % 6];

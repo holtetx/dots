@@ -125,7 +125,7 @@ function loadState() {
 
 // A space speaks up only when something in it needs you.
 export function glyph(status) {
-  return status === "blocked" || status === "done" ? "●" : "·";
+  return status === "blocked" ? "!" : status === "done" ? "✓" : "·";
 }
 
 function tone(t, status) {
@@ -1022,7 +1022,7 @@ export default class Spaces extends View {
     const to = list.findIndex((x) => x.id === f.id);
     const add = this.hoverHead === f.id ? this.newIn(f) : null;
     return h_flex().id(`folder-${f.id}`).relative().h(26).mt(6).flex_none().px(8).gap(7).items_center().rounded(6)
-      .text_size(11).text_color(t.dim).cursor_pointer().hover((st) => st.bg(t.hover).text_color(t.foreground))
+      .text_size(11).font_semibold().text_color(t.dim).cursor_pointer().hover((st) => st.bg(t.hover).text_color(t.foreground))
       .when(this.pressed !== null && this.overFolder === f.id, (el) => el.bg(t.selected).text_color(t.foreground))
       .when(moving === f.id && this.overMove !== f.id, (el) => el.opacity(0.5))
       .when(Boolean(moving) && moving !== f.id && this.overMove === f.id, (el) => el.child(div().absolute().left(0).right(0).h(2).bg(t.accent)
@@ -1040,7 +1040,7 @@ export default class Spaces extends View {
       .on_mouse_move((_e, cx) => this.overHead(f.id, cx))
       .on_mouse_up("left", (_e, cx) => this.upOnHead(f.id, cx))
       .child(svg("mods/workspace-chrome/folder.svg").size(12).flex_none().text_color(color))
-      .child(div().flex_1().min_w(0).truncate().child(f.name))
+      .child(div().flex_1().min_w(0).truncate().child(f.name.toUpperCase()))
       .when(Boolean(add), (el) => el.child(div().id(`folder-add-${f.id}`).flex_none().px(4).rounded(4).tooltip(add.tip)
         .hover((st) => st.bg(t.selected).text_color(t.foreground))
         .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
@@ -1053,12 +1053,12 @@ export default class Spaces extends View {
   otherHead(members, folded, t) {
     const top = urgent(members);
     return h_flex().id("other-head").h(26).mt(6).flex_none().px(8).gap(7).items_center().rounded(6)
-      .text_size(11).text_color(t.dim).cursor_pointer().hover((st) => st.bg(t.hover).text_color(t.foreground))
+      .text_size(11).font_semibold().text_color(t.dim).cursor_pointer().hover((st) => st.bg(t.hover).text_color(t.foreground))
       .when(this.pressed !== null && this.overFolder === "other", (el) => el.bg(t.selected).text_color(t.foreground))
       .on_mouse_down("left", () => { this.moving = "other"; })
       .on_mouse_move((_e, cx) => this.overHead("other", cx))
       .on_mouse_up("left", (_e, cx) => this.upOnHead("other", cx))
-      .child(div().flex_1().child("Other"))
+      .child(div().flex_1().child("OTHER"))
       .child(chevron(folded, top, t));
   }
 
@@ -1066,7 +1066,7 @@ export default class Spaces extends View {
   sshHead(members, folded, t) {
     const top = urgent(members);
     return h_flex().id("ssh-head").h(26).mt(6).flex_none().px(8).gap(7).items_center().rounded(6)
-      .text_size(11).text_color(t.dim).cursor_pointer().hover((st) => st.bg(t.hover).text_color(t.foreground))
+      .text_size(11).font_semibold().text_color(t.dim).cursor_pointer().hover((st) => st.bg(t.hover).text_color(t.foreground))
       .on_click(() => this.fold("ssh"))
       .child(div().flex_1().child("SSH"))
       .child(chevron(folded, top, t));
@@ -1105,10 +1105,10 @@ export default class Spaces extends View {
     const open = Boolean(shared("waiting.open"));
     const top = urgent(waiting);
     const head = h_flex().id("waiting-head").h(26).mt(6).flex_none().px(collapsed ? 0 : 8).gap(7).items_center().rounded(6)
-      .text_size(11).text_color(t.dim).cursor_pointer().hover((st) => st.bg(t.hover).text_color(t.foreground))
+      .text_size(11).font_semibold().text_color(t.dim).cursor_pointer().hover((st) => st.bg(t.hover).text_color(t.foreground))
       .when(collapsed, (el) => el.w(RAIL_CELL).justify_center().tooltip(`Waiting · ${waiting.length}`))
       .on_click((_e, cx) => { setShared("waiting.open", !open); cx.notify(); })
-      .when(!collapsed, (el) => el.child(div().flex_1().child("Waiting")))
+      .when(!collapsed, (el) => el.child(div().flex_1().child("WAITING")))
       .child(chevron(!open, top, t));
     return [collapsed ? railCell(head) : head, ...(open ? waiting.flatMap(draw) : [])];
   }
@@ -1183,8 +1183,8 @@ export default class Spaces extends View {
   // Working sparkles, blocked asks, done waits to be seen; idle shows nothing.
   mark(status, t) {
     if (status === "working") return div().w(12).flex_none().flex().justify_center().text_size(13).text_color(t.working).child("·").frames(SPARKLE, 120);
-    if (status === "blocked") return div().size(14).flex_none().rounded(4).bg(t.blocked + "26").text_size(10.5).font_bold().text_color(t.blocked).flex().items_center().justify_center().child("!");
-    if (status === "done") return div().flex_none().text_size(10).text_color(t.done).child("●");
+    if (status === "blocked") return div().size(14).flex_none().rounded(2).border_1().border_color(t.blocked + "66").bg(t.blocked + "26").text_size(10.5).font_bold().text_color(t.blocked).flex().items_center().justify_center().child("!");
+    if (status === "done") return div().flex_none().text_size(12).font_bold().text_color(t.done).child("✓");
     return null;
   }
 
@@ -1254,7 +1254,7 @@ export default class Spaces extends View {
         h_flex()
           .gap(9)
           .items_center()
-          .when(pref("icon") !== "hidden", (el) => el.child(h_flex().size(18).flex_none().rounded(5).bg(fill).items_center().justify_center().text_size(10.5).font_bold().text_color("#ffffff").child([...label][0]?.toUpperCase() ?? "?")))
+          .when(pref("icon") !== "hidden", (el) => el.child(h_flex().size(18).flex_none().rounded(5).bg(fill).items_center().justify_center().text_size(10.5).font_bold().text_color("#11111b").child([...label][0]?.toUpperCase() ?? "?")))
           .child(div().id(`space-name-${w.id}`).flex_shrink(1).min_w(48).truncate().text_color(t.foreground).child(label)
             .when(Boolean(where), (el) => el.tooltip(where)))
           .when(Boolean(w.machine), (el) => el.child(div().flex_none().text_color(t.dim).child(svg("mods/workspace-chrome/server.svg").size(11))))
@@ -1361,7 +1361,7 @@ export default class Spaces extends View {
     return v_flex().size_full().min_h(0).bg(t.chrome).text_size(13)
       .child(h_flex().h(31).pl(16).pr(10).items_center().justify_between().text_size(11.5).text_color(t.dim)
         .when(collapsed, el => el.pl(0).pr(0).justify_center())
-        .when(!collapsed, el => el.child("Spaces"))
+        .when(!collapsed, el => el.font_semibold().child("SPACES"))
         .child(div().id("space-new").size(26).flex_none().flex().items_center().justify_center().rounded(6).hover(s => s.bg(t.hover).text_color(t.foreground))
           .tooltip("New space · right-click: on another machine, or a folder")
           .on_click(() => run("space.new"))

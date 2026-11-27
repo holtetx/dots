@@ -78,7 +78,7 @@ export function barRender(view) {
   const t = theme();
   const id = focused()?.space;
   const g = shared("git.spaces")?.[id];
-  const bar = h_flex().size_full().px(12).gap(16).items_center().overflow_hidden().bg(t.chrome).border_t(1).border_color(t.border).text_size(11.8).text_color(t.muted);
+  const bar = h_flex().size_full().px(12).gap(16).items_center().overflow_hidden().bg(t.chrome).text_size(11.8).text_color(t.muted);
   if (!g) return bar;
   const d = view.diff[JSON.stringify([g.machine, g.top])];
   const gh = shared("github") ?? {};

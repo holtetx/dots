@@ -34,7 +34,12 @@
       "min": 44,
       "max": 480,
       "background": "chrome",
-      "resizable": false
+      "resizable": false,
+      "radius": 12,
+      "border": {
+        "width": 1,
+        "color": "border"
+      }
     },
     {
       "id": "work",
@@ -49,7 +54,13 @@
           "size": {
             "px": 32
           },
-          "window_drag": true
+          "window_drag": true,
+          "background": "chrome",
+          "radius": 12,
+          "border": {
+            "width": 1,
+            "color": "border"
+          }
         },
         {
           "id": "work-body",
@@ -71,8 +82,8 @@
                     "color": "accent"
                   },
                   "veil": 0.3,
-                  "radius": 0,
-                  "gap": 0,
+                  "radius": 12,
+                  "gap": 8,
                   "lone": true
                 }
               }
@@ -108,11 +119,17 @@
               },
               "min": 280,
               "max": 900,
-              "hidden": true
+              "hidden": true,
+              "background": "chrome",
+              "radius": 12,
+              "border": {
+                "width": 1,
+                "color": "border"
+              }
             }
           ],
           "padding": 0,
-          "gap": 0
+          "gap": 8
         },
         {
           "id": "git",
@@ -125,10 +142,17 @@
           },
           "size": {
             "px": 26
+          },
+          "background": "chrome",
+          "radius": 12,
+          "border": {
+            "width": 1,
+            "color": "border"
           }
         }
       ],
-      "resizable": false
+      "resizable": false,
+      "gap": 8
     }
   ],
   "background": "canvas",
@@ -136,15 +160,16 @@
     6,
     0
   ],
-  "divider": {
-    "width": 1,
-    "color": "border"
-  },
   "titlebar": "none",
   "traffic_lights": [
     -100,
     -100
   ],
   "terminal_menu": "mh-menu",
-  "toast": "mh-toast"
+  "toast": "mh-toast",
+  "theme": "pixel-hq",
+  "font": "JetBrains Mono",
+  "ui_font": "JetBrains Mono",
+  "padding": 8,
+  "gap": 8
 }

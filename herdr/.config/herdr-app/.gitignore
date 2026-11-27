@@ -16,3 +16,6 @@
 !/mods/mh-*/
 /mods/**/gpui-kit.d.ts
 /mods/**/jsconfig.json
+!/themes/
+/themes/*
+!/themes/pixel-hq.json

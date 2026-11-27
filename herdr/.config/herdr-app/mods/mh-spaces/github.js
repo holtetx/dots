@@ -18,14 +18,14 @@ const NODE = `__typename ... on PullRequest { ${PR_LINKED} } ... on Issue { ${IS
 
 const linkedOf = (n) => (n.closingIssuesReferences ?? n.closedByPullRequestsReferences)?.nodes ?? [];
 
-// GitHub's own colors, [light, dark]; merge-queued is the attention yellow.
-const GREEN = ["#1a7f37", "#3fb950"], PURPLE = ["#8250df", "#a371f7"], GRAY = ["#59636e", "#9198a1"];
+// Catppuccin [Latte, Mocha]; merge-queued is the attention yellow.
+const GREEN = ["#40a02b", "#a6e3a1"], PURPLE = ["#8839ef", "#cba6f7"], GRAY = ["#7c7f93", "#9399b2"];
 export const GH = {
   open: { icon: "mods/mh-spaces/git-pull-request.svg", color: GREEN, label: "Open" },
   draft: { icon: "mods/mh-spaces/git-pull-request-draft.svg", color: GRAY, label: "Draft" },
-  queued: { icon: "mods/mh-spaces/git-pull-request.svg", color: ["#9a6700", "#d29922"], label: "Merge queued" },
+  queued: { icon: "mods/mh-spaces/git-pull-request.svg", color: ["#df8e1d", "#f9e2af"], label: "Merge queued" },
   merged: { icon: "mods/mh-spaces/git-merge.svg", color: PURPLE, label: "Merged" },
-  closed: { icon: "mods/mh-spaces/git-pull-request-closed.svg", color: ["#cf222e", "#f85149"], label: "Closed" },
+  closed: { icon: "mods/mh-spaces/git-pull-request-closed.svg", color: ["#d20f39", "#f38ba8"], label: "Closed" },
   "issue-open": { icon: "mods/mh-spaces/circle-dot.svg", color: GREEN, label: "Open" },
   "issue-done": { icon: "mods/workspace-chrome/circle-check.svg", color: PURPLE, label: "Closed" },
   "issue-skip": { icon: "mods/mh-spaces/circle-slash.svg", color: GRAY, label: "Not planned" },
@@ -34,9 +34,9 @@ export const FINAL = new Set(["merged", "closed", "issue-done", "issue-skip"]);
 // An open PR's review, and GitHub's unread blue.
 const REVIEW = {
   APPROVED: { icon: "mods/workspace-chrome/check.svg", color: GREEN, label: "Approved" },
-  CHANGES_REQUESTED: { icon: "mods/mh-spaces/file-diff.svg", color: ["#cf222e", "#f85149"], label: "Changes requested" },
+  CHANGES_REQUESTED: { icon: "mods/mh-spaces/file-diff.svg", color: ["#d20f39", "#f38ba8"], label: "Changes requested" },
 };
-const UNREAD = ["#0969da", "#4493f8"];
+const UNREAD = ["#1e66f5", "#89b4fa"];
 
 export const prKey = (it) => (it?.kind === "pr" && it.repo && it.number ? `${it.repo}#${it.number}`.toLowerCase() : null);
 const reviewOf = (it) => (it && GH[it.state] && !FINAL.has(it.state) ? REVIEW[it.review] ?? null : null);

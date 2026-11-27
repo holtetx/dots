@@ -89,15 +89,15 @@ function key(view, e, cx) {
 export function createRender(view) {
   const t = theme();
   const { create: project, columns } = props();
-  const chip = (id, text, on, click) => div().id(id).flex_none().px(8).py(3).rounded(5).cursor_pointer().text_size(12)
+  const chip = (id, text, on, click) => div().id(id).flex_none().px(8).py(3).rounded(2).border_1().border_b(2).cursor_pointer().text_size(12)
     .bg(on ? t.selected : t.raised).text_color(on ? t.foreground : t.muted)
-    .when(on, (el) => el.border_1().border_color(t.accent))
+    .border_color(on ? t.accent : t.input)
     .when(!on, (el) => el.hover((s) => s.bg(t.hover)))
     .on_click(click).child(text);
   const row = (stop, label, chips) => h_flex().flex_none().gap(10).items_start()
     .child(div().w(70).flex_none().py(3).text_size(11.5).text_color(view.stop === stop ? t.foreground : t.dim).child(label))
     .child(h_flex().flex_1().min_w(0).flex_wrap().gap(6).children(chips));
-  const button = (id, text, primary, click) => div().id(id).flex_none().px(12).py(5).rounded(6).cursor_pointer()
+  const button = (id, text, primary, click) => div().id(id).flex_none().px(12).py(5).rounded(2).border_1().border_b(2).border_color(primary ? t.accent : t.input).cursor_pointer()
     .bg(primary ? t.solid : t.raised).text_color(primary ? t.solid_foreground : t.foreground)
     .when(!primary, (el) => el.hover((s) => s.bg(t.hover))).on_click(click).child(text);
   return v_flex()

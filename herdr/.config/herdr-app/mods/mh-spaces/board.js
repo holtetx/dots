@@ -24,7 +24,7 @@ import { BLUE, PRIORITY_COLOR, TYPE_COLOR, foldKey, hue, initials } from "./jira
 
 const FRESH = 2 * 60000;
 const ICON = (name) => `mods/workspace-chrome/${name}.svg`;
-const GREEN = ["#1a7f37", "#3fb950"], RED = ["#cf222e", "#f85149"], YELLOW = ["#9a6700", "#d29922"];
+const GREEN = ["#40a02b", "#a6e3a1"], RED = ["#d20f39", "#f38ba8"], YELLOW = ["#df8e1d", "#f9e2af"];
 const CHECKS = { SUCCESS: ["check", GREEN, "Checks passed"], FAILURE: ["x", RED, "Checks failed"], ERROR: ["x", RED, "Checks failed"], PENDING: [null, YELLOW, "Checks running"], EXPECTED: [null, YELLOW, "Checks expected"] };
 const KIND_ORDER = { pr: 0, issue: 1 };
 const ROW = 28;
@@ -520,7 +520,7 @@ function verdict(p, t, dark) {
   return ["needs review", pick(YELLOW, dark)];
 }
 
-const tag = (text, t) => div().flex_none().px(5).rounded(4).text_size(10.5).text_color(t.ansi3).border_1().border_color(t.ansi3).child(text);
+const tag = (text, t) => div().flex_none().px(5).rounded(2).text_size(10.5).text_color(t.ansi3).border_1().border_color(tint(t.ansi3, "88")).bg(tint(t.ansi3, "22")).child(text);
 
 // Lines, not text: the font draws the └ and ├ characters with different weight.
 const branchMark = (last, t) =>
@@ -535,7 +535,7 @@ function prRow(view, p, i, on, t, dark) {
   return rowBase(`pr-${p.url}`, on, t)
     .on_click((e, cx) => select(view, "prs", { url: p.url, i }, e, cx, p))
     .when(p.depth > 0, (el) => el.child(h_flex().w(p.depth * 14).flex_none().justify_end().child(branchMark(p.last, t))))
-    .child(div().size(6).flex_none().rounded(3).when(Boolean(unread), (el) => el.bg(pick(["#0969da", "#4493f8"], dark))))
+    .child(div().size(6).flex_none().rounded(3).when(Boolean(unread), (el) => el.bg(pick(["#1e66f5", "#89b4fa"], dark))))
     .child(div().w(52).flex_none().text_size(11.5).text_color(t.dim).child(`#${p.number}`))
     .child(div().flex_1().min_w(0).truncate().text_color(t.foreground).when(p.state === "draft", (el) => el.text_color(t.muted)).child(p.title))
     .when(asks(p), (el) => el.child(tag("review", t)))
@@ -547,7 +547,7 @@ function prRow(view, p, i, on, t, dark) {
       .child(div().text_color(pick(GREEN, dark)).child(`+${p.additions ?? 0}`))
       .child(div().text_color(pick(RED, dark)).child(`-${p.deletions ?? 0}`)))
     .child(div().w(30).flex_none().text_right().text_size(11).text_color(t.dim).child(ago(p.updated)))
-    .child(div().w(80).flex_none().text_size(11.5).text_color(color).child(word))
+    .child(div().w(96).flex_none().truncate().text_size(11.5).text_color(color).child(word))
     .child(h_flex().w(34).flex_none().gap(4).items_center().text_size(11).text_color(t.dim).when(Boolean(check), (el) => el.child("CI").child(
       check[0] ? svg(ICON(check[0])).size(12).text_color(pick(check[1], dark)) : div().size(7).rounded(4).bg(pick(check[1], dark)))));
 }
@@ -592,9 +592,10 @@ function openCreate(view, md) {
   openOverlay({ mod: "mh-spaces", kind: "dialog", width: 520, height: 460, props: { create: project, columns: md.cols.map((c) => ({ name: c.name, statuses: c.statuses })), col: md.col, back: "board.focus" } });
 }
 
-export const chip = (text, color, t, dot) => h_flex().flex_none().gap(5).px(6).h(18).items_center().rounded(4).text_size(10.5).font_medium()
+// Pixel HQ chip: square corners, a tinted frame.
+export const chip = (text, color, t, dot) => h_flex().flex_none().gap(5).px(6).h(18).items_center().rounded(2).border_1().border_color(tint(color, "55")).text_size(10.5).font_medium()
   .bg(tint(color, "22")).text_color(dot ? t.muted : color)
-  .when(Boolean(dot), (el) => el.child(div().size(6).flex_none().rounded_full().bg(color)))
+  .when(Boolean(dot), (el) => el.child(div().size(6).flex_none().rounded(1).bg(color)))
   .child(div().truncate().child(text));
 
 function jiraCard(view, it, col, i, on, t, dark) {
@@ -647,7 +648,7 @@ function jiraColumns(view, t, dark) {
     cx.notify();
   };
   const red = pick(RED, dark);
-  const count = (c, over, short) => div().flex_none().px(6).h(16).flex().items_center().rounded_full().text_size(10.5).font_medium()
+  const count = (c, over, short) => div().flex_none().px(6).h(16).flex().items_center().rounded(2).text_size(10.5).font_medium()
     .bg(over ? tint(red, "2e") : t.hover).text_color(over ? red : t.muted)
     .child(over && !short ? `${c.items.length} / ${c.max}` : String(c.items.length));
   return h_flex()
@@ -690,7 +691,7 @@ function listBody(view, t, dark) {
     // The owner only when two repos share a name.
     const name = sections.filter((s) => short(s.name) === short(sec.name)).length > 1 ? sec.name : short(sec.name);
     children.push(h_flex().h(28).px(10).pt(8).gap(6).flex_none().items_center().text_size(11)
-      .child(div().text_color(t.muted).child(name))
+      .child(div().font_semibold().text_color(t.muted).child(name.toUpperCase()))
       .child(div().text_color(t.dim).child(String(sec.items.length))));
     for (const it of sec.items) {
       childOf[n] = children.length;
@@ -773,12 +774,12 @@ export function boardRender(view) {
   const countOf = (x) => x.list()?.filter(shown).length;
   const bots = (tab.list() ?? []).filter(isBot).length;
   // Tabs in a fixed order, the shown one highlighted; the same text either way, so nothing moves.
-  const tabEl = (x, i) => h_flex().id(`tab-${x.id}`).flex_none().gap(6).px(6).py(2).items_center().rounded(5).cursor_pointer()
-    .text_size(13)
-    .when(x.id === tab.id, (el) => el.font_semibold().text_color(t.foreground).bg(t.selected))
-    .when(x.id !== tab.id, (el) => el.text_color(t.muted).hover((s) => s.bg(t.hover)))
+  const tabEl = (x, i) => h_flex().id(`tab-${x.id}`).flex_none().gap(6).px(7).py(2).items_center().rounded(2).border_1().border_b(2).cursor_pointer()
+    .text_size(11.5).font_semibold()
+    .when(x.id === tab.id, (el) => el.text_color(t.foreground).bg(t.raised).border_color(t.accent))
+    .when(x.id !== tab.id, (el) => el.text_color(t.muted).bg(t.surface).border_color(t.input).hover((s) => s.bg(t.hover)))
     .on_click((_e, cx) => { showTab(view, x.id, cx); view.note = ""; cx.notify(); })
-    .child(x.name)
+    .child(x.name.toUpperCase())
     .when(countOf(x) != null, (el) => el.child(div().text_size(11).text_color(t.dim).child(String(countOf(x)))))
     .tooltip(i < 9 ? `${i + 1} · tab` : "tab");
   const error = memory.errors[tab.id];

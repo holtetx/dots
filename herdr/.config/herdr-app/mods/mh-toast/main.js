@@ -56,7 +56,7 @@ export default class Toast extends View {
       : div().size(8).rounded(4).flex_none().bg(color);
     const detail = a
       ? h_flex().gap(6).text_size(12).text_color(t.muted).overflow_hidden()
-        .child(div().flex_none().text_color(color).font_semibold().child(status[1]))
+        .child(div().flex_none().px(5).rounded(2).border_1().border_color(color.slice(0, 7) + "66").bg(color.slice(0, 7) + "26").text_size(10.5).font_semibold().text_color(color).child(status[1].toUpperCase()))
         .child(div().flex_none().child("·"))
         .child(div().min_w(0).truncate().child(a.space_name))
         .when(Boolean(branch), (el) => el.child(div().flex_none().child("·")).child(div().min_w(0).truncate().child(branch)))

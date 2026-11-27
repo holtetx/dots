@@ -119,7 +119,7 @@ export function folderRender(view) {
   const t = theme();
   const states = new Map((info().machines ?? []).map((m) => [m.name, m.state]));
   const field = (state) => Input.new(state).h(30).px(9).flex_1().min_w(0).items_center().rounded(6).border(1).border_color(t.input).bg(t.background).text_color(t.foreground);
-  const button = (id, text, primary, click) => div().id(id).flex_none().px(12).py(5).rounded(6).cursor_pointer()
+  const button = (id, text, primary, click) => div().id(id).flex_none().px(12).py(5).rounded(2).border_1().border_b(2).border_color(primary ? t.accent : t.input).cursor_pointer()
     .bg(primary ? t.solid : t.raised).text_color(primary ? t.solid_foreground : t.foreground)
     .when(!primary, (el) => el.hover((s) => s.bg(t.hover))).on_click(click).child(text);
   const id = (r) => r.key || "local";

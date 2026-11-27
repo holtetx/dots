@@ -11,7 +11,7 @@ import { taskInit, taskRender } from "./tasks.js";
 const LIST = 440;
 const ICON = (name) => `mods/workspace-chrome/${name}.svg`;
 // Space avatar colors, as the mh-spaces sidebar draws them.
-const MARK = { ansi6: "#22a99a", ansi3: "#e3814f", ansi4: "#5b8def", ansi5: "#8b7cf6", ansi2: "#3fae6a", ansi1: "#d9649a" };
+const MARK = { ansi6: "#94e2d5", ansi3: "#fab387", ansi4: "#89b4fa", ansi5: "#cba6f7", ansi2: "#a6e3a1", ansi1: "#f5c2e7" };
 
 // When an agent in the space last changed state (0: not since Herdr started).
 const activity = (w) => Math.max(0, ...w.tabs.map((t) => t.changed_at ?? 0));
@@ -188,7 +188,7 @@ export default class Sessions extends View {
         kind === "open"
           ? div().size(7).rounded(4).bg(t[s.status] ?? t.idle)
           : kind === "space"
-            ? h_flex().size(14).rounded(4).bg(s.color.startsWith("#") ? s.color : (MARK[s.color] ?? t[s.color])).items_center().justify_center().text_size(8.5).font_bold().text_color("#ffffff").child([...s.title][0]?.toUpperCase() ?? "?")
+            ? h_flex().size(14).rounded(4).bg(s.color.startsWith("#") ? s.color : (MARK[s.color] ?? t[s.color])).items_center().justify_center().text_size(8.5).font_bold().text_color("#11111b").child([...s.title][0]?.toUpperCase() ?? "?")
             : svg(ICON("clock")).size(13).text_color(t.dim);
       return h_flex()
         .id(`ss-${kind}-${s.id}`)

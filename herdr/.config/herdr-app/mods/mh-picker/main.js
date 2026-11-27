@@ -10,7 +10,7 @@ import { agents, spaces, terminals, run, hc, theme, settings, props, closeOverla
 
 const SPARKLE = ["·", "✢", "✳", "✶", "✻", "✽", "✻", "✶", "✳", "✢"];
 
-const MARK = { ansi6: "#22a99a", ansi3: "#e3814f", ansi4: "#5b8def", ansi5: "#8b7cf6", ansi2: "#3fae6a", ansi1: "#d9649a" };
+const MARK = { ansi6: "#94e2d5", ansi3: "#fab387", ansi4: "#89b4fa", ansi5: "#cba6f7", ansi2: "#a6e3a1", ansi1: "#f5c2e7" };
 
 // Space colors, kept by space id in shared "space.colors": a theme
 // color name ("ansi6") or a picked #rrggbb. A space seen without one gets
@@ -124,7 +124,7 @@ export default class Picker extends View {
 
   glyph(t, st) {
     if (st === "working") return div().w(12).flex_none().flex().justify_center().text_size(13).text_color(t.working).child("·").frames(SPARKLE, 120);
-    return div().w(12).flex_none().text_color(t[st] ?? t.dim).child(st === "idle" ? "○" : st ? "●" : "·");
+    return div().w(12).flex_none().text_color(t[st] ?? t.dim).child(st === "idle" ? "○" : st === "blocked" ? "!" : st === "done" ? "✓" : st ? "●" : "·");
   }
 
   render() {
@@ -169,7 +169,7 @@ export default class Picker extends View {
           .text_size(11)
           .font_semibold()
           .text_color(t.dim)
-          .child(h_flex().size(18).rounded(5).bg(spaceColor(t, r.w)).items_center().justify_center().text_size(10.5).font_bold().text_color("#ffffff").child([...r.w.name][0]?.toUpperCase() ?? "?"))
+          .child(h_flex().size(18).rounded(5).bg(spaceColor(t, r.w)).items_center().justify_center().text_size(10.5).font_bold().text_color("#11111b").child([...r.w.name][0]?.toUpperCase() ?? "?"))
           .child(r.w.name);
       }
       if (r.kind === "earlier") {

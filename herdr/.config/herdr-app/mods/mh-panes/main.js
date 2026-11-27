@@ -9,7 +9,7 @@ import { View, div } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input } from "gpui-base";
 import { spaces, panes, shared, props, run, hc, theme, notify, closeOverlay } from "herdr";
 
-const MARK = { ansi6: "#22a99a", ansi3: "#e3814f", ansi4: "#5b8def", ansi5: "#8b7cf6", ansi2: "#3fae6a", ansi1: "#d9649a" };
+const MARK = { ansi6: "#94e2d5", ansi3: "#fab387", ansi4: "#89b4fa", ansi5: "#cba6f7", ansi2: "#a6e3a1", ansi1: "#f5c2e7" };
 
 const hex = () => Array.from({ length: 32 }, () => ((Math.random() * 16) | 0).toString(16)).join("");
 const machineOf = (id) => (id.includes("/") ? id.split("/")[0] : null);
@@ -125,7 +125,7 @@ export default class Panes extends View {
     const colors = shared("space.colors") ?? {};
     const avatar = (s) => {
       const c = colors[s.id] ?? "ansi6";
-      return h_flex().size(16).flex_none().rounded(4).bg(c.startsWith("#") ? c : (MARK[c] ?? t[c])).items_center().justify_center().text_size(9).font_bold().text_color("#ffffff").child([...s.name][0]?.toUpperCase() ?? "?");
+      return h_flex().size(16).flex_none().rounded(4).bg(c.startsWith("#") ? c : (MARK[c] ?? t[c])).items_center().justify_center().text_size(9).font_bold().text_color("#11111b").child([...s.name][0]?.toUpperCase() ?? "?");
     };
     const row = (choice, i) =>
       h_flex()

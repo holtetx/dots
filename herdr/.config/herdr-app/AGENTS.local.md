@@ -12,6 +12,16 @@ Read these first. They are in `~/.config/herdr-app`:
 - The `mh-*` mods are git only. `mh-ssh` (ssh passwords) and the board's Jira tab use `op` (1Password).
 - Claude Code side: stow package `claude` in dots. `hooks/statusline.sh` sets the `claude.session`, `claude.cwd`, `claude.context` and `claude.context_size` labels and writes `~/.cache/herdr-claude/limits.json`. `hooks/herdr-activity.sh` keeps `claude.running`: the running subagents and background shells, which have no terminal of their own, as JSON `[{kind: "agent" | "shell", name, detail, file}]`, oldest first. It removes all these labels at SessionEnd. The sidebar lists them under the space's row (`runningRows` in `mods/mh-spaces/main.js`). A click shows the subagent's transcript or the shell's output, live, in a peek until it ends; Esc closes it (`mods/mh-spaces/follow.sh`); not on another machine's space. `claude.cwd` is the project folder. `~/.claude/settings.json` (not in dots) runs both; `hooks/install.sh` adds them there.
 
+## Look
+
+Inspired by Pixel HQ (github.com/bnhan2710/pixel-hq), built by hand.
+
+- Theme `themes/pixel-hq.json`: Catppuccin Mocha with Pixel HQ's window colors. The `layouts/mh.json` root sets it, and JetBrains Mono for terminals and mods.
+- Cards: the root has padding 8 and gap 8. The sidebar, tab bar, panes, side panel and git bar are rounded cards (radius 12). The spacing dialog sets the same radius.
+- Pixel boxes (tabs, buttons, board tabs): `rounded(2)`, a 1px frame and a 2px bottom edge as a hard shadow, accent frame when on. Chips: `rounded(2)`, a tinted fill and frame (`chip`, `tag`). Section headers and buttons are in caps.
+- Status marks: a sparkle when working, `!` when blocked, `✓` when done. The footer's limits are 5-segment gauges.
+- Fixed colors (GitHub, Jira, space marks) are Catppuccin pairs `[Latte, Mocha]`.
+
 ## Where state lives
 
 All `mh-state.json` keys, their shape and which Mac needs them: README.md in dots, "Herdr: this Mac's settings". Keep that list in step with `FILES` in `mods/mh-footer/settings.js`.

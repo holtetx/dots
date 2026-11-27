@@ -77,7 +77,7 @@ function find(node, test) {
   return null;
 }
 
-// The tab block's pane frame, and the row around it whose padding is the margin.
+// The tab block's pane frame, and the row around it (its gap is the space before the side panel; the layout root gives the margin).
 const frameOf = (root) => find(root, (n) => n.content?.pane)?.content.pane ?? null;
 const areaOf = (root) => find(root, (n) => (n.children ?? []).some((c) => c.content?.pane));
 
@@ -99,10 +99,9 @@ function spacing(root, values) {
   const area = areaOf(root);
   if (frame) {
     frame.gap = values.gap;
-    frame.radius = values.gap > 0 ? 8 : 0;
+    frame.radius = values.gap > 0 ? 12 : 0;
   }
   if (area) {
-    area.padding = values.gap;
     area.gap = values.gap;
   }
   root.terminal_padding = [values.padX, values.padY];
