@@ -98,7 +98,19 @@ export function branchPr(id, g, gh) {
   return mine.find((it) => it.state === "open") ?? mine[0] ?? null;
 }
 
-// The PR the checks panel and the CHECKS button show for a space: its branch's, else its first open one.
+// What a PR's review word needs (board.js verdict()): each reviewer's latest review and the last comments.
+export const REVIEW_FIELDS = "author { login } latestReviews(first: 30) { nodes { state author { login __typename } } } comments(last: 30) { nodes { author { login __typename } } }";
+export function reviewsOf(n) {
+  const latest = n.latestReviews?.nodes ?? [];
+  return {
+    approvals: latest.filter((r) => r.state === "APPROVED").length,
+    changes: latest.filter((r) => r.state === "CHANGES_REQUESTED").length,
+    // A person other than the author reviewed or commented, so the PR is being looked at.
+    discussed: [...latest, ...(n.comments?.nodes ?? [])].some((c) => c.author && c.author.__typename !== "Bot" && c.author.login !== n.author?.login),
+  };
+}
+
+// The PR the PR panel and its tab bar button show for a space: its branch's, else its first open one.
 export function spacePr(id) {
   const gh = shared("github") ?? {};
   const g = shared("git.spaces")?.[id];

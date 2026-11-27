@@ -1,21 +1,44 @@
-// The side panel's CHECKS tab: CI checks of the shown space's PR by workflow, and FIX, which asks the space's Claude to fix a failed one.
-// In mh-spaces, as the git bar, to reuse the PR lookup and badge().
+// The side panel's PR tab: the shown space's PR status and its CI checks by workflow, and FIX, which asks the space's Claude to fix a failed check.
+// In mh-spaces, as the git bar, to reuse the PR lookup, badge() and the board's and preview's status words.
 
 import { div, svg } from "gpui-kit";
 import { h_flex, v_flex, ScrollHandle } from "gpui-base";
 import { agents, focused, hc, layout, nextCommand, notify, run, setShared, shared, theme, window as appWindow } from "herdr";
-import { CHECK_LOOK, badge, graphql, open, spacePr } from "./github.js";
+import { CHECK_LOOK, FINAL, GH, REVIEW_FIELDS, badge, graphql, open, reviewsOf, spacePr, stateOf } from "./github.js";
 import { CHECKS, checksOf, countLine, fixPrompt, groupsOf, splitName, took, worst } from "./checks-data.js";
 import { find } from "./find.js";
-import { RED } from "./jira.js";
-import { button, darkOf, helpKey } from "./pixel.js";
-import { pick } from "./board.js";
+import { GREEN, RED } from "./jira.js";
+import { button, chip, darkOf, helpKey } from "./pixel.js";
+import { pick, verdict } from "./board.js";
+import { MERGE } from "./preview-data.js";
+import { mergeChip } from "./preview.js";
 
 const EVERY = 30000;
+const STATUS = `state isDraft isInMergeQueue reviewDecision mergeStateStatus headRefName baseRefName additions deletions ${REVIEW_FIELDS}`;
+
+// The status line's facts, in the board's and the preview's words.
+function statusOf(n) {
+  const state = stateOf(n);
+  return { state, review: n.reviewDecision ?? null, ...reviewsOf(n), merge: MERGE[n.mergeStateStatus] ?? null, branch: n.headRefName, base: n.baseRefName, added: n.additions ?? 0, deleted: n.deletions ?? 0 };
+}
+
+// The review word (or merged, closed) and the merge state as chips, then branch → base and the size.
+function statusLines(st, t, dark) {
+  const live = !FINAL.has(st.state);
+  const [word, color] = live ? verdict(st, t, dark) : [GH[st.state].label, pick(GH[st.state].color, dark)];
+  return v_flex().flex_none().px(16).pb(10).gap(6)
+    .child(h_flex().gap(6).flex_wrap()
+      .child(chip(word.toUpperCase(), color))
+      .when(live && Boolean(st.merge), (el) => el.child(mergeChip(st.merge.toUpperCase(), t, dark))))
+    .child(h_flex().min_w(0).gap(8).text_size(11).text_color(t.dim)
+      .child(div().min_w(0).truncate().child(`${st.branch} → ${st.base}`))
+      .child(div().flex_none().text_color(pick(GREEN, dark)).child(`+${st.added}`))
+      .child(div().flex_none().text_color(pick(RED, dark)).child(`-${st.deleted}`)));
+}
 
 const shown = () => {
   const root = layout();
-  return appWindow()?.visible !== false && !find(root, "panel")?.hidden && find(root, "panel-body")?.active === "checks";
+  return appWindow()?.visible !== false && !find(root, "panel")?.hidden && find(root, "panel-body")?.active === "pr";
 };
 
 // Where FIX goes: the focused Claude in the space, else the one that changed last.
@@ -24,8 +47,8 @@ function claudeIn(id) {
   return list.find((a) => a.focused) ?? list.sort((a, b) => b.seq - a.seq)[0] ?? null;
 }
 
-export function checksInit(view, cx) {
-  view.prs = {}; // PR url -> { checks, at, error }
+export function prInit(view, cx) {
+  view.prs = {}; // PR url -> { status, checks, at, error }
   view.sent = new Set(); // runs FIX was sent for (sentKey)
   view.open = new Map(); // "url\0workflow" -> folded or open by a click or key
   view.busy = false;
@@ -33,15 +56,15 @@ export function checksInit(view, cx) {
   view.scroll = ScrollHandle.new();
   view.sel = null; // the selected row's key (rowKey)
   view.rows = []; // the rows as last drawn
-  view.focusSeen = shared("checks.focus");
+  view.focusSeen = shared("pr.focus");
   // Herdr's focus (its border, where alt-hjkl start) moves only with pane.go, which sends "focus" here.
-  // Herdr has no command to focus a block, so ctrl-a c (shared("checks.focus"), also for a copy it just started)
+  // Herdr has no command to focus a block, so ctrl-a p (shared("pr.focus"), also for a copy it just started)
   // and a click step pane.go right until it lands on this, the rightmost block.
   view.herdrFocus = false;
   view.tries = Date.now() - (view.focusSeen ?? 0) < 2000 ? 6 : 0;
   cx.timer.every(1000, (cx) => tick(view, cx));
   cx.timer.every(150, (cx) => {
-    const ask = shared("checks.focus");
+    const ask = shared("pr.focus");
     if (ask !== view.focusSeen) { view.focusSeen = ask; view.tries = 6; }
     if (!view.handle.is_focused() && !view.tries) view.herdrFocus = false;
     if (view.tries > 0) view.tries = view.herdrFocus ? 0 : (run("pane.go", { direction: "right" }), view.tries - 1);
@@ -65,10 +88,10 @@ function load(view, url, cx) {
   view.busy = true;
   cx.spawn(async (cx) => {
     try {
-      const n = (await graphql(`r: resource(url: ${JSON.stringify(url)}) { ... on PullRequest { ${CHECKS} } }`))?.r;
-      if (!n) throw new Error("GitHub did not answer: is gh logged in, and can it see the repo?");
+      const n = (await graphql(`r: resource(url: ${JSON.stringify(url)}) { ... on PullRequest { ${STATUS} ${CHECKS} } }`))?.r;
+      if (!n?.state) throw new Error("GitHub did not answer: is gh logged in, and can it see the repo?");
       const checks = checksOf(n);
-      view.prs[url] = { checks, at: Date.now() };
+      view.prs[url] = { status: statusOf(n), checks, at: Date.now() };
       // Newer than the sidebar's poll: the CHECKS button and git bar take it (bar.js).
       setShared("checks.fresh", { url, state: worst(checks), at: Date.now() });
     } catch (e) {
@@ -201,7 +224,7 @@ function helpList(t, dark) {
     .child(div().pt(8).text_size(11).text_color(t.dim).child("? or esc closes"));
 }
 
-export function checksRender(view) {
+export function prRender(view) {
   const t = theme(), dark = darkOf(t);
   const id = focused()?.space;
   const url = spacePr(id);
@@ -213,7 +236,7 @@ export function checksRender(view) {
   view.rows = url ? rowsOf(view, url, d?.checks ?? []) : [];
   if (view.rows.length && !view.rows.some((r) => r.key === view.sel)) view.sel = view.rows[0].key;
   const agent = url ? claudeIn(id) : null;
-  return v_flex().id("checks").size_full().min_h(0).bg(t.chrome).text_size(12).text_color(t.muted)
+  return v_flex().id("pr").size_full().min_h(0).bg(t.chrome).text_size(12).text_color(t.muted)
     .track_focus(view.handle)
     .on_key_down((e, cx) => {
       if (!key(view, e, cx)) return;
@@ -222,15 +245,16 @@ export function checksRender(view) {
     })
     .on_mouse_down("left", () => { view.handle.focus(); if (!view.herdrFocus) view.tries = 6; })
     .child(h_flex().h(31).flex_none().px(16).gap(8).items_center().text_size(11.5).text_color(t.dim)
-      .child(div().font_semibold().child("CHECKS"))
+      .child(div().font_semibold().child("PR"))
       .child(div().flex_1())
       .when(Boolean(d?.checks), (el) => el.child(div().truncate().child(countLine(d.checks) || "no checks")))
       .when(hasKeys, (el) => el.child(div().flex_none().pl(4).child("· ? keys"))))
     .when(!url, (el) => el.child(note("No PR for this space.")))
     .when(Boolean(url), (el) => el
-      .child(h_flex().flex_none().px(16).pb(8).gap(8).items_center()
-        .child(badge(url, gh.items ?? {}, t, "checks-pr"))
+      .child(h_flex().flex_none().px(16).pb(6).gap(8).items_center()
+        .child(badge(url, gh.items ?? {}, t, "pr-badge"))
         .child(div().min_w(0).truncate().text_color(t.foreground).child(gh.items?.[url]?.title ?? "")))
+      .when(Boolean(d?.status), (el) => el.child(statusLines(d.status, t, dark)))
       .when(Boolean(d?.error), (el) => el.child(note(d.error, pick(RED, dark))))
       .when(!d, (el) => el.child(note("Loading…")))
       .when(Boolean(d?.checks && !d.checks.length), (el) => el.child(note("No checks on the newest commit."))))

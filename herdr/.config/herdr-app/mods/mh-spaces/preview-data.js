@@ -15,7 +15,7 @@ const PR = `${COMMON} isDraft isInMergeQueue reviewDecision mergeStateStatus hea
   ${CHECKS}`;
 const ISSUE = `${COMMON} stateReason closedByPullRequestsReferences(first: 10, includeClosedPrs: true) { nodes { url number title } }`;
 
-const MERGE = { BEHIND: "behind base", DIRTY: "conflicts", BLOCKED: "blocked", UNSTABLE: "checks failing", CLEAN: "ready to merge", HAS_HOOKS: "ready to merge" };
+export const MERGE = { BEHIND: "behind base", DIRTY: "conflicts", BLOCKED: "blocked", UNSTABLE: "checks failing", CLEAN: "ready to merge", HAS_HOOKS: "ready to merge" };
 export const REVIEW_WORD = { APPROVED: "approved", CHANGES_REQUESTED: "changes", COMMENTED: "commented", DISMISSED: "dismissed", PENDING: "pending" };
 
 const unescape = (s) => s.replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, "<").replace(/&gt;/g, ">");

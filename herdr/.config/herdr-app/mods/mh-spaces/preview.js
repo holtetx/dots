@@ -12,7 +12,7 @@ import { chip, darkOf, helpKey, keyPanel } from "./pixel.js";
 const CHECK_COLOR = { failed: RED, running: YELLOW, passed: GREEN };
 const REVIEW_COLOR = { APPROVED: GREEN, CHANGES_REQUESTED: RED };
 const MERGE_COLOR = { conflicts: RED, "checks failing": RED, "ready to merge": GREEN };
-const mergeChip = (word, t, dark) => chip(word, MERGE_COLOR[word] ? pick(MERGE_COLOR[word], dark) : t.ansi3);
+export const mergeChip = (word, t, dark) => chip(word, MERGE_COLOR[word.toLowerCase()] ? pick(MERGE_COLOR[word.toLowerCase()], dark) : t.ansi3);
 // The last answer per URL: shown at once on the next opening while it asks again.
 const memory = {};
 

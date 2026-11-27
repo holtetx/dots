@@ -541,7 +541,7 @@ function rowBase(id, on, t) {
 }
 
 // "in review": a person other than the author reviewed or commented; bots do not count.
-function verdict(p, t, dark) {
+export function verdict(p, t, dark) {
   if (p.state === "draft") return ["draft", t.dim];
   if (p.state === "queued") return ["queued", pick(YELLOW, dark)];
   if (p.review === "CHANGES_REQUESTED" || (p.changes && p.review !== "APPROVED")) return ["changes", pick(RED, dark)];

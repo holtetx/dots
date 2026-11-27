@@ -119,12 +119,12 @@
                       }
                     },
                     {
-                      "id": "checks",
+                      "id": "pr",
                       "type": "block",
                       "content": {
                         "mod": "mh-spaces",
                         "props": {
-                          "checks": true
+                          "pr": true
                         }
                       }
                     }

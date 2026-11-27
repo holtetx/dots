@@ -124,9 +124,9 @@ export default class Tabs extends View {
           if (id) run("space.select", { id });
           continue;
         }
-        if (command === "checks") {
-          // Opening it from the keyboard gives it the keyboard (checks.js).
-          if (togglePanel("checks")) setShared("checks.focus", Date.now());
+        if (command === "pr") {
+          // Opening it from the keyboard gives it the keyboard (mh-spaces/pr.js).
+          if (togglePanel("pr")) setShared("pr.focus", Date.now());
           continue;
         }
         if (command === "test-toast") {
@@ -258,8 +258,8 @@ export default class Tabs extends View {
       ? Math.max(10, (root.traffic_lights[0] + 64) / settings().zoom - (sidebar?.hidden ? 0 : sidebar?.size?.px ?? 0))
       : 10;
     const panel = find(root, "panel"), body = find(root, "panel-body");
-    // CHECKS (mh-spaces) is ours, so Herdr's panel list doesn't name it.
-    const enabled = [...(shared("workspace.panels") ?? ["files", "changes"]), "checks"];
+    // PR (mh-spaces) is ours, so Herdr's panel list doesn't name it.
+    const enabled = [...(shared("workspace.panels") ?? ["files", "changes"]), "pr"];
     this.syncPanel(space, panel, body, enabled);
     const panelButton = (id, label, icon, color) => {
       const on = panel && !panel.hidden && body?.active === id;
@@ -280,7 +280,7 @@ export default class Tabs extends View {
       .child(square("tab-new", "+", () => openOverlay({ mod: "mh-new-menu", kind: "popup", width: 250, height: 512 })))
       .when(enabled.includes("files"), el => el.child(panelButton("files", "FILES", "mods/files/file.svg")))
       .when(enabled.includes("changes"), el => el.child(panelButton("changes", "CHANGES", "mods/changes/changes.svg")))
-      .child(panelButton("checks", "CHECKS", ci ? `mods/pr/${ci[0]}.svg` : "mods/pr/circle-check.svg", ci && t[ci[1]]))
+      .child(panelButton("pr", "PR", ci ? `mods/pr/${ci[0]}.svg` : "mods/pr/circle-check.svg", ci && t[ci[1]]))
       .when(w?.buttons, el => el.child(square("minimize", w.platform === "windows" ? svg("mods/mh-tabs/win-min.svg").size(16) : "−", () => run("window.minimize")))
         .child(square("maximize", w.platform === "windows" ? svg(`mods/mh-tabs/${w.maximized ? "win-restore" : "win-max"}.svg`).size(16) : "□", () => run("window.maximize")))
         .child(square("close-window", w.platform === "windows" ? svg("mods/mh-tabs/win-close.svg").size(16) : svg("mods/pane/close.svg").size(13), () => run("window.close"))));
