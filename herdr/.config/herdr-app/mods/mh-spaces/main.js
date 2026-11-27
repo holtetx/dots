@@ -1279,10 +1279,26 @@ export default class Spaces extends View {
       .text_size(11.5)
       .hover((s) => s.bg(t.hover))
       .tooltip(it.kind === "shell" ? `Background shell: ${it.detail}` : `Subagent (${it.detail})`)
-      .on_click(() => run("space.select", { id: w.id }))
+      .on_click((_e, cx) => this.follow(w, it, cx))
       .child(div().flex_none().w(10).text_color(t.dim).child(it.kind === "shell" ? "$" : "↳"))
       .child(div().flex_1().min_w(0).truncate().text_color(t.muted).child(it.name))
       .child(svg("mods/workspace-chrome/spinner.svg").size(10).flex_none().text_color(t.dim).spin(1400)));
+  }
+
+  // A subagent's transcript or a shell's output, live, as a peek over the space (follow.sh).
+  follow(w, it, cx) {
+    run("space.select", { id: w.id });
+    if (!it.file) return;
+    cx.spawn(async (cx) => {
+      const r = await hc(["run", "--json", "--bg", "--rm", "--no-parent", "--", "sh", `${appHome()}/mods/mh-spaces/follow.sh`, it.file]);
+      let address = null;
+      try {
+        address = r.code === 0 ? JSON.parse(r.stdout).address : null;
+      } catch {}
+      if (!address) return notify({ title: `Couldn't show ${it.name}`, body: (r.stderr || r.stdout || "hc run failed").trim() });
+      for (let waited = 0; waited < 3000 && !terminals().some((x) => x.address === address); waited += 25) await new Promise((done) => cx.timer.after(25, done));
+      run("terminal.peek", { terminal: address });
+    });
   }
 
   compact({ w, n }, t) {

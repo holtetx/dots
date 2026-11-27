@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Claude Code hook for Herdr. Keeps the claude.running label on this session's herdr-core terminal: a JSON array of the running subagents and background shells, [{"kind":"agent"|"shell","name":..,"detail":..}], oldest first.
+# Claude Code hook for Herdr. Keeps the claude.running label on this session's herdr-core terminal: a JSON array of the running subagents and background shells, [{"kind":"agent"|"shell","name":..,"detail":..,"file":..}], oldest first.
 # PreToolUse (Agent) notes the description, SubagentStart/SubagentStop add and remove the subagent, PostToolUse (Bash in the background) adds the shell and starts a watcher that removes it when its processes exit.
 # SessionEnd removes the claude.* labels that statusline.sh and this hook set.
 set -u
@@ -30,16 +30,17 @@ PreToolUse)
   jq -c '{kind: "agent", type: (.tool_input.subagent_type // "general-purpose"), name: (.tool_input.description // ""), detail: (.tool_input.subagent_type // "general-purpose")}' <<<"$input" >"$run/pending/$id"
   ;;
 SubagentStart)
-  { read -r id; read -r type; } < <(jq -r '(.agent_id // ""), (.agent_type // "agent")' <<<"$input")
+  { read -r id; read -r type; IFS= read -r transcript; } < <(jq -r '(.agent_id // ""), (.agent_type // "agent"), (.transcript_path // "")' <<<"$input")
   safe "$id" || exit 0
+  file="${transcript%.jsonl}/subagents/agent-$id.jsonl"
   mkdir -p "$run/pending"
   # The oldest description of this type from the last minute; older ones were never started.
   find "$run/pending" -type f -mmin +1 -delete 2>/dev/null
   match=$(ls -tr "$run/pending" 2>/dev/null | while read -r p; do jq -e --arg t "$type" '.type == $t' "$run/pending/$p" >/dev/null 2>&1 && { echo "$p"; break; }; done)
   if [ -n "$match" ]; then
-    jq -c '{kind, name: (if .name == "" then .type else .name end), detail}' "$run/pending/$match" >"$run/agent-$id" && rm -f "$run/pending/$match"
+    jq -c --arg f "$file" '{kind, name: (if .name == "" then .type else .name end), detail, file: $f}' "$run/pending/$match" >"$run/agent-$id" && rm -f "$run/pending/$match"
   else
-    jq -nc --arg t "$type" '{kind: "agent", name: $t, detail: $t}' >"$run/agent-$id"
+    jq -nc --arg t "$type" --arg f "$file" '{kind: "agent", name: $t, detail: $t, file: $f}' >"$run/agent-$id"
   fi
   relabel
   ;;
@@ -53,10 +54,11 @@ PostToolUse)
   { read -r task; read -r session; } < <(jq -r 'if .tool_input.run_in_background == true then (.tool_response.backgroundTaskId // "") else "" end, (.session_id // "")' <<<"$input")
   safe "$task" && safe "$session" || exit 0
   # The shell and its command hold the task's output file open while they run.
-  pids=$(lsof -t /private/tmp/claude-"$(id -u)"/*/"$session"/tasks/"$task".output 2>/dev/null | tr '\n' ' ')
+  out=$(ls /private/tmp/claude-"$(id -u)"/*/"$session"/tasks/"$task".output 2>/dev/null | head -1)
+  pids=$([ -n "$out" ] && lsof -t "$out" 2>/dev/null | tr '\n' ' ')
   [ -n "$pids" ] || exit 0
   mkdir -p "$run"
-  jq -c '{kind: "shell", name: (.tool_input.description // .tool_input.command | .[0:200]), detail: (.tool_input.command | .[0:500])}' <<<"$input" >"$run/shell-$task"
+  jq -c --arg f "$out" '{kind: "shell", name: (.tool_input.description // .tool_input.command | .[0:200]), detail: (.tool_input.command | .[0:500]), file: $f}' <<<"$input" >"$run/shell-$task"
   relabel
   nohup bash -c 'for p in $1; do while kill -0 "$p" 2>/dev/null; do sleep 2; done; done; rm -f "$2"; echo "{\"hook_event_name\":\"Relabel\"}" | bash "$3"' _ "$pids" "$run/shell-$task" "${BASH_SOURCE[0]}" </dev/null >/dev/null 2>&1 &
   ;;
