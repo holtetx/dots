@@ -17,6 +17,9 @@ const issues = [n("ABC-3", "4"), n("ABC-1", "10007"), n("ABC-9", "999"), n("ABC-
 assert.strictEqual(issues[0].url, "https://x.atlassian.net/browse/ABC-3");
 const secs = byColumn(cols, issues);
 assert.deepStrictEqual(secs.map((s) => [s.name, s.max, s.items.map((i) => i.key)]), [["Backlog", null, ["ABC-1"]], ["Review", 8, ["ABC-3", "ABC-2"]], ["Done", null, []]]);
+// An epic ("Epos" in Norwegian) is not a card, as on the web board.
+const epic = issueOf({ key: "ABC-7", fields: { status: { id: "3" }, issuetype: { name: "Epos", hierarchyLevel: 1 } } }, "x.atlassian.net");
+assert.deepStrictEqual(byColumn(cols, [...issues, epic])[1].items.map((i) => i.key), ["ABC-3", "ABC-2"]);
 assert.deepStrictEqual(issueOf({ key: "A-1", fields: { parent: { key: "A-9", fields: { summary: "Epic" } } } }, "x.atlassian.net").parent, { key: "A-9", title: "Epic" });
 
 const p = (...content) => ({ type: "paragraph", content });
