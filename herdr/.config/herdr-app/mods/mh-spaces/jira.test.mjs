@@ -1,6 +1,6 @@
 // Run: node mods/mh-spaces/jira.test.mjs
 import assert from "node:assert";
-import { adfBlocks, adfToMd, avatarOf, blockersOf, byColumn, columnsOf, foldKey, initials, issueOf, linksOf, validBoard, validKey, validSite } from "./jira.js";
+import { adfBlocks, adfToMd, avatarOf, blockersOf, byColumn, columnsOf, foldKey, initials, issueOf, linksOf, textToAdf, validBoard, validKey, validProject, validSite } from "./jira.js";
 
 const config = { columnConfig: { columns: [
   { name: "Backlog", statuses: [{ id: "1" }] },
@@ -78,3 +78,12 @@ assert.deepStrictEqual(adfBlocks({ type: "doc", content: [
 ] }, ""), ["## A\n\none", "two", "## B"]);
 assert.deepStrictEqual(adfBlocks(null, ""), []);
 console.log("ok");
+
+const para = (...content) => ({ type: "paragraph", content });
+assert.deepStrictEqual(textToAdf("  one\ntwo\n\n \nthree\n"), { type: "doc", version: 1, content: [
+  para({ type: "text", text: "one" }, { type: "hardBreak" }, { type: "text", text: "two" }),
+  para({ type: "text", text: "three" }),
+] });
+assert.deepStrictEqual(textToAdf("a\n\nb").content.length, 2);
+assert.ok(validProject("ETU") && validProject("A1_B") && !validProject("etu") && !validProject("ETU-1") && !validProject(undefined));
+assert.deepStrictEqual(secs[1].statuses, ["3", "4"]);

@@ -52,7 +52,7 @@ const GITHUB_KEYS = ["space preview", "↵ sessions", "⌃↵ GitHub"];
 const tabsOf = () => [
   { id: "prs", name: "Pull requests", list: () => memory.data.prs?.prs, row: prRow, empty: "No open PRs.", asking: "Asking GitHub…", keys: GITHUB_KEYS, github: true },
   { id: "issues", name: "Issues", list: () => memory.data.issues?.issues, row: issueRow, empty: "No open issues.", asking: "Asking GitHub…", keys: GITHUB_KEYS, github: true },
-  ...(jiraSettings() ? [{ id: "jira", name: "Jira", list: () => memory.data.jira?.sections.flatMap((s) => s.items), empty: "No issues on the board.", asking: "Asking Jira… (approve 1Password if it asks)", keys: ["hl column", "z fold", "s status", "space preview", "↵ open in Jira"] }] : []),
+  ...(jiraSettings() ? [{ id: "jira", name: "Jira", list: () => memory.data.jira?.sections.flatMap((s) => s.items), empty: "No issues on the board.", asking: "Asking Jira… (approve 1Password if it asks)", keys: ["hl column", "z fold", "s status", "n new", "space preview", "↵ open in Jira"] }] : []),
 ];
 
 export function boardInit(view, cx) {
@@ -67,15 +67,15 @@ export function boardInit(view, cx) {
   view.handle.focus();
   // The session picker over it gives the keyboard back when it closes (shared("board.focus")).
   view.focusAsk = shared("board.focus");
-  // A status move (status.js, here or in a preview over it) reloads the Jira tab.
+  // A status move (status.js, here or in a preview over it) or a new issue (create.js) reloads the Jira tab.
   view.moveSeen = shared("jira.moved")?.at;
   cx.timer.every(150, (cx) => {
     const moved = shared("jira.moved");
     if (moved && moved.at !== view.moveSeen) {
       view.moveSeen = moved.at;
-      view.note = `${moved.key} moved to ${moved.to}.`;
+      view.note = moved.note ?? `${moved.key} moved to ${moved.to}.`;
       // A linked issue moved in the preview may not be on the board: keep the selection then.
-      if (memory.data.jira?.sections.some((c) => c.items.some((i) => i.url === moved.url))) memory.sel.jira = { url: moved.url };
+      if (moved.created || memory.data.jira?.sections.some((c) => c.items.some((i) => i.url === moved.url))) memory.sel.jira = { url: moved.url };
       memory.at.jira = 0; // due again; force would ask GitHub too
       refresh(view, cx, false);
       cx.notify();
@@ -446,7 +446,7 @@ function jiraStep(view, by) {
   if (at >= 0) jiraGo(view, col, Math.max(0, Math.min(cols[col].items.length - 1, at + by)));
 }
 
-// hjkl, g G, ^D ^U ^J ^K, s and z on the Jira columns. Other keys go on to key().
+// hjkl, g G, ^D ^U ^J ^K, s, n and z on the Jira columns. Other keys go on to key().
 function jiraKey(view, e) {
   const md = view.model;
   const m = e.modifiers;
@@ -457,6 +457,7 @@ function jiraKey(view, e) {
   const side = plain && { h: -1, left: -1, l: 1, right: 1 }[e.key];
   if (side) return md.cols[md.col + side] && jiraGo(view, md.col + side, memory.sel.jira?.i ?? 0), true;
   if (plain && e.key === "s") return md.item && openStatus(md.item, "board.focus"), true;
+  if (plain && e.key === "n") return openCreate(view, md), true;
   if (plain && e.key === "z") return toggleFold(col.name), (memory.sel.jira = { ...memory.sel.jira, col: col.name }), (view.reveal = true), true;
   const half = Math.max(1, Math.floor((view.listHeight ?? 400) / 2 / CARD));
   const by = plain ? { j: 1, down: 1, k: -1, up: -1, g: -Infinity, G: Infinity }[e.key] : ctrl ? { d: half, u: -half, j: 5, k: -5 }[e.key] : 0;
@@ -583,6 +584,13 @@ export const statusChip = (text, category, t, dark) => chip(text, STATUS_COLOR[c
 // s: the status dialog (status.js) for a Jira card or preview. back: the shared key it sets when it
 // closes, so the view under it takes the keyboard back.
 export const openStatus = (it, back) => openOverlay({ mod: "mh-spaces", kind: "dialog", width: 420, height: 440, props: { status: it.key, url: it.url, title: it.title ?? "", from: { id: it.statusId, name: it.status, category: it.statusCategory }, back } });
+
+// n: the create dialog (create.js), the selected column chosen first.
+function openCreate(view, md) {
+  const project = memory.data.jira?.project;
+  if (!project) return (view.note = "This board has no project to create issues in.");
+  openOverlay({ mod: "mh-spaces", kind: "dialog", width: 520, height: 460, props: { create: project, columns: md.cols.map((c) => ({ name: c.name, statuses: c.statuses })), col: md.col, back: "board.focus" } });
+}
 
 export const chip = (text, color, t, dot) => h_flex().flex_none().gap(5).px(6).h(18).items_center().rounded(4).text_size(10.5).font_medium()
   .bg(tint(color, "22")).text_color(dot ? t.muted : color)
@@ -787,7 +795,7 @@ export function boardRender(view) {
   const hint = view.picker ? "" : view.searching
     ? ["↓↑ ^J ^K move", "↵ keep filter", "esc clear"].join(" · ")
     : ["/ search", ...tab.keys, view.text ? "esc clear search" : "esc close"].join(" · ");
-  const allKeys = ["hjkl move", "^D ^U ^J ^K scroll", "g G first, last", "/ search", ...(tab.github ? ["space preview", "↵ sessions", "⌃↵ open on GitHub", "⌥↵ linked", "b show or hide Dependabot"] : ["z fold or open a column", "s change status", "space preview", "↵ open in Jira"]), "tab next tab", "1-9 a tab", "r refresh", "esc close"].join(" · ");
+  const allKeys = ["hjkl move", "^D ^U ^J ^K scroll", "g G first, last", "/ search", ...(tab.github ? ["space preview", "↵ sessions", "⌃↵ open on GitHub", "⌥↵ linked", "b show or hide Dependabot"] : ["z fold or open a column", "s change status", "n new issue", "space preview", "↵ open in Jira"]), "tab next tab", "1-9 a tab", "r refresh", "esc close"].join(" · ");
   return v_flex()
     .id("board")
     .relative()

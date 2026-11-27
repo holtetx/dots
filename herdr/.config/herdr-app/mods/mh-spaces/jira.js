@@ -3,6 +3,7 @@
 // Checked before they go into a URL: they come from 1Password.
 export const validSite = (s) => /^[a-z0-9-]+\.atlassian\.net$/.test(s ?? "");
 export const validBoard = (b) => /^\d+$/.test(b ?? "");
+export const validProject = (p) => /^[A-Z][A-Z0-9_]*$/.test(p ?? "");
 
 // [light, dark], as Jira colors them. Type names in English and Norwegian.
 export const RED = ["#cf222e", "#f85149"], GREEN = ["#1a7f37", "#3fb950"], BLUE = ["#0969da", "#4493f8"];
@@ -77,11 +78,20 @@ export function issueOf(n, site) {
   };
 }
 
-// [{ name, max, items }] per column, empty ones too, in board order, issues in the order Jira gave (its rank).
+// [{ name, max, statuses, items }] per column, empty ones too, in board order, issues in the order Jira gave (its rank).
 // Issues in no column are left out, as the board leaves them out.
 export function byColumn(columns, issues) {
-  return columns.map((c) => ({ name: c.name, max: c.max, items: issues.filter((i) => c.statuses.has(i.statusId)) }));
+  return columns.map((c) => ({ name: c.name, max: c.max, statuses: [...c.statuses], items: issues.filter((i) => c.statuses.has(i.statusId)) }));
 }
+
+// Plain text as Jira's rich text (ADF): a blank line starts a paragraph, a line break stays one.
+export const textToAdf = (text) => ({
+  type: "doc", version: 1,
+  content: text.trim().split(/\n\s*\n/).map((p) => ({
+    type: "paragraph",
+    content: p.split("\n").flatMap((line, i) => [...(i ? [{ type: "hardBreak" }] : []), ...(line ? [{ type: "text", text: line }] : [])]),
+  })),
+});
 
 export const validKey = (k) => /^[A-Z][A-Z0-9_]*-\d+$/.test(k ?? "");
 
