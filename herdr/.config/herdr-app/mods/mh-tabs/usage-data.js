@@ -80,8 +80,9 @@ export const logFiles = (now) => Array.from({ length: 8 }, (_, i) => `${new Date
 
 export const srcOf = (f) => (f.startsWith("mh-") ? "mh" : "herdr");
 
+// An action as keys.json has it, or as keys() gives it (an object action as JSON text).
 export function featureOf(action) {
-  const a = typeof action === "string" ? action : action.command;
+  const a = typeof action !== "string" ? action.command : action.startsWith("{") ? JSON.parse(action).command : action;
   if (a.startsWith("send:") || a === "terminal") return null;
   if (a.startsWith("mod.open:")) return a.slice(9);
   if (a.startsWith("mh-") || STATE.includes(a)) return a;
@@ -91,6 +92,20 @@ export function featureOf(action) {
 
 // An esc this soon after a dialog opens, with nothing between: opened by mistake, or not what was wanted.
 const QUICK = 5000;
+
+// Per dialog: its opens, and how many an esc closed within QUICK with nothing between. uses: sorted by time, no tips.
+export function quickOf(uses) {
+  const quick = {};
+  uses.forEach((l, i) => {
+    if (l.via !== "open") return;
+    const area = l.f.replace(/\.open$/, "");
+    const q = (quick[area] ??= { opens: 0, esc: 0 });
+    q.opens++;
+    const next = uses[i + 1];
+    if (next?.via === "key" && next.f.endsWith(".escape") && covers(area, next.f) && Date.parse(next.t) - Date.parse(l.t) < QUICK) q.esc++;
+  });
+  return quick;
+}
 
 export function summarize(log, keys, tips, now) {
   const since = now - WINDOW;
@@ -109,15 +124,7 @@ export function summarize(log, keys, tips, now) {
   const ids = new Set([...bindings.map(([, a]) => featureOf(a)).filter(Boolean), ...tips.map((x) => x.f)]);
   const never = [...ids].filter((id) => !uses.some((l) => covers(id, l.f))).sort();
   const unlogged = bindings.filter(([, a]) => featureOf(a) === null).map(([k, a]) => `${k}: ${typeof a === "string" ? a : JSON.stringify(a)}`);
-  const quick = {};
-  uses.forEach((l, i) => {
-    if (l.via !== "open") return;
-    const area = l.f.replace(/\.open$/, "");
-    const q = (quick[area] ??= { opens: 0, esc: 0 });
-    q.opens++;
-    const next = uses[i + 1];
-    if (next?.via === "key" && next.f.endsWith(".escape") && covers(area, next.f) && Date.parse(next.t) - Date.parse(l.t) < QUICK) q.esc++;
-  });
+  const quick = quickOf(uses);
   const tipped = recent.filter((l) => l.via === "tip").map((l) => ({ f: l.f, shown: l.t, used: uses.some((u) => covers(l.f, u.f) && u.t > l.t) }));
   return { from: new Date(since).toISOString().slice(0, 10), events: uses.length, rows, never, unlogged, quick, tipped };
 }

@@ -1,6 +1,7 @@
 {
   "place": "none",
   "title": "Tabs",
+  "palette": [{ "title": "Usage", "command": "mh-tabs.usage", "words": "stats debug log" }],
   "cloned_from": {
     "name": "tabs",
     "version": "0.1.17"

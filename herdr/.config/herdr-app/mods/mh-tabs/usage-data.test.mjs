@@ -47,6 +47,7 @@ assert.equal(logFiles(now).length, 8);
 assert.equal(featureOf("mod.open:mh-picker"), "mh-picker");
 assert.equal(featureOf("pane.split:right"), "pane.split");
 assert.equal(featureOf({ command: "tab.move", args: { by: 1 } }), "tab.move");
+assert.equal(featureOf('{"command":"tab.move","args":{"by":1}}'), "tab.move");
 assert.equal(featureOf("layout.toggle:sidebar"), "layout.toggle:sidebar");
 assert.equal(featureOf("tab.select:1"), null);
 assert.equal(featureOf("terminal.copy"), null);
