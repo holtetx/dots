@@ -10,6 +10,7 @@ import { createJiraIssue } from "./jira-data.js";
 
 const ASSIGNEES = ["No one", "Me"];
 // Tab stops: the two text fields, then the two chip rows on the dialog's own focus.
+// view.stop changes only on tab and clicks: the fields' focus events don't match the caret.
 const STOPS = 4;
 
 export function createInit(view, cx) {
@@ -23,10 +24,8 @@ export function createInit(view, cx) {
   view.handle = cx.focus_handle();
   view.title = InputState.new({ placeholder: "Title" });
   view.title.on("submit", (_e, cx) => create(view, cx));
-  view.title.on("focus", () => (view.stop = 0));
   view.text = TextareaState.new({ placeholder: "Description (plain text)", rows: 6 });
   view.text.on("submit", (e, cx) => e.secondary && create(view, cx));
-  view.text.on("focus", () => (view.stop = 1));
   view.me = false;
   view.col = props().col ?? 0;
   view.note = "";
@@ -119,8 +118,8 @@ export function createRender(view) {
     .bg(t.popover)
     .text_size(12.5)
     .child(div().flex_none().font_semibold().text_color(t.foreground).child(`New task in ${project}`))
-    .child(Input.new(view.title).h(30).px(9).flex_none().rounded(6).border(1).border_color(view.stop === 0 ? t.accent : t.input).bg(t.background).text_color(t.foreground))
-    .child(Textarea.new(view.text).flex_1().min_h(90).px(9).py(6).rounded(6).border(1).border_color(view.stop === 1 ? t.accent : t.input).bg(t.background).text_color(t.foreground))
+    .child(div().id("create-title").flex_none().on_mouse_down("left", (_e, cx) => { view.stop = 0; cx.notify(); }).child(Input.new(view.title).h(30).px(9).flex_none().rounded(6).border(1).border_color(view.stop === 0 ? t.accent : t.input).bg(t.background).text_color(t.foreground)))
+    .child(v_flex().id("create-text").flex_1().min_h(90).on_mouse_down("left", (_e, cx) => { view.stop = 1; cx.notify(); }).child(Textarea.new(view.text).flex_1().px(9).py(6).rounded(6).border(1).border_color(view.stop === 1 ? t.accent : t.input).bg(t.background).text_color(t.foreground)))
     .child(row(2, "Assignee", ASSIGNEES.map((a, i) => chip(`create-who-${i}`, a, view.me === (i === 1), (_e, cx) => { view.me = i === 1; go(view, 2); cx.notify(); }))))
     .child(row(3, "Column", columns.map((c, i) => chip(`create-col-${i}`, c.name, view.col === i, (_e, cx) => { view.col = i; go(view, 3); cx.notify(); }))))
     .when(Boolean(view.note), (el) => el.child(div().flex_none().text_color(view.failed ? t.blocked : t.muted).child(view.note)))
