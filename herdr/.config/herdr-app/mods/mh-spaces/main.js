@@ -236,7 +236,7 @@ export default class Spaces extends View {
 
   close() {
     if (props()?.board) setShared("board.overlay", null);
-    if (props()?.preview || props()?.status || props()?.create) setShared(props().back, Date.now());
+    if ((props()?.preview || props()?.status || props()?.create) && props().back) setShared(props().back, Date.now());
   }
 
   // The GitHub repos in the sidebar folders on every machine that answers (one that doesn't

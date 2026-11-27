@@ -15,9 +15,11 @@ export const GONE_AFTER = 24 * 3600000;
 const person = (a) => Boolean(a?.login) && a.__typename !== "Bot" && !a.login.endsWith("[bot]");
 
 // shortcut: a commit counts at committedDate (GitHub no longer gives the push time), so a rebase looks new.
+// A commit whose email is linked to no GitHub user counts as the PR author's. An approval is not news: MERGE says it.
 function eventsOf(n) {
-  const commits = (n.lastCommit?.nodes ?? []).map((c) => ({ who: c.commit?.author?.user, at: c.commit?.committedDate }));
-  const said = [...(n.comments?.nodes ?? []).map((c) => ({ who: c.author, at: c.createdAt })), ...(n.reviews?.nodes ?? []).map((r) => ({ who: r.author, at: r.submittedAt }))];
+  const author = n.author?.login ? { login: n.author.login, __typename: "User" } : null;
+  const commits = (n.lastCommit?.nodes ?? []).map((c) => ({ who: c.commit?.author?.user ?? author, at: c.commit?.committedDate }));
+  const said = [...(n.comments?.nodes ?? []).map((c) => ({ who: c.author, at: c.createdAt })), ...(n.reviews?.nodes ?? []).filter((r) => r.state !== "APPROVED").map((r) => ({ who: r.author, at: r.submittedAt }))];
   return [...commits, ...said].flatMap((e) => (person(e.who) && Date.parse(e.at ?? "") ? [{ who: e.who.login, at: Date.parse(e.at) }] : []));
 }
 

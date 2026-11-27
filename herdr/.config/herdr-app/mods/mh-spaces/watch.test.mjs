@@ -31,6 +31,11 @@ assert.equal(why(pr(ME, [review("kristian", 10, "APPROVED")], { reviewDecision: 
 assert.equal(why(pr(ME, [], { reviewDecision: "APPROVED", ...ci("PENDING") })), "in review");
 assert.equal(why(pr(ME, [], { isDraft: true })), "draft");
 assert.equal(moveOf(pr(ME, [], { state: "MERGED" }), ME).move, "done");
+// An approval alone is MERGE, not REPLY, without a click.
+assert.equal(why(pr(ME, [review("kristian", 10, "APPROVED")], { reviewDecision: "APPROVED", ...ci("SUCCESS") })), "merge it");
+// A push from an email linked to no GitHub user still answers a change request on your own PR.
+const unlinked = (h) => ({ k: "lastCommit", commit: { committedDate: T(h), author: { user: null } } });
+assert.equal(why(pr(ME, [review("kristian", 10, "CHANGES_REQUESTED"), unlinked(11)], { reviewDecision: "CHANGES_REQUESTED" })), "in review");
 // In the merge queue: waiting, not MERGE IT. No required reviews: an approval still means merge it.
 assert.equal(why(pr(ME, [], { reviewDecision: "APPROVED", isInMergeQueue: true })), "queued");
 assert.equal(why(pr(ME, [review("kristian", 10, "APPROVED")], ci("SUCCESS")), Date.parse(T(11))), "merge it");

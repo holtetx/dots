@@ -29,22 +29,29 @@ const badge = (why, dark) => {
   return chip(text, c, svg(icon).size(10).text_color(c));
 };
 
-export const askWatch = (url, op = "toggle") => setShared("watch.ask", [...(shared("watch.ask") ?? []), { url, op, at: Date.now() }]);
+// op: "add", "remove", "seen" or "snooze". Explicit, so a stop never turns into a start.
+export const askWatch = (url, op) => setShared("watch.ask", [...(shared("watch.ask") ?? []), { url, op, at: Date.now() }]);
+
+// Asks the sidebar has not taken yet count too.
+function watchedNow(url) {
+  const last = (shared("watch.ask") ?? []).filter((a) => a.url === url && (a.op === "add" || a.op === "remove")).pop();
+  return last ? last.op === "add" : (shared("watch.urls") ?? []).includes(url);
+}
 
 export function toggleWatch(url) {
   const pr = url?.match(/github\.com\/[^/]+\/[^/]+\/pull\/(\d+)/);
   if (!pr) return notify({ title: "No PR to watch", body: "This space has no PR. Use w on the board.", level: "info" });
-  // Toggles the sidebar has not taken yet count too.
-  const pending = (shared("watch.ask") ?? []).filter((a) => a.url === url && a.op === "toggle").length;
-  const on = (shared("watch.urls") ?? []).includes(url) !== (pending % 2 === 1);
+  const on = watchedNow(url);
+  const state = shared("github")?.items?.[url]?.state;
+  if (!on && (state === "merged" || state === "closed")) return notify({ title: `#${pr[1]} is ${state}`, body: "Nothing to follow up.", level: "info" });
   track("mh-spaces.watch", on ? "stop" : "start");
   notify({ title: `${on ? "Stopped watching" : "Watching"} #${pr[1]}`, level: "info" });
-  askWatch(url);
+  askWatch(url, on ? "remove" : "add");
 }
 
 // The mouse way to w: a pin, lit while watched.
 export function watchButton(url, t, id) {
-  const on = (shared("watch.urls") ?? []).includes(url);
+  const on = watchedNow(url);
   return div().id(id).flex_none().size(18).flex().items_center().justify_center().rounded(4).cursor_pointer()
     .text_color(on ? t.accent : t.dim).hover((st) => st.bg(t.hover).text_color(on ? t.accent : t.foreground))
     .tooltip(on ? "Watching in the sidebar · click: stop" : "Watch in the sidebar · w")
@@ -55,10 +62,10 @@ export function watchButton(url, t, id) {
 
 function apply(prs, asks) {
   for (const { url, op, at } of asks) {
-    if (op === "toggle") prs[url] ? delete prs[url] : (prs[url] = { seen: at });
+    if (op === "add") prs[url] ??= { seen: at };
+    else if (op === "remove") delete prs[url];
     else if (prs[url] && op === "seen") prs[url] = { ...prs[url], seen: at };
     else if (prs[url] && op === "snooze") prs[url] = { ...prs[url], snooze: tomorrow(at) };
-    else if (op === "gone") delete prs[url];
   }
   return prs;
 }
@@ -71,6 +78,8 @@ function publish(view) {
 export function watchInit(view) {
   view.watch = { prs: {} };
   view.watchNodes = {};
+  view.watchMissing = new Set(); // urls GitHub gave nothing for
+  view.watchLoaded = false;
   view.watchLogin = null;
   view.watchAt = 0;
   view.watchMenu = null;
@@ -89,14 +98,18 @@ export function watchDue(view, now, cx) {
   const asks = shared("watch.ask") ?? [];
   if (asks.length && !view.watchBusy) {
     setShared("watch.ask", []);
-    apply(view.watch.prs, asks);
-    publish(view);
+    // Before the first read the list is empty here: publishing it would drop every other watched PR.
+    if (view.watchLoaded) {
+      apply(view.watch.prs, asks);
+      publish(view);
+    }
     view.watchBusy = true;
     cx.spawn(async (cx) => {
       try {
         view.watch = await save(asks);
+        view.watchLoaded = true;
         publish(view);
-        if (asks.some((a) => a.op === "toggle")) view.watchAt = 0;
+        if (asks.some((a) => a.op === "add")) view.watchAt = 0;
       } catch (e) {
         notify({ title: "Couldn't save the watch list", body: String(e?.message ?? e), level: "error" });
       }
@@ -111,15 +124,20 @@ export function watchDue(view, now, cx) {
   cx.spawn(async (cx) => {
     try {
       view.watch = shape((await docOf(NAME, null)).value);
+      view.watchLoaded = true;
       const gone = Object.keys(view.watch.prs).filter((u) => goneOf(view.watchNodes[u], Date.now()));
-      if (gone.length) view.watch = await save(gone.map((url) => ({ url, op: "gone" })));
+      if (gone.length) view.watch = await save(gone.map((url) => ({ url, op: "remove" })));
       for (const u of gone) delete view.watchNodes[u];
       publish(view);
       const urls = Object.keys(view.watch.prs);
       if (urls.length) {
         const data = await graphql([`viewer { login }`, ...urls.map((u, i) => `a${i}: resource(url: ${JSON.stringify(u)}) { ... on PullRequest { ${PR} ${WATCH_FIELDS} } }`)].join("\n"));
         view.watchLogin = data?.viewer?.login ?? view.watchLogin;
-        urls.forEach((u, i) => data?.[`a${i}`]?.number && (view.watchNodes[u] = data[`a${i}`]));
+        urls.forEach((u, i) => {
+          const n = data?.[`a${i}`];
+          if (n?.number) (view.watchNodes[u] = n), view.watchMissing.delete(u);
+          else if (data) view.watchMissing.add(u);
+        });
       }
       view.watchWarned = false;
     } catch (e) {
@@ -137,6 +155,7 @@ function rowOf(view, url) {
   const m = url.match(/github\.com\/([^/]+\/[^/]+)\/pull\/(\d+)/);
   const { seen = 0, snooze = 0 } = view.watch.prs[url];
   const base = { url, snooze, repo: n?.repository?.nameWithOwner ?? m?.[1] ?? "", number: n?.number ?? Number(m?.[2]), title: n?.title ?? "", node: n };
+  if (view.watchMissing.has(url)) return { ...base, move: "wait", why: "not found" };
   if (!n || !view.watchLogin) return { ...base, move: "wait", why: "…" };
   return { ...base, ...moveOf(n, view.watchLogin, seen), closedAt: Date.parse(n.closedAt ?? "") || 0 };
 }
@@ -148,7 +167,7 @@ function go(r, e, cx) {
   if (e.modifiers.platform) return open(r.url, cx);
   const space = Object.entries(shared("github")?.shown?.spaces ?? {}).find(([, urls]) => urls.includes(r.url))?.[0];
   if (space) run("space.select", { id: space });
-  else openOverlay({ mod: "mh-spaces", kind: "dialog", width: 0.8, height: 0.76, props: { preview: r.url, back: "watch.focus" } });
+  else openOverlay({ mod: "mh-spaces", kind: "dialog", width: 0.8, height: 0.76, props: { preview: r.url } });
 }
 
 function row(view, r, t, dark) {
@@ -168,7 +187,7 @@ function row(view, r, t, dark) {
       .child(yours ? badge(r.why, dark) : div().flex_none().text_size(11).text_color(t.dim).child(r.why)))
     .when(menu, (el) => el.child(h_flex().pl(26).pb(4).gap(6)
       .child(small(`watch-snooze-${r.url}`, "Snooze till 8:00", () => { track("mh-spaces.sidebar.watch-snooze", "click"); askWatch(r.url, "snooze"); }))
-      .child(small(`watch-stop-${r.url}`, "Stop watching", () => { track("mh-spaces.sidebar.watch-stop", "click"); askWatch(r.url); }))));
+      .child(small(`watch-stop-${r.url}`, "Stop watching", () => { track("mh-spaces.sidebar.watch-stop", "click"); askWatch(r.url, "remove"); }))));
 }
 
 export function watchSection(view, t, collapsed) {
