@@ -4,7 +4,7 @@
 import { View, div } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, Scrollbar } from "gpui-base";
 import { run, props, closeOverlay, theme, spaces, panes, terminals, exec, home } from "herdr";
-import { frame, keyPanel, spinner } from "./pixel.js";
+import { bindPanelKeys, frame, helpKey, keyPanel, panelKeys, spinner } from "./pixel.js";
 
 // Where a space is now: its first terminal's live folder, else where it was made.
 function place(s, all = panes()) {
@@ -28,7 +28,6 @@ const slug = (branch) => {
   for (const char of normalized) hash = Math.imul(hash ^ char.codePointAt(0), 16777619);
   return `branch-${(hash >>> 0).toString(16).padStart(8, "0")}`;
 };
-const isHelpKey = (e) => (e.key === "?" || (e.key === "/" && e.modifiers.shift)) && !e.modifiers.control && !e.modifiers.platform;
 const ago = (s) => {
   const d = Date.now() / 1000 - s;
   return d < 3600 ? `${Math.max(1, Math.round(d / 60))}m` : d < 86400 ? `${Math.round(d / 3600)}h` : d < 86400 * 60 ? `${Math.round(d / 86400)}d` : `${Math.round(d / 86400 / 30)}mo`;
@@ -131,6 +130,7 @@ export default class Worktree extends View {
     this.input.on("blur", (_e, cx) => { this.inputFocused = false; cx.notify(); });
     this.handle = cx.focus_handle();
     this.handle.focus(); // the root is mounted from the first frame: keep the keyboard here while loading
+    bindPanelKeys(cx);
     if (props()?.action !== "remove") this.input.focus();
     this.busy = false;
     this.error = "";
@@ -260,15 +260,7 @@ export default class Worktree extends View {
   }
 
   key(e, cx) {
-    // The ? panel takes every key and the keyboard from the filter; ? or esc closes it.
-    if (this.opening && (this.help || (isHelpKey(e) && !this.text && this.list))) {
-      if (!this.help || e.key === "escape" || isHelpKey(e)) {
-        this.help = !this.help;
-        (this.help ? this.handle : this.input).focus();
-      }
-      cx.stop_propagation();
-      return cx.notify();
-    }
+    if (this.opening && helpKey(this, e, this.input, !this.text && Boolean(this.list))) return cx.stop_propagation(), cx.notify();
     if (e.key === "escape") return this.close();
     if (this.opening) {
       const n = this.shown().length;
@@ -317,6 +309,7 @@ export default class Worktree extends View {
       .id("worktree")
       .relative()
       .track_focus(this.handle)
+      .map((el) => panelKeys(el, Boolean(this.help)))
       .on_key_down((e, cx) => this.key(e, cx))
       .size_full()
       .p(16)

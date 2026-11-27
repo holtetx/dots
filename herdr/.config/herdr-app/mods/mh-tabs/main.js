@@ -215,7 +215,6 @@ export default class Tabs extends View {
       const lead = panes().find(p => p.tab === c.id && p.program?.agent) ?? panes().find(p => p.tab === c.id);
       const program = lead?.program;
       const name = label(c, lead);
-      // As in Pixel HQ's preview: a soft lavender pill for the shown tab, a status dot, and its close mark.
       return h_flex().id(`tab-${c.id}`).h(26).px(10).gap(7).items_center().flex_none().rounded(10).border_1().text_size(12.5)
         .border_color(c.active ? LAVENDER + "4d" : "#00000000").when(c.active, el => el.bg(LAVENDER + "29").font_medium())
         // A rename or status dot on this or an earlier tab can push the active one out.

@@ -3,7 +3,7 @@
 import { View, div } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input } from "gpui-base";
 import { keys, commands, props, closeOverlay, theme, window, shared } from "herdr";
-import { button, frame } from "./pixel.js";
+import { action, frame } from "./pixel.js";
 
 const SESSIONS = "Sessions";
 const SPACES = "Spaces and tabs";
@@ -206,7 +206,7 @@ export default class Help extends View {
           .items_center()
           .justify_between()
           .child(div().text_size(15).font_semibold().text_color(t.foreground).child("MY KEYS"))
-          .child(button(div(), t, false).id("mh-help-esc").px(7).py(2).text_size(11).text_color(t.dim).cursor_pointer().hover((s) => s.text_color(t.foreground)).on_click(() => closeOverlay(props().overlay)).child("Esc")),
+          .child(action(t, "mh-help-esc", "Esc", false, () => closeOverlay(props().overlay))),
       )
       .child(frame(Input.new(this.input), t.accent, t.background).flex_none().h(36).px(10).text_size(12.8).text_color(t.foreground))
       .child(

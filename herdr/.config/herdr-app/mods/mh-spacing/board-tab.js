@@ -51,7 +51,7 @@ export function boardTabInit(view) {
   view.addError = "";
   view.addRepo = InputState.new({ placeholder: "Add a repo: owner/repo or a GitHub URL" });
   view.addRepo.on("focus", (_e, cx) => { view.editing = "add-repo"; cx.notify(); });
-  view.addRepo.on("blur", (_e, cx) => { view.editing = null; cx.notify(); });
+  view.addRepo.on("blur", (_e, cx) => { if (!view.help) view.editing = null; cx.notify(); });
   view.addRepo.on("change", (_e, cx) => { view.addError = ""; cx.notify(); });
   view.addRepo.on("submit", (_e, cx) => {
     const repo = repoOf(view.addRepo.value());
@@ -109,6 +109,5 @@ export function boardTab(view, t) {
     body: v_flex().id("board-list").flex_1().min_h(0).gap(2).overflow_y_scrollbar().children(children),
     // hide has no row here, so a reset keeps it.
     reset: Object.keys(shared(KEY) ?? {}).some((k) => k !== "hide") ? () => setShared(KEY, shared(KEY).hide ? { hide: shared(KEY).hide } : {}) : null,
-    resetLabel: "Reset to defaults",
   };
 }

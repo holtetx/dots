@@ -4,7 +4,7 @@ import { div, svg } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input } from "gpui-base";
 import { props, closeOverlay, theme, spaces, panes, exec, shared, setShared, pickFolder } from "herdr";
 import { MARK, base, expand, tilde, trim } from "./folders.js";
-import { action, bindPanelKeys, button, frame, keyPanel, panelKeys } from "./pixel.js";
+import { action, bindPanelKeys, button, frame, helpKey, keyPanel, panelKeys } from "./pixel.js";
 
 const COLORS = [null, ...Object.keys(MARK)];
 const info = () => shared("space-folders") ?? {};
@@ -21,7 +21,6 @@ export function folderInit(view, cx) {
   view.error = "";
   view.busy = false;
   view.handle = cx.focus_handle();
-  view.help = null; // the field or handle to give the keyboard back to when the ? panel closes
   bindPanelKeys(cx);
   view.name = track(view, InputState.new({ placeholder: "Name", value: f?.name ?? "" }));
   view.name.on("submit", (_e, cx) => save(view, cx));
@@ -37,28 +36,11 @@ export function folderInit(view, cx) {
   if (p.from) prefill(view, p.from, cx);
 }
 
-// view.typing: the field with the keyboard, so ? types in it when it has text.
+// The field with the keyboard, kept while the ? panel has it.
 function track(view, input) {
   input.on("focus", () => { view.typing = input; });
-  input.on("blur", () => { if (view.typing === input) view.typing = null; });
+  input.on("blur", () => { if (view.typing === input && !view.help) view.typing = null; });
   return input;
-}
-
-// The ? panel takes every key; ? or esc closes it.
-function key(view, e) {
-  const m = e.modifiers;
-  const ask = (e.key === "?" || (e.key === "/" && m.shift)) && !m.control && !m.platform;
-  if (view.help) {
-    if (e.key === "escape" || ask) {
-      view.help.focus();
-      view.help = null;
-    }
-    return true;
-  }
-  if (!ask || view.typing?.value()) return false;
-  view.help = view.typing ?? view.handle;
-  view.handle.focus();
-  return true;
 }
 
 // One more path field for a machine's row.
@@ -176,7 +158,7 @@ export function folderRender(view) {
     .track_focus(view.handle)
     .map((el) => panelKeys(el, Boolean(view.help)))
     .on_key_down((e, cx) => {
-      if (!key(view, e)) return;
+      if (!helpKey(view, e, view.typing, !view.typing?.value())) return;
       cx.stop_propagation();
       cx.notify();
     })

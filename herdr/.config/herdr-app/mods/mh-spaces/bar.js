@@ -75,7 +75,6 @@ function tick(view, cx) {
   });
 }
 
-// Pixel HQ's status bar: every agent by status, most urgent first. A click goes to the next agent in that state.
 function team(t) {
   const all = agents();
   if (!all.length) return null;

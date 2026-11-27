@@ -1,12 +1,8 @@
-// Go to a tab. Drops from the Terminals layout's space chip (popup, at: "top"). Spaces with
-// something that needs you come first, quiet spaces (no agent running)
-// fold into "earlier". Type to filter, ↑/↓ and Enter to go, ctrl+d to close
-// a tab, Esc to leave. Last rows: new work (a tab here, a Claude Code session,
-// one in a worktree, a space on this computer or on each connected machine).
+// Go to a tab: drops from the Terminals layout's space chip.
 
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input } from "gpui-base";
-import { button, frame, ink, keyPanel, mark, WORDS } from "./pixel.js";
+import { action, bindPanelKeys, frame, helpKey, ink, keyPanel, mark, panelKeys, statusMarks, WORDS } from "./pixel.js";
 import { agents, spaces, terminals, run, hc, theme, settings, props, closeOverlay, shared, setShared } from "herdr";
 
 const MARK = { ansi6: "#6fc7bd", ansi3: "#8fa3f0", ansi4: "#7aa7e8", ansi5: "#b394f0", ansi2: "#8fcf94", ansi1: "#e49ac8" };
@@ -35,7 +31,6 @@ function spaceColor(t, p) {
   return c.startsWith("#") ? c : (MARK[c] ?? t[c]);
 }
 const avatar = (t, w) => h_flex().size(18).rounded(5).bg(spaceColor(t, w)).items_center().justify_center().text_size(10.5).font_bold().text_color(ink(spaceColor(t, w))).child([...w.name][0]?.toUpperCase() ?? "?");
-const isHelpKey = (e) => (e.key === "?" || (e.key === "/" && e.modifiers.shift)) && !e.modifiers.control && !e.modifiers.platform;
 
 export default class Picker extends View {
   init(_props, cx) {
@@ -54,6 +49,7 @@ export default class Picker extends View {
     this.showEarlier = false;
     this.machines = [];
     this.handle = cx.focus_handle();
+    bindPanelKeys(cx);
     cx.spawn(async (cx) => {
       try {
         const r = await hc(["machine", "ls", "--json"]);
@@ -65,12 +61,6 @@ export default class Picker extends View {
 
   close() {
     closeOverlay(props().overlay);
-  }
-
-  // The ? panel takes the keyboard from the search field, so nothing is typed under it.
-  setHelp(on) {
-    this.help = on;
-    (on ? this.handle : this.input).focus();
   }
 
   rows() {
@@ -234,6 +224,7 @@ export default class Picker extends View {
       .id("picker")
       .relative()
       .track_focus(this.handle)
+      .map((el) => panelKeys(el, Boolean(this.help)))
       .w_full()
       .min_h(0)
       .when(Boolean(this.help), (el) => el.min_h(400))
@@ -242,18 +233,8 @@ export default class Picker extends View {
       .bg(t.popover)
       .text_size(13)
       .on_key_down((e, cx) => {
+        if (helpKey(this, e, this.input, !this.filter)) return cx.stop_propagation(), cx.notify();
         const k = e.key;
-        // The ? panel takes every key; ? or esc closes it. ? opens it only with the search field empty.
-        if (this.help) {
-          if (k === "escape" || isHelpKey(e)) this.setHelp(false);
-          cx.stop_propagation();
-          return cx.notify();
-        }
-        if (isHelpKey(e) && !this.filter) {
-          this.setHelp(true);
-          cx.stop_propagation();
-          return cx.notify();
-        }
         if (k === "escape") return this.close();
         if (k === "down") this.at = (this.at + 1) % pickable.length;
         else if (k === "up") this.at = (this.at + pickable.length - 1) % pickable.length;
@@ -266,7 +247,7 @@ export default class Picker extends View {
         cx.stop_propagation();
         cx.notify();
       })
-      .child(h_flex().items_center().gap(10).child(div().flex_1().text_size(15).font_semibold().text_color(t.foreground).child("GO TO…")).child(div().text_size(11).text_color(t.dim).child("? keys")).child(button(div(), t, false).bg(t.raised).id("picker-esc").px(7).py(2).text_size(11).text_color(t.dim).cursor_pointer().hover((s) => s.text_color(t.foreground)).on_click(() => this.close()).child("Esc")))
+      .child(h_flex().items_center().gap(10).child(div().flex_1().text_size(15).font_semibold().text_color(t.foreground).child("GO TO…")).child(action(t, "picker-esc", "Esc", false, () => this.close())))
       .child(
         frame(h_flex(), t.accent, t.background).h(36).flex_none().px(12).gap(8).items_center()
           .child(svg("mods/workspace-chrome/search.svg").size(15).text_color(t.dim))
@@ -292,6 +273,7 @@ export default class Picker extends View {
             }))
           .children(rows.map((r, i) => (visible(i) ? place(row(r), i) : null)).filter(Boolean)),
       )
+      .child(h_flex().justify_end().text_size(11).text_color(t.dim).child("? keys · esc close"))
       .when(Boolean(this.help), (el) => el.child(this.helpPanel(t)));
   }
 
@@ -301,7 +283,7 @@ export default class Picker extends View {
       ["^D", "close the tab"], ["esc", "close"],
     ];
     const marks = [
-      [h_flex().gap(6).items_center().children(["working", "blocked", "done"].map((s) => mark(s, t))), "tab: working, needs you, done"],
+      [statusMarks(t), "tab: working, needs you, done"],
       [div().text_color(t.dim).child("○  ·"), "tab: idle agent, no agent"],
       [div().font_semibold().text_color(t.foreground).child("bold"), "the tab you are on"],
       [avatar(t, { id: "", name: "Space" }), "a space, in its sidebar color; busy ones first"],

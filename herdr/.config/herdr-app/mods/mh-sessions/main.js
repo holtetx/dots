@@ -1,13 +1,11 @@
-// Claude Code sessions: the session search (mod.open; spaces in Waiting and their
-// sessions in a section of their own) and the tasks list ({ tasks: true }, or one
-// task's sessions with { url }, tasks.js).
+// Claude Code sessions: the session search (mod.open) and the tasks list ({ tasks: true }, tasks.js).
 
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, ScrollHandle } from "gpui-base";
 import { agents, spaces, panes, theme, shared, setShared, props, run, exec, hc, home, appHome, readTextFile, closeOverlay } from "herdr";
 import { base, ago, worktree, label, place, missing, resume } from "./sessions.js";
-import { frame, ink, keyPanel, mark, WORDS } from "./pixel.js";
-import { statusMarks, taskInit, taskRender } from "./tasks.js";
+import { bindPanelKeys, frame, helpKey, ink, keyPanel, mark, panelKeys, statusMarks, WORDS } from "./pixel.js";
+import { taskInit, taskRender } from "./tasks.js";
 
 const LIST = 440;
 const ICON = (name) => `mods/workspace-chrome/${name}.svg`;
@@ -18,7 +16,6 @@ const avatar = (color, title, t) => {
   const fill = color.startsWith("#") ? color : (MARK[color] ?? t[color]);
   return h_flex().size(14).rounded(4).bg(fill).items_center().justify_center().text_size(8.5).font_bold().text_color(ink(fill)).child([...title][0]?.toUpperCase() ?? "?");
 };
-const isHelpKey = (e) => (e.key === "?" || (e.key === "/" && e.modifiers.shift)) && !e.modifiers.control && !e.modifiers.platform;
 
 // When an agent in the space last changed state (0: not since Herdr started).
 const activity = (w) => Math.max(0, ...w.tabs.map((t) => t.changed_at ?? 0));
@@ -65,27 +62,13 @@ export default class Sessions extends View {
     this.error = "";
     this.handle = cx.focus_handle();
     this.handle.focus();
+    bindPanelKeys(cx);
     if (this.mode === "tasks") return taskInit(this, cx);
     this.initSearch(cx);
   }
 
   hide() {
     closeOverlay(props().overlay);
-  }
-
-  // The ? panel takes the keyboard from the search field, so nothing is typed under it.
-  setHelp(on) {
-    this.help = on;
-    (on ? this.handle : this.input).focus();
-  }
-
-  // The ? panel takes every key; ? or esc closes it. ? opens it only with the search field empty.
-  helpKey(e, cx) {
-    if (!this.help && !(isHelpKey(e) && !this.text)) return false;
-    if (!this.help || e.key === "escape" || isHelpKey(e)) this.setHelp(!this.help);
-    cx.stop_propagation();
-    cx.notify();
-    return true;
   }
 
   close() {
@@ -247,8 +230,9 @@ export default class Sessions extends View {
       .id("sessions")
       .relative()
       .track_focus(this.handle)
+      .map((el) => panelKeys(el, Boolean(this.help)))
       .on_key_down((e, cx) => {
-        if (this.helpKey(e, cx)) return;
+        if (helpKey(this, e, this.input, !this.text)) return cx.stop_propagation(), cx.notify();
         const count = items.length;
         const ctrl = e.modifiers.control && !e.modifiers.platform && !e.modifiers.alt && !e.modifiers.shift;
         const down = e.key === "down" || (ctrl && (e.key === "j" || e.key === "n"));

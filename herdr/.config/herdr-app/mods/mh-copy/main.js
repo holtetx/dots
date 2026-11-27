@@ -239,7 +239,7 @@ export default class Copy extends View {
 
   key(e, cx) {
     if (!this.lines) return e.key === "escape" && this.close();
-    // The ^/ panel takes every key; ^/, ? or esc closes it. ? alone searches back, as in vim.
+    // ^/ opens it, not ?: ? searches back, as in vim.
     if (this.help) {
       if (e.key === "escape" || e.key === "/" || e.key === "?") this.help = false;
       cx.stop_propagation();
@@ -379,7 +379,7 @@ export default class Copy extends View {
     if (L) for (let r = this.top; r < Math.min(L.length, this.top + this.rows); r++) rows.push(this.line(t, r, lh));
     const mode = this.mode === "line" ? "V-LINE" : this.mode === "char" ? "VISUAL" : "COPY";
     const tone = this.mode ? t.accent : t.foreground;
-    const hint = this.anchor ? "y copy · esc cancel · ^/ keys" : "^/ keys · esc close";
+    const hint = this.anchor ? "y copy · ^/ keys · esc cancel" : "^/ keys · esc close";
     return v_flex()
       .id("copy-mode")
       .relative()

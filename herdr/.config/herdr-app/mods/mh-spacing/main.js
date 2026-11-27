@@ -4,7 +4,7 @@ import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { layout, run, theme, props, closeOverlay, appHome, readTextFile, shared, setShared } from "herdr";
 import { boardTab, boardTabInit, boardKey, check } from "./board-tab.js";
-import { button, keyPanel } from "./pixel.js";
+import { button, helpKey, keyPanel } from "./pixel.js";
 
 const DEFAULT = { gap: 8, padX: 16, padY: 14 };
 const ROWS = [
@@ -135,7 +135,6 @@ export default class Spacing extends View {
     this.handle = cx.focus_handle();
     this.handle.focus();
     this.editing = null;
-    this.help = null; // the field or handle to give the keyboard back to when the ? panel closes
     boardTabInit(this);
     cx.spawn(async (cx) => {
       try {
@@ -172,20 +171,7 @@ export default class Spacing extends View {
   }
 
   key(e) {
-    const ask = (e.key === "?" || (e.key === "/" && e.modifiers.shift)) && !e.modifiers.control && !e.modifiers.platform;
-    // The ? panel takes every key; ? or esc closes it. ? types in the repo field when it has text.
-    if (this.help) {
-      if (e.key === "escape" || ask) {
-        this.help.focus();
-        this.help = null;
-      }
-      return true;
-    }
-    if (ask && !(this.editing && this.addRepo.value())) {
-      this.help = this.editing ? this.addRepo : this.handle;
-      this.handle.focus();
-      return true;
-    }
+    if (helpKey(this, e, this.editing ? this.addRepo : null, !(this.editing && this.addRepo.value()))) return true;
     if (this.editing) return false;
     const up = e.key === "up" || e.key === "k";
     const down = e.key === "down" || e.key === "j";
@@ -260,7 +246,6 @@ export default class Spacing extends View {
     return {
       body: v_flex().flex_1().min_h(0).gap(4).children(ROWS.map(row)).child(titleBars),
       reset: changed ? () => edit((root) => (spacing(root, DEFAULT), bars(root, "always"))) : null,
-      resetLabel: "Reset to defaults",
     };
   }
 
@@ -288,7 +273,6 @@ export default class Spacing extends View {
         .children((this.patterns ?? []).map(row))
         .when(this.patterns?.length === 0, (el) => el.child(div().p(8).text_color(t.dim).child("Couldn't read mh-copy/patterns.json."))),
       reset: Object.keys(shared(HINTS) ?? {}).length ? () => setShared(HINTS, {}) : null,
-      resetLabel: "Reset to defaults",
     };
   }
 
@@ -313,7 +297,6 @@ export default class Spacing extends View {
       body: v_flex().flex_1().min_h(0).gap(4)
         .children(SWITCHES.map(row)),
       reset: Object.keys(shared(LINKS) ?? {}).length ? () => setShared(LINKS, {}) : null,
-      resetLabel: "Reset to defaults",
     };
   }
 
@@ -337,7 +320,6 @@ export default class Spacing extends View {
         .child(div().px(8).pt(10).text_size(11.5).text_color(t.dim)
           .child("The agent's title is Claude's /rename or AI title, or the title another agent sets. The latest update is Claude's summary of its last turn. Right-click an agent to give it a description of its own or hide its description.")),
       reset: Object.keys(PREFS).some((store) => Object.keys(shared(store) ?? {}).length) ? () => { for (const store of Object.keys(PREFS)) setShared(store, {}); } : null,
-      resetLabel: "Reset to defaults",
     };
   }
 
@@ -372,7 +354,7 @@ export default class Spacing extends View {
         .child(button(div(), t, false).id("reset").px(9).py(3).text_color(view.reset ? t.muted : t.dim)
           .when(Boolean(view.reset), (el) => el.cursor_pointer().hover((s) => s.text_color(t.foreground))
             .on_click((_e, cx) => { view.reset(); cx.notify(); }))
-          .child(view.resetLabel.toUpperCase()))
+          .child("RESET TO DEFAULTS"))
         .child(div().flex_1())
         .child(div().min_w(0).truncate().child(this.editing ? "↵ add · esc close" : "? keys · esc close")))
       .when(Boolean(this.help), (el) => el.child(keyPanel(t, [["KEYS", [

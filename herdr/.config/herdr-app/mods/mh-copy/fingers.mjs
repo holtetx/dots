@@ -78,7 +78,6 @@ function draw(lines, found, labels, typed) {
   process.stdout.write(out + RESET);
 }
 
-// The ? panel: the keys and colors, as the lines of a box.
 export function helpBox() {
   const row = (left, color, text) => `  ${color}${left}${RESET}${" ".repeat(10 - left.length)}${text}  `;
   const head = (text) => `  ${DIM}${text}${RESET}`;
@@ -124,7 +123,6 @@ function main() {
   stdout.on("resize", redraw);
   stdin.on("data", (data) => {
     const s = data.toString("latin1");
-    // The ? panel takes every key; ? or esc closes it.
     if (help || s === "?") {
       if (!help || s === "?" || s === "\x1b") (help = !help), redraw();
       return;

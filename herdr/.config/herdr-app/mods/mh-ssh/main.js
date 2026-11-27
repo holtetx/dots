@@ -9,13 +9,12 @@ import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, ScrollHandle } from "gpui-base";
 import { spaces, terminals, theme, props, run, exec, home, appHome, readTextFile, shared, closeOverlay, notify } from "herdr";
 import { covers, readHosts } from "./hosts.js";
-import { frame, keyPanel } from "./pixel.js";
+import { bindPanelKeys, frame, helpKey, keyPanel, panelKeys } from "./pixel.js";
 
 const LIST = 440;
 const FEW = 10; // at most this many hosts: list them all before typing
 const ICON = (name) => `mods/workspace-chrome/${name}.svg`;
 
-const isHelpKey = (e) => (e.key === "?" || (e.key === "/" && e.modifiers.shift)) && !e.modifiers.control && !e.modifiers.platform;
 const expand = (path) => path.replace(/^~(?=\/|$)/, home());
 
 // ~/.ssh/config's hosts (hosts.js). IFS= keeps a path with spaces whole; the glob still expands.
@@ -69,6 +68,7 @@ export default class Ssh extends View {
   init(_props, cx) {
     this.handle = cx.focus_handle();
     this.handle.focus();
+    bindPanelKeys(cx);
     this.text = "";
     this.at = 0;
     this.hosts = null;
@@ -90,12 +90,6 @@ export default class Ssh extends View {
   hide() {
     const id = props()?.overlay;
     if (id) closeOverlay(id);
-  }
-
-  // The ? panel takes the keyboard from the search field, so nothing is typed under it.
-  setHelp(on) {
-    this.help = on;
-    (on ? this.handle : this.input).focus();
   }
 
   items() {
@@ -146,13 +140,9 @@ export default class Ssh extends View {
       .id("ssh")
       .relative()
       .track_focus(this.handle)
+      .map((el) => panelKeys(el, Boolean(this.help)))
       .on_key_down((e, cx) => {
-        // The ? panel takes every key; ? or esc closes it. ? opens it only with the search field empty.
-        if (this.help || (isHelpKey(e) && !this.text)) {
-          if (!this.help || e.key === "escape" || isHelpKey(e)) this.setHelp(!this.help);
-          cx.stop_propagation();
-          return cx.notify();
-        }
+        if (helpKey(this, e, this.input, !this.text)) return cx.stop_propagation(), cx.notify();
         const count = items.length;
         const ctrl = e.modifiers.control && !e.modifiers.platform && !e.modifiers.alt && !e.modifiers.shift;
         if (e.key === "escape") return this.hide();

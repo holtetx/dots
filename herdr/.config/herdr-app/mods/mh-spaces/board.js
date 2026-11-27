@@ -9,7 +9,7 @@ import { boardRepos, fetchIssues, fetchPrs } from "./board-data.js";
 import { fetchJira, jiraSettings } from "./jira-data.js";
 import { avatars, loadAvatars } from "./preview-data.js";
 import { BLUE, GREEN, PRIORITY_COLOR, RED, TYPE_COLOR, YELLOW, foldKey, hue, initials } from "./jira.js";
-import { button, chip, darkOf, frame, keyPanel, spinner } from "./pixel.js";
+import { bindPanelKeys, button, chip, darkOf, frame, helpKey, keyPanel, panelKeys, spinner } from "./pixel.js";
 
 const FRESH = 2 * 60000;
 const ICON = (name) => `mods/workspace-chrome/${name}.svg`;
@@ -50,6 +50,7 @@ export function boardInit(view, cx) {
       { keystroke: "shift-tab", action: "mh_board_prev_tab", context: "MhBoard" },
     ]);
   } catch {}
+  bindPanelKeys(cx);
   view.handle = cx.focus_handle();
   view.handle.focus();
   // The session picker over it gives the keyboard back when it closes (shared("board.focus")).
@@ -91,7 +92,7 @@ export function boardInit(view, cx) {
     cx.notify();
   });
   view.input.on("blur", (_e, cx) => {
-    view.searching = false;
+    if (!view.help) view.searching = false;
     cx.notify();
   });
   view.busy = {};
@@ -256,7 +257,7 @@ function listAt(tab, rows) {
 
 // Tab and shift-tab: the next or previous tab, wrapping. Not while the picker or search has the keyboard.
 function stepTab(view, by, cx) {
-  if (view.picker || view.searching) return;
+  if (view.picker || view.searching || view.help) return;
   const tabs = tabsOf();
   const i = tabs.findIndex((t) => t.id === view.model.tab.id);
   showTab(view, tabs[(i + by + tabs.length) % tabs.length].id, cx);
@@ -383,11 +384,7 @@ function searchKey(view, e) {
 
 function key(view, e, cx) {
   if (view.picker) return pickerKey(view, e, cx);
-  // The ? panel takes every key; ? or esc closes it.
-  if (view.help) {
-    if (e.key === "escape" || e.key === "?" || (e.key === "/" && e.modifiers.shift)) view.help = false;
-    return true;
-  }
+  if (helpKey(view, e, view.searching ? view.input : null, !view.searching || !view.input.value())) return true;
   if (view.searching) return searchKey(view, e);
   const m = e.modifiers;
   const plain = !m.control && !m.alt && !m.platform;
@@ -395,7 +392,6 @@ function key(view, e, cx) {
   const it = view.model.item;
   view.note = "";
   if (e.key === "escape") return view.text ? clearSearch(view) : closeOverlay(props().overlay), true;
-  if ((e.key === "?" || (e.key === "/" && m.shift)) && !m.control && !m.platform) return (view.help = true), true;
   if (e.key === "/" && plain) return (view.searching = true), view.input.focus(), true;
   if (e.key === "space" && plain) return preview(it), true;
   if (e.key === "enter") {
@@ -414,8 +410,6 @@ function key(view, e, cx) {
   if (/^[1-9]$/.test(e.key) && tabs[Number(e.key) - 1]) return showTab(view, tabs[Number(e.key) - 1].id, cx), true;
   if (e.key === "r") return refresh(view, cx, true), true;
   if (e.key === "b") return (memory.bots = !memory.bots), (view.reveal = true), true;
-  // On a stack's root or any of its PRs: z folds or opens it, l and → open it, h and ← fold it (selecting its root).
-  // Elsewhere h and l jump between repos.
   if (view.model.tab.id === "prs" && it && (it.root || it.kids?.length)) {
     const root = it.root ?? it.url;
     const open = openSet().has(root);
@@ -503,7 +497,6 @@ function jiraKey(view, e) {
   return true;
 }
 
-// The comment count (PR rows), then one blue dot when you have Claude sessions or links on it; its tooltip counts them.
 function counts(url, view, t, comments) {
   const { graph, items } = view.model;
   const k = { pr: 0, issue: 0 };
@@ -567,13 +560,13 @@ function prRow(view, p, i, on, t, dark) {
   const unread = shared("github")?.unread?.[prKey(p)];
   // A folded stack's root speaks for the PRs it hides, in its own columns.
   const hid = p.folded ? p.kids : [];
-  const failing = [p, ...hid].filter((k) => CHECKS[k.checks]?.[1] === RED);
-  const check = failing.length && !failing.includes(p) ? CHECKS.FAILURE : CHECKS[p.checks];
-  const checkTip = failing.length && !failing.includes(p) ? `Checks failed in ${failing.map((k) => `#${k.number}`).join(", ")}` : check?.[2];
+  const nums = (l) => l.map((k) => `#${k.number}`).join(", ");
+  const failing = CHECKS[p.checks]?.[1] === RED ? [] : hid.filter((k) => CHECKS[k.checks]?.[1] === RED);
+  const check = failing.length ? CHECKS.FAILURE : CHECKS[p.checks];
+  const checkTip = failing.length ? `Checks failed in ${nums(failing)}` : check?.[2];
   const behind = [p, ...hid].filter((k) => k.behind);
   const asked = [p, ...hid].filter(asks);
   const [word, color] = asked.length ? ["your review", t.ansi3] : verdict(p, t, dark);
-  const nums = (l) => l.map((k) => `#${k.number}`).join(", ");
   return rowBase(`pr-${p.url}`, on, t)
     .on_click((e, cx) => select(view, "prs", { url: p.url, i }, e, cx, p))
     .child(div().size(4).mx(1).flex_none().when(Boolean(unread), (el) => el.bg(t.ansi3)))
@@ -630,10 +623,12 @@ export const avatar = (name, t, size, url) => {
 };
 export const colorOf = (map, key, dark, t) => (map[key] ? pick(map[key], dark) : t.dim);
 // A see-through version of a #rrggbb or #rrggbbaa color, for soft backgrounds.
-export const tint = (c, alpha = "26") => (/^#[0-9a-f]{6}([0-9a-f]{2})?$/i.test(c) ? c.slice(0, 7) + alpha : c);
+const tint = (c, alpha = "26") => (/^#[0-9a-f]{6}([0-9a-f]{2})?$/i.test(c) ? c.slice(0, 7) + alpha : c);
 
 const STATUS_COLOR = { done: GREEN, indeterminate: BLUE };
 export const statusChip = (text, category, t, dark) => chip(text, STATUS_COLOR[category] ? pick(STATUS_COLOR[category], dark) : t.muted);
+export const statusLegend = (t, dark) => [["To Do", "new", "not started"], ["In Progress", "indeterminate", "in progress"], ["Done", "done", "done"]]
+  .map(([name, category, text]) => [statusChip(name, category, t, dark), `status: ${text}`]);
 
 // back: the shared key the status dialog sets when it closes, so the view under it takes the keyboard back.
 export const openStatus = (it, back) => openOverlay({ mod: "mh-spaces", kind: "dialog", width: 420, height: 440, props: { status: it.key, url: it.url, title: it.title ?? "", from: { id: it.statusId, name: it.status, category: it.statusCategory }, back } });
@@ -848,6 +843,7 @@ export function boardRender(view) {
     .relative()
     .track_focus(view.handle)
     .key_context("MhBoard")
+    .map((el) => panelKeys(el, Boolean(view.help)))
     .on_action("mh_board_next_tab", (_e, cx) => stepTab(view, 1, cx))
     .on_action("mh_board_prev_tab", (_e, cx) => stepTab(view, -1, cx))
     .on_key_down((e, cx) => {

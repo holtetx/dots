@@ -27,7 +27,10 @@ export const GH = {
   "issue-skip": { icon: "mods/mh-spaces/circle-slash.svg", color: GRAY, label: "Not planned" },
 };
 export const FINAL = new Set(["merged", "closed", "issue-done", "issue-skip"]);
-// An open PR's review, and GitHub's unread blue.
+export const stateMarks = (t) => [
+  [["open", "draft", "queued", "merged", "closed"], "PR: open, draft, merge queued, merged, closed"],
+  [["issue-open", "issue-done", "issue-skip"], "issue: open, closed, not planned"],
+].map(([states, text]) => [h_flex().gap(6).children(states.map((s) => svg(GH[s].icon).size(12).text_color(colorOf(GH[s], t)))), text]);
 const REVIEW = {
   APPROVED: { icon: "mods/workspace-chrome/check.svg", color: GREEN, label: "Approved" },
   CHANGES_REQUESTED: { icon: "mods/mh-spaces/file-diff.svg", color: RED, label: "Changes requested" },
@@ -199,7 +202,7 @@ export const open = (url, cx) => /^https:\/\//.test(url ?? "") && cx.spawn(async
 const iconOf = (it, s) => s?.icon ?? (it.kind === "issue" ? GH["issue-open"].icon : GH.open.icon);
 const colorOf = (s, t) => (s ? s.color[darkOf(t) ? 1 : 0] : t.dim);
 
-// The icon, with a dot when there's news, and the lead PR's review after it.
+// The icon, with a yellow square when there's news, and the lead PR's review after it.
 function marks(el, it, s, news, t) {
   const review = reviewOf(it);
   return el

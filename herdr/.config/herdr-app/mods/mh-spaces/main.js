@@ -3,7 +3,7 @@
 
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex, ScrollHandle } from "gpui-base";
-import { WORDS, button, chip, ink, mark, spinner } from "./pixel.js";
+import { WORDS, action, button, chip, ink, mark, spinner } from "./pixel.js";
 import { spaces, machines, panes, terminals, agents, focused, props, nextCommand, run, openOverlay, closeOverlay, exec, hc, home, appHome, readTextFile, theme, shared, setShared, window, layout, notify } from "herdr";
 import { branchName, expand, kinds, scanAgent } from "./github.js";
 import { githubDue, unreadDue } from "./github-poll.js";
@@ -917,7 +917,11 @@ export default class Spaces extends View {
     const order = [];
     const listed = [];
     const hidden = new Set();
-    const draw = (r) => (collapsed ? [this.compact(r, t)] : [this.row(r, t), ...this.runningRows(r, t)]);
+    const indent = pref("icon") !== "hidden" ? 27 : 0;
+    const draw = (r) => {
+      Object.assign(r, { metro: this.filed || r.ssh || r.waiting, indent, track: r.track ?? t.raised });
+      return collapsed ? [this.compact(r, t)] : [this.row(r, t), ...this.runningRows(r, t)];
+    };
     // Where the active space's row lands among the list's children: it scrolls by them.
     this.activeAt = -1;
     const rows = (members, shut) => {
@@ -938,9 +942,10 @@ export default class Spaces extends View {
       const members = tree.inside.get(f.id);
       const branch = checkoutBranch(members);
       const color = f.color ? (MARK[f.color] ?? t[f.color]) : t.dim;
-      for (const r of members) Object.assign(r, { folderBranch: branch, line: color });
+      const track = soften(color, t.chrome);
+      for (const r of members) Object.assign(r, { folderBranch: branch, line: color, track });
       out.push(collapsed ? this.railHead(f.id, f.name, color, folded.has(f.id), members, t) : this.folderHead(f, color, members, folded.has(f.id), t, tree.list));
-      if (!collapsed && branch && !folded.has(f.id)) out.push(this.branchLine(f.id, branch, color, t));
+      if (!collapsed && branch && !folded.has(f.id)) out.push(this.branchLine(f.id, branch, color, track, t));
       rows(members, folded.has(f.id));
     }
     const dragging = this.pressed !== null && Boolean(this.rowsById.get(this.pressed)?.folder);
@@ -1072,7 +1077,7 @@ export default class Spaces extends View {
     const el = h_flex().id("spaces-new").h(28).flex_none().px(collapsed ? 0 : 8).gap(7).items_center().rounded(6)
       .text_size(12).text_color(t.dim).hover((st) => st.bg(t.hover).text_color(t.foreground))
       .on_click(() => run("space.new", { machine: "" }))
-      .when(collapsed, (el) => el.w(RAIL_CELL).rounded(6).justify_center().tooltip("New space")
+      .when(collapsed, (el) => el.w(RAIL_CELL).justify_center().tooltip("New space")
         .child(button(h_flex(), t, false).size(18).items_center().justify_center()
           .child(svg("mods/workspace-chrome/plus.svg").size(10))))
       .when(!collapsed, (el) => el.child(svg("mods/workspace-chrome/plus.svg").size(12)).child("New space"));
@@ -1126,10 +1131,12 @@ export default class Spaces extends View {
         .child(div().text_size(11).text_color(t.blocked).child("needs a login: run"))
         .child(h_flex().gap(5).items_center()
           .child(div().flex_1().min_w(0).truncate().tooltip(login).text_size(11).text_color(t.muted).child(login))
-          .child(button(div(), t, false).id(`machine-login-copy-${m}`).flex_none().px(7).py(2)
-            .text_size(10).font_bold().text_color(t.muted).cursor_pointer().hover((st) => st.text_color(t.foreground))
-            .on_click((_e, cx) => { cx.stop_propagation(); cx.write_to_clipboard(login); this.copiedLogin = login; cx.notify(); })
-            .child(this.copiedLogin === login ? "COPIED" : "COPY")))] : [];
+          .child(action(t, `machine-login-copy-${m}`, this.copiedLogin === login ? "Copied" : "Copy", false, (_e, cx) => {
+            cx.stop_propagation();
+            cx.write_to_clipboard(login);
+            this.copiedLogin = login;
+            cx.notify();
+          })))] : [];
       return [collapsed ? railCell(head) : head, ...guidance];
     });
   }
@@ -1158,24 +1165,20 @@ export default class Spaces extends View {
   }
 
   row(r, t) {
-    const { w, g } = r;
+    const { w, g, metro, indent } = r;
     const on = w.active;
     const colors = shared("space.colors") ?? {};
     const color = colors[w.id] ?? "ansi6";
     const fill = color.startsWith("#") ? color : (MARK[color] ?? t[color]);
     const label = this.label(w);
-    const metro = this.filed || r.ssh || r.waiting;
-    const indent = pref("icon") !== "hidden" ? 27 : 0;
     // On the metro line the station shows the status; only working keeps its spinner there, for the motion.
     const sign = metro && w.status !== "working" ? null : mark(w.status, t, 14);
     // Repo (when the row shows a session title), branch and machine, on the title only: the tab dots have their own.
     const where = [label === w.name ? null : w.name, g?.branch && (g.linked ? `${g.branch} (worktree)` : g.branch), w.machine].filter(Boolean).join(" · ");
-    // Pixel HQ's station chips: with two or more agents busy, how many are in each state.
     const mine = this.agentsOf.get(w.id) ?? [];
     const crew = Object.entries(WORDS).filter(([st]) => st !== "idle")
       .map(([st, word]) => [st, word, mine.filter((a) => a.status === st).length]).filter(([, , n]) => n);
     const counts = mine.filter((a) => a.status !== "idle").length > 1 ? crew : [];
-    // Pixel HQ's second line: where it is (the space name when the title is a session and no folder says it), its own branch, and its agents when more than one.
     const repo = !r.folder && label !== w.name ? w.name : null;
     const agents = mine.length > 1 ? `${mine.length} agents` : null;
     // The folder header shows its checkout's branch: a row repeats a branch only when it is on another one (a worktree).
@@ -1246,10 +1249,8 @@ export default class Spaces extends View {
           .when(w.tabs.length > 1, (el) => el.child(this.tabDots(w, t)))
           .when(Boolean(sign), (el) => el.child(sign)),
       )
-      // Pixel HQ's metro line: a track down the section, a station per space in its status color.
       .when(metro, (el) => el
-        .child(div().absolute().left(13).top(-8).bottom(r.last ? height - 15 : -8).w(2).bg(r.line ? soften(r.line, t.chrome) : t.raised))
-        // As Pixel HQ's stations: a frame in the line's color, filled with the status while an agent is busy.
+        .child(div().absolute().left(13).top(-8).bottom(r.last ? height - 15 : -8).w(2).bg(r.track))
         .child(h_flex().absolute().left(9).top(10).size(10).items_center().justify_center().rounded(3).border_2().border_color(r.line ?? t.input)
           .bg(w.status && w.status !== "idle" ? t[w.status] : t.chrome)
           .when(on, (d) => d.child(div().size(4).rounded(1).bg(t.foreground)))
@@ -1267,9 +1268,9 @@ export default class Spaces extends View {
   }
 
   // The folder checkout's branch on a faint tint of the folder's color, on the metro line between its name and its spaces.
-  branchLine(id, branch, color, t) {
+  branchLine(id, branch, color, track, t) {
     return h_flex().id(`folder-branch-${id}`).relative().h(24).flex_none().pl(27).pr(8).items_center().tooltip(branch)
-      .child(div().absolute().left(13).top(2).bottom(0).w(2).bg(soften(color, t.chrome)))
+      .child(div().absolute().left(13).top(2).bottom(0).w(2).bg(track))
       .child(h_flex().min_w(0).h(18).px(6).gap(4).items_center().rounded(6).bg(color.slice(0, 7) + "14").text_size(10.5).text_color(t.muted)
         .child(svg("mods/workspace-chrome/git-branch.svg").size(10).flex_none().text_color(color))
         .child(div().min_w(0).truncate().child(branch)));
@@ -1277,15 +1278,13 @@ export default class Spaces extends View {
 
   // One line per subagent (↳) and background shell ($) of the space's agents, under its row.
   runningRows(r, t) {
-    const { w } = r;
+    const { w, metro, indent } = r;
     const items = (this.agentsOf.get(w.id) ?? []).flatMap((a) => (this.running.get(a.address) ?? []).map((it) => ({ ...it, owner: a.address })));
-    const metro = this.filed || r.ssh || r.waiting;
-    const track = metro && !r.last;
     return items.map((it, i) => h_flex()
       .id(`space-running-${w.id}-${i}`)
       .relative()
       // The title's left edge: the row's padding, plus the icon and its gap when shown.
-      .pl((metro ? 27 : 8) + (pref("icon") !== "hidden" ? 27 : 0))
+      .pl((metro ? 27 : 8) + indent)
       .pr(8)
       .h(22)
       .flex_none()
@@ -1297,7 +1296,7 @@ export default class Spaces extends View {
       .tooltip(it.kind === "shell" ? `Background shell: ${it.detail}` : `Subagent (${it.detail})`)
       .on_click((_e, cx) => this.follow(w, it, cx))
       // The metro track runs on past them to the next station; after the last station it has ended.
-      .when(track, (el) => el.child(div().absolute().left(13).top(-4).bottom(-4).w(2).bg(r.line ? soften(r.line, t.chrome) : t.raised)))
+      .when(metro && !r.last, (el) => el.child(div().absolute().left(13).top(-4).bottom(-4).w(2).bg(r.track)))
       .child(div().flex_none().w(10).text_color(t.dim).child(it.kind === "shell" ? "$" : "↳"))
       .child(div().flex_1().min_w(0).truncate().text_color(t.muted).child(it.name))
       .child(spinner(12).text_color(t.working)));

@@ -4,7 +4,7 @@ import { div } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, TextareaState, Textarea } from "gpui-base";
 import { props, closeOverlay, setShared, theme } from "herdr";
 import { createJiraIssue } from "./jira-data.js";
-import { action, button, frame, keyPanel } from "./pixel.js";
+import { action, button, frame, helpKey, keyPanel } from "./pixel.js";
 
 const ASSIGNEES = ["No one", "Me"];
 // Tab stops: the two text fields, then the two chip rows on the dialog's own focus.
@@ -75,13 +75,8 @@ function create(view, cx) {
 
 function key(view, e, cx) {
   const m = e.modifiers;
-  // The ? panel takes every key; ? or esc closes it.
-  if (view.help) {
-    if (e.key === "escape" || e.key === "?" || (e.key === "/" && m.shift)) (view.help = false), go(view, view.stop);
-    return true;
-  }
-  // ? types in a field with text.
-  if ((e.key === "?" || (e.key === "/" && m.shift)) && !m.control && !m.platform && !(view.stop < 2 && focusOf(view).value())) return (view.help = true), view.handle.focus(), true;
+  const field = view.stop < 2 ? focusOf(view) : null;
+  if (helpKey(view, e, field, !field?.value())) return true;
   if (e.key === "escape") return closeOverlay(props().overlay), true;
   if (e.key === "enter" && m.platform) return create(view, cx), true;
   if (view.stop < 2 || m.control || m.alt || m.platform) return false;

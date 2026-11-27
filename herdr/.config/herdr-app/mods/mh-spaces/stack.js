@@ -36,7 +36,7 @@ export function stacked(items) {
   return [...stacks, ...rest].sort((a, b) => b.key[0] - a.key[0] || b.key[1] - a.key[1]).flatMap((s) => s.rows);
 }
 
-// Each root gets its stack in `kids` and `folded` when it hides them; each child its root's url. A search (`all`) folds nothing.
+// A search (`all`) folds nothing.
 export function foldStacks(rows, open, all) {
   let root = null;
   for (const p of rows) {

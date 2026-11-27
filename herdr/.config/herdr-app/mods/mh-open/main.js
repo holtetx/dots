@@ -1,11 +1,9 @@
-// Open a recent location (zoxide's ranked folders and open panes', per machine) as a new
-// space (↵), a tab in the shown space (⌘↵) or a pane beside the focused one (⇧↵); or
-// start Claude Code there in a new space (mh-open.claude, mh-open.claude-worktree).
+// Open a recent folder (zoxide's and open panes', per machine) as a space, tab or pane, or start Claude Code there.
 
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, ScrollHandle } from "gpui-base";
 import { spaces, panes, machines, theme, props, run, exec, closeOverlay, nextCommand } from "herdr";
-import { frame, keyPanel } from "./pixel.js";
+import { bindPanelKeys, frame, helpKey, keyPanel, panelKeys } from "./pixel.js";
 
 const LIST = 440;
 const CAP = 100;
@@ -29,12 +27,12 @@ function label(cwd) {
 }
 
 const shown = () => spaces().find((s) => s.active);
-const isHelpKey = (e) => (e.key === "?" || (e.key === "/" && e.modifiers.shift)) && !e.modifiers.control && !e.modifiers.platform;
 
 export default class Open extends View {
   init(_props, cx) {
     this.handle = cx.focus_handle();
     this.handle.focus();
+    bindPanelKeys(cx);
     this.text = "";
     this.at = 0;
     this.error = "";
@@ -68,12 +66,6 @@ export default class Open extends View {
   hide() {
     const id = props()?.overlay;
     if (id) closeOverlay(id);
-  }
-
-  // The ? panel takes the keyboard from the search field, so nothing is typed under it.
-  setHelp(on) {
-    this.help = on;
-    (on ? this.handle : this.input).focus();
   }
 
   opened() {
@@ -188,13 +180,9 @@ export default class Open extends View {
       .id("open")
       .relative()
       .track_focus(this.handle)
+      .map((el) => panelKeys(el, Boolean(this.help)))
       .on_key_down((e, cx) => {
-        // The ? panel takes every key; ? or esc closes it. ? opens it only with the search field empty.
-        if (this.help || (isHelpKey(e) && !this.text)) {
-          if (!this.help || e.key === "escape" || isHelpKey(e)) this.setHelp(!this.help);
-          cx.stop_propagation();
-          return cx.notify();
-        }
+        if (helpKey(this, e, this.input, !this.text)) return cx.stop_propagation(), cx.notify();
         const count = items.length;
         const ctrl = e.modifiers.control && !e.modifiers.platform && !e.modifiers.alt && !e.modifiers.shift;
         const down = e.key === "down" || (ctrl && (e.key === "j" || e.key === "n"));

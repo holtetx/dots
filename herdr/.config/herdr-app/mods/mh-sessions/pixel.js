@@ -2,13 +2,10 @@
 import { div, svg } from "gpui-kit";
 import { h_flex, v_flex } from "gpui-base";
 
-// A button, toggle or tab: rounded, a 1px frame, brighter when on.
 export const button = (el, t, on) => el.rounded(6).border_1().border_color(on ? t.muted : t.input).bg(on ? t.raised : t.chrome);
 
-// An input or card frame.
 export const frame = (el, border, fill) => el.rounded(6).border_1().border_color(border).bg(fill);
 
-// A tinted pill; `icon` goes before the text.
 export const chip = (text, color, icon) => {
   const c = color.slice(0, 7);
   return h_flex().flex_none().gap(4).px(6).h(18).items_center().rounded(6).border_1().border_color(c + "66").bg(c + "22")
@@ -17,27 +14,22 @@ export const chip = (text, color, icon) => {
 
 export const spinner = (size = 12) => svg("mods/mh-spaces/px-spinner.svg").size(size).flex_none().spin(900);
 
-// An agent's status: the spinner, a bang or a tick; nothing when idle.
 export const mark = (status, t, size = 12) =>
   status === "working" ? spinner(size).text_color(t.working)
   : status === "blocked" ? svg("mods/mh-spaces/px-bang.svg").size(Math.round(size * 0.75)).flex_none().text_color(t.blocked)
   : status === "done" ? svg("mods/mh-spaces/px-tick.svg").size(Math.round(size * 0.9)).flex_none().text_color(t.done)
   : null;
 
-// The three busy marks side by side, for a ? panel's legend.
 export const statusMarks = (t) => h_flex().gap(6).items_center().children(["working", "blocked", "done"].map((s) => mark(s, t)));
 
-// The words for a status, the same everywhere.
 export const WORDS = { blocked: "needs you", working: "working", done: "done", idle: "idle" };
 
-// Text that reads on a fill: dark on light colors, light on dark ones.
 export const ink = (fill) => {
   const n = parseInt(fill.slice(1, 7), 16);
   return 0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255) > 150 ? "#11111b" : "#ffffff";
 };
 
-// The ? panel: a dialog's keys and what its marks mean, over the dialog. sections: [[TITLE, [[left, text], ...]], ...];
-// left is a key as text, or an element drawing the mark. Its element is the dialog's root child (the root is relative()).
+// sections: [[TITLE, [[left, text], ...]]]; left is a key as text or an element drawing the mark. The dialog root is relative().
 export const keyPanel = (t, sections) => {
   const row = (left, text) => h_flex().h(24).gap(12).items_center()
     .child(h_flex().w(112).flex_none().child(typeof left === "string" ? div().text_size(12).font_semibold().text_color(t.foreground).child(left) : left))
@@ -48,11 +40,9 @@ export const keyPanel = (t, sections) => {
       .child(div().pt(8).text_size(11).text_color(t.dim).child("? or esc closes")));
 };
 
-// ? or ⇧/, without ⌃ or ⌘.
 export const isHelpKey = (e) => (e.key === "?" || (e.key === "/" && e.modifiers.shift)) && !e.modifiers.control && !e.modifiers.platform;
 
-// The ? panel's keys. It opens on ? (on a search field only while `empty`) and takes every key while open;
-// ? or esc closes it and gives the keyboard back to `field`. True when the key was the panel's.
+// On a search field ? opens only while it is `empty`; ? or esc gives the keyboard back to `field`. True when the key was the panel's.
 export function helpKey(view, e, field, empty = true) {
   if (!view.help && !(isHelpKey(e) && empty)) return false;
   if (!view.help || e.key === "escape" || isHelpKey(e)) {

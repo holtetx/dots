@@ -1,13 +1,12 @@
 // Herdr's agent toasts name only the program and "<space> / <tab>": find the agent to say which session.
 
 import { View, div, image, svg } from "gpui-kit";
-import { button, chip, frame } from "./pixel.js";
+import { action, chip, frame, WORDS } from "./pixel.js";
 import { v_flex, h_flex } from "gpui-base";
 import { props, closeOverlay, run, theme, agents, terminals, panes } from "herdr";
 
 const LEVEL = { error: "blocked", warning: "working", success: "done", info: "accent" };
-const STATUS = [[/ needs you$/, "NEEDS YOU", "blocked"], [/ finished$/, "DONE", "done"]];
-// As Pixel HQ's toast: a short level word in a chip.
+const STATUS = [[/ needs you$/, WORDS.blocked.toUpperCase(), "blocked"], [/ finished$/, WORDS.done.toUpperCase(), "done"]];
 const BADGE = { error: "ERR", warning: "WARN", success: "OK", info: "INFO" };
 
 // The agent the toast is about: its click target, else its "<space> / <tab>" body.
@@ -83,10 +82,7 @@ export default class Toast extends View {
             .child(detail)
             .when(Boolean(login), (el) => el.child(h_flex().gap(8).items_center()
               .child(div().flex_1().min_w(0).truncate().tooltip(command).text_size(11).text_color(t.muted).child(command))
-              .child(button(h_flex(), t, false).bg(t.raised).id("toast-login-copy").flex_none().h(20).px(7).items_center()
-                .cursor_pointer().hover(s => s.text_color(t.foreground))
-                .on_click((_e, cx) => { cx.stop_propagation(); cx.write_to_clipboard(command); this.copied = true; cx.notify(); })
-                .child(div().text_size(9.5).font_bold().text_color(this.copied ? t.done : t.accent).child(this.copied ? "COPIED" : "COPY"))))),
+              .child(action(t, "toast-login-copy", this.copied ? "Copied" : "Copy", false, (_e, cx) => { cx.stop_propagation(); cx.write_to_clipboard(command); this.copied = true; cx.notify(); })))),
         ));
   }
 }

@@ -25,7 +25,6 @@ const WINDOWS = [
   ["seven_day", "7d", "Weekly limit"],
 ];
 
-// A Pixel HQ gauge: 5 square segments, lit by the fraction used.
 function gauge(fraction, fill, track) {
   const lit = fraction > 0 ? Math.ceil(Math.min(1, fraction) * 5) : 0;
   return h_flex().flex_none().gap(1).children([0, 1, 2, 3, 4].map((i) => div().w(4).h(8).rounded(1).bg(i < lit ? fill : track)));

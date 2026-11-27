@@ -1,13 +1,12 @@
 import { div, svg, image } from "gpui-kit";
 import { v_flex, h_flex, ScrollHandle, TextView } from "gpui-base";
 import { props, closeOverlay, theme, shared } from "herdr";
-import { GH, FINAL, open } from "./github.js";
-import { ago, avatar, colorOf, epic, openStatus, pick, statusChip } from "./board.js";
+import { GH, FINAL, open, stateMarks } from "./github.js";
+import { ago, avatar, colorOf, epic, openStatus, pick, statusChip, statusLegend } from "./board.js";
 import { REVIEW_WORD, canCache, cacheImage, fetchPreview, loadAvatars, pruneCache } from "./preview-data.js";
 import { fetchJiraPreview } from "./jira-data.js";
 import { GREEN, PRIORITY_COLOR, RED, TYPE_COLOR, YELLOW, hue } from "./jira.js";
-import { chip, darkOf, keyPanel } from "./pixel.js";
-import { stateMarks } from "./links.js";
+import { chip, darkOf, helpKey, keyPanel } from "./pixel.js";
 
 const CHECK_COLOR = { failed: RED, running: YELLOW, passed: GREEN };
 const REVIEW_COLOR = { APPROVED: GREEN, CHANGES_REQUESTED: RED };
@@ -78,12 +77,7 @@ function go(view, i) {
 
 function key(view, e, cx) {
   const m = e.modifiers;
-  // The ? panel takes every key; ? or esc closes it.
-  if (view.help) {
-    if (e.key === "escape" || e.key === "?" || (e.key === "/" && m.shift)) view.help = false;
-    return true;
-  }
-  if ((e.key === "?" || (e.key === "/" && m.shift)) && !m.control && !m.platform) return (view.help = true), true;
+  if (helpKey(view, e)) return true;
   const linked = view.blocks?.[view.at]?.preview;
   // ↵ previews a linked Jira issue, ^O goes back, as vim's jump list does.
   if (e.key === "enter" && !m.control && !m.alt && !m.platform && linked) return view.trail.push({ url: view.url, at: view.at }), (view.url = linked), load(view, cx), true;
@@ -304,16 +298,14 @@ function helpPanel(d, t, dark) {
     ? [
       [h_flex().gap(4).children(["Bug", "Story", "Task", "Epic"].map((k) => div().size(10).rounded(2).bg(colorOf(TYPE_COLOR, k, dark, t)))), "type: bug, story, task, epic"],
       [h_flex().gap(4).children(["High", "Medium", "Low", "Lowest"].map((p) => div().size(8).rounded(2).bg(colorOf(PRIORITY_COLOR, p, dark, t)))), "priority: high, medium, low, lowest"],
-      [statusChip("To Do", "new", t, dark), "status: not started"],
-      [statusChip("In Progress", "indeterminate", t, dark), "status: in progress"],
-      [statusChip("Done", "done", t, dark), "status: done"],
+      ...statusLegend(t, dark),
       [text("is blocked by", pick(RED, dark)), "an open issue blocks it"],
       [div().text_size(12).text_color(t.dim).line_through().child("ABC-12"), "the linked issue is done"],
       [epic("Epic", hue("ABC-1", t), t), "parent"],
       [chip("label", t.muted), "label"],
     ]
     : [
-      ...stateMarks(t, dark),
+      ...stateMarks(t),
       [text("approved", pick(REVIEW_COLOR.APPROVED, dark)), "a review approved it"],
       [text("changes", pick(REVIEW_COLOR.CHANGES_REQUESTED, dark)), "a review asks for changes"],
       [text("failed", pick(CHECK_COLOR.failed, dark)), "a check failed; a click opens it"],

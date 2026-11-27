@@ -1,6 +1,4 @@
-// A pane's header in the Pixel HQ style (cloned from Herdr's pane mod): the program, the folder, the status.
-// The session title, which the tab already shows, only tells split panes apart.
-// Buttons split, zoom and close this pane on hover. Props from the app: { pane, terminal }.
+// A pane's header, cloned from Herdr's pane mod. The session chip shows only in a split: the tab already shows it.
 
 import { View, div, svg, image } from "gpui-kit";
 import { h_flex } from "gpui-base";
@@ -91,7 +89,7 @@ export default class Pane extends View {
       .on_click(() => run("pane.focus", { pane }))
       .when(Boolean(pic), (el) => el.child(pic))
       .child(div().flex_none().truncate().max_w(200).font_semibold().text_color(t.foreground).child(name))
-      .when(Boolean(session), (el) => el.child(div().min_w(0).max_w(360).flex_shrink(1).child(chip(session, t.accent).max_w(360).truncate().font_medium().text_size(10.5).text_color("#b4befe"))))
+      .when(Boolean(session), (el) => el.child(div().min_w(0).flex_shrink(1).child(chip(session, "#b4befe").max_w(360).truncate())))
       .child(div().id(`ph-where-${pane}`).flex_1().min_w(0).truncate().text_color(t.dim).tooltip([folder(p.cwd), p.branch].filter(Boolean).join(" · "))
         .child(folder(p.cwd)))
       .when(this.hovered, el => el

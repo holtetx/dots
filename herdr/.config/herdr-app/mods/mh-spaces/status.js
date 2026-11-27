@@ -1,14 +1,11 @@
-// The status dialog (s on a Jira card or in its preview; openStatus in board.js): the statuses
-// Jira's workflow allows a move to. 1-9 or ↵ makes one, sets shared("jira.moved") and closes.
-// Its own dialog, so esc never reaches the board under it.
-// A mh-spaces overlay with props { status: key, url, title, from: { id, name, category }, back }.
+// The status dialog (s on a Jira card or in its preview), a mh-spaces overlay { status: key, url, title, from: { id, name, category }, back }.
 
 import { div } from "gpui-kit";
 import { v_flex, h_flex, ScrollHandle } from "gpui-base";
 import { props, closeOverlay, setShared, theme } from "herdr";
 import { jiraTransition, jiraTransitions } from "./jira-data.js";
-import { statusChip } from "./board.js";
-import { darkOf, keyPanel } from "./pixel.js";
+import { statusChip, statusLegend } from "./board.js";
+import { darkOf, helpKey, keyPanel } from "./pixel.js";
 
 export function statusInit(view, cx) {
   const { status: issue, from } = props();
@@ -56,13 +53,8 @@ function move(view, cx) {
 
 function key(view, e, cx) {
   const m = e.modifiers;
-  // The ? panel takes every key; ? or esc closes it.
-  if (view.help) {
-    if (e.key === "escape" || e.key === "?" || (e.key === "/" && m.shift)) view.help = false;
-    return true;
-  }
+  if (helpKey(view, e)) return true;
   if (m.control || m.alt || m.platform) return false;
-  if (e.key === "?" || (e.key === "/" && m.shift)) return (view.help = true), true;
   if (e.key === "escape") return closeOverlay(props().overlay), true;
   if (e.key === "enter") return move(view, cx), true;
   if (/^[1-9]$/.test(e.key) && view.rows[Number(e.key) - 1]) return (view.at = Number(e.key) - 1), move(view, cx), true;
@@ -114,6 +106,6 @@ export function statusRender(view) {
     .child(h_flex().flex_none().justify_end().text_size(11).text_color(t.dim).child("? keys · esc close"))
     .when(Boolean(view.help), (el) => el.child(keyPanel(t, [
       ["KEYS", [["j k ↓ ↑", "choose"], ["↵", "move to it"], ["1-9", "move to that status"], ["esc", "close"]]],
-      ["MARKS", [[statusChip("To Do", "new", t, dark), "not started"], [statusChip("In Progress", "indeterminate", t, dark), "in progress"], [statusChip("Done", "done", t, dark), "done"]]],
+      ["MARKS", statusLegend(t, dark)],
     ])));
 }

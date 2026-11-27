@@ -1,22 +1,13 @@
-// The tasks list (ctrl-a t): every PR and issue a Claude session had linked
-// (by hand, through its space, or found by mh-spaces), on any machine, each with those
-// sessions under it. mh-spaces keeps them in each machine's mh-tasks document and shares
-// them as shared("tasks.sessions"); running ones add their links now. ↵ opens a task, goes
-// to a running session or resumes an ended one where it ran; ⌘↵ brings one from another
-// machine here first; ^D forgets an ended one's link; ⌃space previews a task (mh-spaces' preview).
-// A mh-sessions overlay with props { tasks: true }. With { url, parent?, start?, item? } it's that
-// task's sessions only, the board's (ctrl-a T) session picker, and new ones to start in its
-// repos (start: { repos, branch, name }, where shared("board.places") has them);
-// picking one closes `parent` too.
+// The tasks list (ctrl-a t): PRs and issues Claude sessions had linked, each with those sessions under it.
 
 import { div, svg } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, ScrollHandle } from "gpui-base";
 import { agents, terminals, shared, setShared, props, run, exec, closeOverlay, openOverlay } from "herdr";
 import { ago, base, bring, label, missing, resume, startNew, worktree } from "./sessions.js";
-import { darkOf, frame, keyPanel, mark } from "./pixel.js";
+import { darkOf, frame, helpKey, keyPanel, mark, panelKeys, statusMarks } from "./pixel.js";
 
 const ICON = (name) => `mods/workspace-chrome/${name}.svg`;
-// mh-spaces/github.js's: GitHub's colors, [light, dark].
+// Catppuccin [Latte, Mocha] pairs, as in mh-spaces/jira.js.
 const GREEN = ["#40a02b", "#a6e3a1"], PURPLE = ["#8839ef", "#cba6f7"], GRAY = ["#7c7f93", "#9399b2"];
 const GH = {
   open: { icon: "mods/mh-spaces/git-pull-request.svg", color: GREEN, label: "Open" },
@@ -31,7 +22,6 @@ const GH = {
 const FINAL = new Set(["merged", "closed", "issue-done", "issue-skip"]);
 const FALLBACK = { pr: GH.open.icon, issue: GH["issue-open"].icon };
 
-export const statusMarks = (t) => h_flex().gap(6).items_center().children(["working", "blocked", "done"].map((s) => mark(s, t)));
 const idleDot = (t) => div().size(6).rounded_full().bg(t.dim);
 const stateIcons = (dark, ...states) => h_flex().gap(6).items_center().children(states.map((k) => svg(GH[k].icon).size(13).text_color(GH[k].color[dark ? 1 : 0])));
 
@@ -318,8 +308,9 @@ export function taskRender(view, t) {
     .id("tasks")
     .relative()
     .track_focus(view.handle)
+    .map((el) => panelKeys(el, Boolean(view.help)))
     .on_key_down((e, cx) => {
-      if (view.helpKey(e, cx)) return;
+      if (helpKey(view, e, view.input, !view.text)) return cx.stop_propagation(), cx.notify();
       const count = view.rows.length;
       const ctrl = e.modifiers.control && !e.modifiers.platform && !e.modifiers.alt && !e.modifiers.shift;
       const down = e.key === "down" || (ctrl && (e.key === "j" || e.key === "n"));

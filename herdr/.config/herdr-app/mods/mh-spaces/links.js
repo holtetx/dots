@@ -3,21 +3,15 @@
 import { div, svg } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, ScrollHandle } from "gpui-base";
 import { props, closeOverlay, theme, spaces, panes, agents, terminals, exec, shared, setShared } from "herdr";
-import { GH, badge, expand, githubRepo, open, openPrs, resolve } from "./github.js";
+import { GH, badge, expand, githubRepo, open, openPrs, resolve, stateMarks } from "./github.js";
 import { editLinks, forgetHistory, linksOf, split } from "./docs.js";
-import { bindPanelKeys, darkOf, frame, keyPanel, panelKeys, spinner } from "./pixel.js";
+import { bindPanelKeys, darkOf, frame, helpKey, keyPanel, panelKeys, spinner } from "./pixel.js";
 import { GREEN, RED } from "./jira.js";
 
 const spaceOf = () => spaces().find((s) => s.id === props()?.link);
 const agentOf = () => agents().find((a) => a.address === props()?.agent);
 const nameOf = (a) => a.tab_name || a.title || a.address;
 const targetOf = () => (props()?.agent ? { agent: props().agent } : { space: props()?.link });
-
-// The PR and issue state icons, for the ? panels here and in the preview.
-export const stateMarks = (t, dark) => [
-  [["open", "draft", "queued", "merged", "closed"], "PR: open, draft, merge queued, merged, closed"],
-  [["issue-open", "issue-done", "issue-skip"], "issue: open, closed, not planned"],
-].map(([states, text]) => [h_flex().gap(6).children(states.map((s) => svg(GH[s].icon).size(12).text_color(GH[s].color[dark ? 1 : 0]))), text]);
 
 export function linkInit(view, cx) {
   bindPanelKeys(cx);
@@ -252,11 +246,7 @@ export function linkRender(view) {
       const m = e.modifiers;
       const ctrl = m.control && !m.platform && !m.alt && !m.shift;
       const count = view.rows.length;
-      const ask = (e.key === "?" || (e.key === "/" && m.shift)) && !m.control && !m.platform;
-      // The ? panel takes every key; ? or esc closes it. ? types in a field with text.
-      if (view.help || (ask && !view.input.value())) {
-        if (!view.help) (view.help = true), view.handle.focus();
-        else if (e.key === "escape" || ask) (view.help = false), view.input.focus();
+      if (helpKey(view, e, view.input, !view.input.value())) {
         cx.stop_propagation();
         return cx.notify();
       }
@@ -291,7 +281,7 @@ export function linkRender(view) {
         ["^D", "unlink, or hide or show a found one"], ["type", "filter the open PRs"], ["?", "this list, in an empty field"], ["esc", "close"],
       ]],
       ["MARKS", [
-        ...stateMarks(t, dark),
+        ...stateMarks(t),
         [svg("mods/workspace-chrome/check.svg").size(10).text_color(GREEN[dark ? 1 : 0]), "after the icon: approved"],
         [svg("mods/mh-spaces/file-diff.svg").size(10).text_color(RED[dark ? 1 : 0]), "after the icon: changes requested"],
         [div().relative().child(svg(GH.open.icon).size(11).text_color(t.dim)).child(div().absolute().top(-2).right(-3).size(4).bg(t.ansi3)), "new activity since you last opened it"],
