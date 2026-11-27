@@ -34,19 +34,21 @@ export function checksInit(view, cx) {
   view.sel = null; // the selected row's key (rowKey)
   view.rows = []; // the rows as last drawn
   view.focusSeen = shared("checks.focus");
-  // ctrl-a c (mh-tabs) asks for the keyboard through shared("checks.focus"), also for a copy it just started.
-  // Herdr has no command to focus a block: pane.go right until this, the rightmost one, has it, so alt-hjkl start here.
+  // Herdr's focus (its border, where alt-hjkl start) moves only with pane.go, which sends "focus" here.
+  // Herdr has no command to focus a block, so ctrl-a c (shared("checks.focus"), also for a copy it just started)
+  // and a click step pane.go right until it lands on this, the rightmost block.
+  view.herdrFocus = false;
   view.tries = Date.now() - (view.focusSeen ?? 0) < 2000 ? 6 : 0;
   cx.timer.every(1000, (cx) => tick(view, cx));
   cx.timer.every(150, (cx) => {
     const ask = shared("checks.focus");
     if (ask !== view.focusSeen) { view.focusSeen = ask; view.tries = 6; }
-    if (view.tries > 0) view.tries = view.handle.is_focused() ? 0 : (run("pane.go", { direction: "right" }), view.tries - 1);
+    if (!view.handle.is_focused() && !view.tries) view.herdrFocus = false;
+    if (view.tries > 0) view.tries = view.herdrFocus ? 0 : (run("pane.go", { direction: "right" }), view.tries - 1);
     if (view.handle.is_focused() !== view.wasFocused) { view.wasFocused = view.handle.is_focused(); cx.notify(); }
   });
-  // alt-hjkl onto the panel (focusable in mod.json).
   cx.spawn(async (cx) => {
-    for (;;) if ((await nextCommand()) === "focus") { view.handle.focus(); cx.notify(); }
+    for (;;) if ((await nextCommand()) === "focus") { view.herdrFocus = true; view.handle.focus(); cx.notify(); }
   });
 }
 
@@ -218,7 +220,7 @@ export function checksRender(view) {
       cx.stop_propagation();
       cx.notify();
     })
-    .on_mouse_down("left", () => view.handle.focus())
+    .on_mouse_down("left", () => { view.handle.focus(); if (!view.herdrFocus) view.tries = 6; })
     .child(h_flex().h(31).flex_none().px(16).gap(8).items_center().text_size(11.5).text_color(t.dim)
       .child(div().font_semibold().child("CHECKS"))
       .child(div().flex_1())
