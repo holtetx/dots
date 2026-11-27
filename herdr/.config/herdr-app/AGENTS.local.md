@@ -25,7 +25,7 @@ Inspired by Pixel HQ (github.com/bnhan2710/pixel-hq), built by hand.
 - Sidebar: folders use Pixel HQ's metro line colors (`MARK` in `folders.js` and its copies). Under a folder's name, its checkout's branch on a faint tint of the folder's color, with no outline (`branchLine()`; `checkoutBranch()` picks the one most of its spaces share). The track is a solid, softened version of the folder's color (`soften()`) and ends at the last station. A station per space is framed in the folder's color and filled with its status color while an agent is busy (working pulses slowly and keeps its spinner on the right, blocked pulses fast); the shown space has a light core. A row gets a second line only with something of its own: the space name when the title is a session and no folder names it, a branch other than the folder's (a worktree), `N agents` from 2. A space with two or more busy agents gets count chips. Subagent rows sit on the track with a blue spinner.
 - A PR with new activity has a small yellow square on its icon (sidebar and board).
 - The footer's limits are 5-segment gauges. `mh-tabs` sets the Dock badge to the number of agents that need you.
-- Fixed colors: GitHub and Jira states are Catppuccin pairs `[Latte, Mocha]`, defined once in `mods/mh-spaces/jira.js`.
+- Folder and space colors: `MARK` (folders.js and its copies in mh-sessions, mh-picker, mh-panes), 12 soft colors; new spaces get one of the first 6. Fixed colors: GitHub and Jira states are Catppuccin pairs `[Latte, Mocha]`, defined once in `mods/mh-spaces/jira.js`.
 
 ## Where state lives
 

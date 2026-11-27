@@ -11,7 +11,7 @@ const titleOf = (ctx, mine) => (ctx.named ? ctx.name : null)
   || mine.map((a) => [(a.title ?? "").replace(/^[^\p{L}\p{N}]+/u, "").trim(), a.program?.name]).find(([x, prog]) => x && x !== prog)?.[0]
   || ctx.name;
 
-const MARK = { ansi6: "#6fc7bd", ansi3: "#8fa3f0", ansi4: "#7aa7e8", ansi5: "#b394f0", ansi2: "#8fcf94", ansi1: "#e49ac8" };
+const MARK = { ansi6: "#6fc7bd", ansi3: "#8fa3f0", ansi4: "#7aa7e8", ansi5: "#b394f0", ansi2: "#8fcf94", ansi1: "#e49ac8", yellow: "#e6c98a", peach: "#eaa37f", red: "#e3889a", sky: "#7cc4e0", sand: "#c9b28f", slate: "#9aa5c4" };
 
 // Space colors, kept by space id in shared "space.colors": a theme
 // color name ("ansi6") or a picked #rrggbb. A space seen without one gets

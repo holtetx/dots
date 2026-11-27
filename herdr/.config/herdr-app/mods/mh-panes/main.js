@@ -10,7 +10,7 @@ import { v_flex, h_flex, InputState, Input } from "gpui-base";
 import { spaces, panes, shared, props, run, hc, theme, notify, closeOverlay } from "herdr";
 import { bindPanelKeys, frame, helpKey, ink, keyPanel, panelKeys } from "./pixel.js";
 
-const MARK = { ansi6: "#6fc7bd", ansi3: "#8fa3f0", ansi4: "#7aa7e8", ansi5: "#b394f0", ansi2: "#8fcf94", ansi1: "#e49ac8" };
+const MARK = { ansi6: "#6fc7bd", ansi3: "#8fa3f0", ansi4: "#7aa7e8", ansi5: "#b394f0", ansi2: "#8fcf94", ansi1: "#e49ac8", yellow: "#e6c98a", peach: "#eaa37f", red: "#e3889a", sky: "#7cc4e0", sand: "#c9b28f", slate: "#9aa5c4" };
 
 const hex = () => Array.from({ length: 32 }, () => ((Math.random() * 16) | 0).toString(16)).join("");
 const machineOf = (id) => (id.includes("/") ? id.split("/")[0] : null);

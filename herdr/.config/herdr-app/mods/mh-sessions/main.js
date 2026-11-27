@@ -10,7 +10,7 @@ import { taskInit, taskRender } from "./tasks.js";
 const LIST = 440;
 const ICON = (name) => `mods/workspace-chrome/${name}.svg`;
 // Space avatar colors, as the mh-spaces sidebar draws them.
-const MARK = { ansi6: "#6fc7bd", ansi3: "#8fa3f0", ansi4: "#7aa7e8", ansi5: "#b394f0", ansi2: "#8fcf94", ansi1: "#e49ac8" };
+const MARK = { ansi6: "#6fc7bd", ansi3: "#8fa3f0", ansi4: "#7aa7e8", ansi5: "#b394f0", ansi2: "#8fcf94", ansi1: "#e49ac8", yellow: "#e6c98a", peach: "#eaa37f", red: "#e3889a", sky: "#7cc4e0", sand: "#c9b28f", slate: "#9aa5c4" };
 
 const avatar = (color, title, t) => {
   const fill = color.startsWith("#") ? color : (MARK[color] ?? t[color]);
