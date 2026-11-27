@@ -112,9 +112,6 @@ function loadState() {
   }
 }
 
-// The open board, which ctrl-a T closes again.
-let boardOverlay = null;
-
 // The link dialog for a space, or for one of its agents.
 function openLinks(id, agent) {
   if (id) openOverlay({ mod: "mh-spaces", kind: "dialog", width: 560, height: 0.7, props: { link: id, ...(agent && { agent }) } });
@@ -182,7 +179,8 @@ export default class Spaces extends View {
       for (;;) {
         // "link": the focused agent's, else the space's; "link-space": the space's.
         const command = await nextCommand();
-        if (command === "board") boardOverlay = boardOverlay ? closeOverlay(boardOverlay) : openOverlay({ mod: "mh-spaces", kind: "dialog", width: 0.8, height: 0.8, props: { board: true } });
+        // Shared, as the tasks list's: the board is another copy of this mod, and Esc closes it there.
+        if (command === "board") setShared("board.overlay", shared("board.overlay") ? closeOverlay(shared("board.overlay")) : openOverlay({ mod: "mh-spaces", kind: "dialog", width: 0.8, height: 0.8, props: { board: true } }));
         // The tasks list (mh-sessions) clears shared("tasks.overlay") when it closes.
         if (command === "tasks") setShared("tasks.overlay", shared("tasks.overlay") ? closeOverlay(shared("tasks.overlay")) : openOverlay({ mod: "mh-sessions", kind: "dialog", width: 680, height: 0.7, props: { tasks: true } }));
         if (command === "new-session") this.newSession();
@@ -214,7 +212,7 @@ export default class Spaces extends View {
   }
 
   close() {
-    if (props()?.board) boardOverlay = null;
+    if (props()?.board) setShared("board.overlay", null);
     if (props()?.preview || props()?.status || props()?.create) setShared(props().back, Date.now());
   }
 
