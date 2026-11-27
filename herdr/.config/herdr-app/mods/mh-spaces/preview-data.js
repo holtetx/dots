@@ -1,6 +1,7 @@
 import { appHome, exec, readTextFile } from "herdr";
 import * as fs from "fs/promises";
 import { graphql, stateOf } from "./github.js";
+import { CHECKS, checksOf } from "./checks-data.js";
 
 const WHO = "author { login __typename }";
 const TEXT = `${WHO} body bodyHTML url createdAt`;
@@ -11,31 +12,11 @@ const PR = `${COMMON} isDraft isInMergeQueue reviewDecision mergeStateStatus hea
   reviews(last: 30) { nodes { ${TEXT} state } }
   reviewThreads(last: 50) { nodes { isResolved path line comments(first: 20) { nodes { ${TEXT} } } } }
   closingIssuesReferences(first: 10) { nodes { url number title } }
-  commits(last: 1) { nodes { commit { statusCheckRollup { contexts(first: 100) { nodes { __typename
-    ... on CheckRun { name status conclusion detailsUrl startedAt checkSuite { workflowRun { workflow { name } } } }
-    ... on StatusContext { context state targetUrl createdAt } } } } } } }`;
+  ${CHECKS}`;
 const ISSUE = `${COMMON} stateReason closedByPullRequestsReferences(first: 10, includeClosedPrs: true) { nodes { url number title } }`;
 
-const RUN = { SUCCESS: "passed", NEUTRAL: "skipped", SKIPPED: "skipped", STALE: "skipped" };
-const STATUS = { SUCCESS: "passed", PENDING: "running", EXPECTED: "running" };
-const CHECK_ORDER = { failed: 0, running: 1, passed: 2, skipped: 3 };
 const MERGE = { BEHIND: "behind base", DIRTY: "conflicts", BLOCKED: "blocked", UNSTABLE: "checks failing", CLEAN: "ready to merge", HAS_HOOKS: "ready to merge" };
 export const REVIEW_WORD = { APPROVED: "approved", CHANGES_REQUESTED: "changes", COMMENTED: "commented", DISMISSED: "dismissed", PENDING: "pending" };
-
-function checksOf(n) {
-  const list = n.commits?.nodes?.[0]?.commit?.statusCheckRollup?.contexts?.nodes ?? [];
-  const newest = {};
-  for (const c of list) {
-    const run = c.__typename === "CheckRun";
-    const it = run
-      ? { name: c.name, url: c.detailsUrl, state: c.status !== "COMPLETED" ? "running" : RUN[c.conclusion] ?? "failed", at: Date.parse(c.startedAt) || Infinity }
-      : { name: c.context, url: c.targetUrl, state: STATUS[c.state] ?? "failed", at: Date.parse(c.createdAt) || Infinity };
-    const key = `${run ? c.checkSuite?.workflowRun?.workflow?.name ?? "" : "status"}/${it.name}`;
-    if (!newest[key] || it.at >= newest[key].at) newest[key] = it;
-  }
-  return Object.values(newest)
-    .sort((a, b) => CHECK_ORDER[a.state] - CHECK_ORDER[b.state] || a.name.localeCompare(b.name));
-}
 
 const unescape = (s) => s.replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, "<").replace(/&gt;/g, ">");
 const MEDIA = /!\[[^\]]*\]\(<?(\S+?)>?(?:\s+"[^"]*")?\)|<img\b[^>]*?\bsrc=["']([^"']+)["'][^>]*>|^[ \t]*(https:\/\/github\.com\/user-attachments\/assets\/\S+)[ \t]*$/gm;

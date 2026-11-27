@@ -17,17 +17,11 @@ import { previewInit, previewRender } from "./preview.js";
 import { statusInit, statusRender } from "./status.js";
 import { createInit, createRender } from "./create.js";
 import { barInit, barRender } from "./bar.js";
+import { checksInit, checksRender } from "./checks.js";
+import { find } from "./find.js";
 import { telling } from "./title.js";
 import { discoverRepos } from "./board-data.js";
 
-function find(node, id) {
-  if (node?.id === id) return node;
-  for (const child of node?.children ?? []) {
-    const found = find(child, id);
-    if (found) return found;
-  }
-  return null;
-}
 
 // The sidebar's rail goes by its width, not a flag: dragging its edge narrows it too.
 const narrow = () => (find(layout(), "sidebar")?.size?.px ?? Infinity) < 160;
@@ -133,6 +127,7 @@ export default class Spaces extends View {
     if (props()?.status) return statusInit(this, cx);
     if (props()?.create) return createInit(this, cx);
     if (props()?.bar) return barInit(this, cx);
+    if (props()?.checks) return checksInit(this, cx);
     this.git = {}; // where() -> { name, branch, ahead, behind, repo, linked, gh: "owner/repo" }, null: not a repo
     this.checked = {}; // where() -> when it was last looked at
     this.unsure = new Set(); // where()s git couldn't answer for (a machine away)
@@ -1348,6 +1343,7 @@ export default class Spaces extends View {
     if (props()?.status) return statusRender(this);
     if (props()?.create) return createRender(this);
     if (props()?.bar) return barRender(this);
+    if (props()?.checks) return checksRender(this);
     const t = theme();
     const collapsed = narrow();
     const palette = ["ansi6", "ansi3", "ansi4", "ansi5", "ansi2", "ansi1"];

@@ -5,6 +5,7 @@ import { GH, FINAL, open, stateMarks } from "./github.js";
 import { ago, avatar, colorOf, epic, openStatus, pick, statusChip, statusLegend } from "./board.js";
 import { REVIEW_WORD, canCache, cacheImage, fetchPreview, loadAvatars, pruneCache } from "./preview-data.js";
 import { fetchJiraPreview } from "./jira-data.js";
+import { countLine } from "./checks-data.js";
 import { GREEN, PRIORITY_COLOR, RED, TYPE_COLOR, YELLOW, hue } from "./jira.js";
 import { chip, darkOf, helpKey, keyPanel } from "./pixel.js";
 
@@ -215,8 +216,7 @@ function header(d, view, t, dark) {
 }
 
 function status(d, t, dark) {
-  const count = (state) => d.checks.filter((c) => c.state === state).length;
-  const sum = ["failed", "running", "passed", "skipped"].map((s) => count(s) && `${count(s)} ${s}`).filter(Boolean).join(", ");
+  const sum = countLine(d.checks);
   return v_flex().gap(6)
     .child(h_flex().gap(10).flex_wrap().text_size(12)
       .child(div().font_semibold().text_color(t.dim).child("REVIEWS"))

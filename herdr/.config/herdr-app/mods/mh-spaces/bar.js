@@ -4,7 +4,7 @@ import { div, svg } from "gpui-kit";
 import { h_flex } from "gpui-base";
 import { agents, exec, focused, run, shared, theme, window as appWindow } from "herdr";
 import { WORDS } from "./pixel.js";
-import { badge, unknown } from "./github.js";
+import { badge, branchPr, prsOf } from "./github.js";
 
 // shortcut: polls the shown repo every 5 s instead of watching its files; switch to watchFolder if it lags.
 const EVERY = 5000;
@@ -19,14 +19,11 @@ const stat = (rows, untracked = 0) => {
 };
 const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
-const prsOf = (id, gh) => (gh.shown?.spaces?.[id] ?? []).filter((u) => (gh.items?.[u] ?? unknown(u, 0)).kind === "pr");
 
 // The branch's PR says what it was made from, so a stacked branch compares with its parent.
 function prBase(id, g) {
-  const gh = shared("github") ?? {};
   if (g.base) return `origin/${g.base}`;
-  const mine = prsOf(id, gh).map((u) => gh.items?.[u]).filter((it) => it?.branch === g.branch && it.base && it.repo?.toLowerCase() === g.gh?.toLowerCase());
-  const it = mine.find((it) => it.state === "open") ?? mine[0];
+  const it = branchPr(id, g, shared("github") ?? {});
   return it ? `origin/${it.base}` : null;
 }
 

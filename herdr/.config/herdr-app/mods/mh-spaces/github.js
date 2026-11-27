@@ -80,6 +80,15 @@ function tipOf(it, s) {
   return [`${it.repo}#${it.number ?? "?"}`, s?.label, reviewOf(it)?.label, unreadOf(it) && "New activity", it.title].filter(Boolean).join(" · ");
 }
 
+// The PR URLs a space's sidebar row shows.
+export const prsOf = (id, gh) => (gh.shown?.spaces?.[id] ?? []).filter((u) => (gh.items?.[u] ?? unknown(u, 0)).kind === "pr");
+
+// The PR of a space's branch (`g` from shared("git.spaces")), an open one first, or null.
+export function branchPr(id, g, gh) {
+  const mine = prsOf(id, gh).map((u) => gh.items?.[u]).filter((it) => it?.branch === g.branch && it.base && it.repo?.toLowerCase() === g.gh?.toLowerCase());
+  return mine.find((it) => it.state === "open") ?? mine[0] ?? null;
+}
+
 // `urls`, then what they bring along: a PR's issues and an issue's PRs (`related`).
 // One hop only. [{ url, via }], via: the URL it came with, null for those in `urls`.
 export function expand(urls, items, { related = true } = {}) {

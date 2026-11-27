@@ -74,6 +74,13 @@ A space takes its git info from the folder of its first tab, or from that termin
 
 The `git` block under the terminal is `mh-spaces` with props `{ bar: true }` (`mods/mh-spaces/bar.js`). It shows the shown space's branch, ahead/behind, uncommitted changes and PR badges. Branch and ahead/behind come from the sidebar copy through `shared("git.spaces")`. The bar polls the changes itself every 5 s. The branch diff compares with the base of the branch's PR (stacked branches), else with `origin/HEAD`. A mod can not import from another mod's folder, so the bar lives in `mh-spaces` to reuse `badge()` from `github.js`.
 
+## Checks panel (CHECKS in the tab bar)
+
+- The side panel's `checks` block is `mh-spaces` with props `{ checks: true }` (`mods/mh-spaces/checks.js`). It shows the CI checks of the shown space's PR: the branch's PR (`branchPr()` in `github.js`), else the space's first open PR. Failed first, then running, passed, skipped. A click opens the check's log.
+- It asks GitHub every 30 s, only while the panel shows CHECKS and the window is visible. Data and the query: `checks-data.js` (no Herdr imports; the preview uses it too). Test: `node mods/mh-spaces/checks.test.mjs`.
+- FIX on a failed check sends a prompt with `hc send` to the space's Claude: the focused one, else the one that changed last. It does not focus it. With no Claude in the space, FIX is dimmed. SENT stays until the check runs again.
+- Not done: auto-fix, auto-merge, a toast on a failed check, a re-run button.
+
 ## Board (`ctrl-a T`)
 
 Choices the owner made. Do not change them without a question.

@@ -117,6 +117,16 @@
                       "content": {
                         "mod": "changes"
                       }
+                    },
+                    {
+                      "id": "checks",
+                      "type": "block",
+                      "content": {
+                        "mod": "mh-spaces",
+                        "props": {
+                          "checks": true
+                        }
+                      }
                     }
                   ],
                   "active": "files"
