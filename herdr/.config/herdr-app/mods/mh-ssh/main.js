@@ -10,6 +10,7 @@ import { v_flex, h_flex, InputState, Input, ScrollHandle } from "gpui-base";
 import { spaces, terminals, theme, props, run, exec, home, appHome, readTextFile, shared, closeOverlay, notify } from "herdr";
 import { covers, readHosts } from "./hosts.js";
 import { bindPanelKeys, frame, helpKey, keyPanel, panelKeys } from "./pixel.js";
+import { track, trackKey, trackSubmit } from "./stats.js";
 
 const LIST = 440;
 const FEW = 10; // at most this many hosts: list them all before typing
@@ -66,6 +67,7 @@ while :; do rm -f "$1"; ssh -o ControlMaster=yes -o ControlPath="$1" "$2"; [ $? 
 
 export default class Ssh extends View {
   init(_props, cx) {
+    track("mh-ssh.open", "open");
     this.handle = cx.focus_handle();
     this.handle.focus();
     bindPanelKeys(cx);
@@ -79,7 +81,7 @@ export default class Ssh extends View {
       this.at = 0;
       cx.notify();
     });
-    this.input.on("submit", (e) => this.go(this.items()[this.at], e.secondary));
+    this.input.on("submit", (e) => { trackSubmit("mh-ssh", e); this.go(this.items()[this.at], e.secondary); });
     this.input.focus();
     cx.spawn(async (cx) => {
       this.hosts = [...(await loadHosts()).values()];
@@ -130,7 +132,7 @@ export default class Ssh extends View {
         .cursor_pointer()
         .when(i === this.at, (el) => el.bg(t.selected))
         .when(i !== this.at, (el) => el.hover((st) => st.bg(t.hover)))
-        .on_click(() => this.go(h))
+        .on_click(() => { track("mh-ssh.click", "click"); this.go(h); })
         .child(svg(ICON("server")).size(13).flex_none().text_color(t.dim))
         .child(div().flex_none().text_color(t.foreground).child(h.alias))
         .child(div().flex_1().min_w(0).truncate().text_size(11.5).text_color(t.dim).child(h.note));
@@ -142,6 +144,7 @@ export default class Ssh extends View {
       .track_focus(this.handle)
       .map((el) => panelKeys(el, Boolean(this.help)))
       .on_key_down((e, cx) => {
+        trackKey("mh-ssh", e, true);
         if (helpKey(this, e, this.input, !this.text)) return cx.stop_propagation(), cx.notify();
         const count = items.length;
         const ctrl = e.modifiers.control && !e.modifiers.platform && !e.modifiers.alt && !e.modifiers.shift;

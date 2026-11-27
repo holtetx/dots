@@ -4,6 +4,7 @@ import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, ScrollHandle } from "gpui-base";
 import { spaces, panes, machines, theme, props, run, exec, closeOverlay, nextCommand } from "herdr";
 import { bindPanelKeys, frame, helpKey, keyPanel, panelKeys } from "./pixel.js";
+import { track, trackKey, trackSubmit } from "./stats.js";
 
 const LIST = 440;
 const CAP = 100;
@@ -30,6 +31,7 @@ const shown = () => spaces().find((s) => s.active);
 
 export default class Open extends View {
   init(_props, cx) {
+    track("mh-open.open", "open");
     this.handle = cx.focus_handle();
     this.handle.focus();
     bindPanelKeys(cx);
@@ -47,11 +49,13 @@ export default class Open extends View {
       this.error = "";
       cx.notify();
     });
-    this.input.on("submit", (e, cx) => this.go(this.items()[this.at], e.secondary ? "tab" : e.shift ? "pane" : "space", cx));
+    this.input.on("submit", (e, cx) => { trackSubmit("mh-open", e); this.go(this.items()[this.at], e.secondary ? "tab" : e.shift ? "pane" : "space", cx); });
     this.input.focus();
     cx.spawn(async (cx) => {
       for (;;) {
-        const argv = CLAUDE[await nextCommand()];
+        const command = await nextCommand();
+        track(`mh-open.${command}`, "key");
+        const argv = CLAUDE[command];
         if (argv) this.go(this.items()[this.at], "space", cx, argv);
       }
     });
@@ -153,7 +157,7 @@ export default class Open extends View {
         .cursor_pointer()
         .when(on, (el) => el.bg(t.selected))
         .when(!on, (el) => el.hover((st) => st.bg(t.hover)))
-        .on_click((_e, cx) => this.go(r, "space", cx))
+        .on_click((_e, cx) => { track("mh-open.click", "click"); this.go(r, "space", cx); })
         .child(h_flex().w(14).flex_none().justify_center().child(svg(ICON(r.typed ? "folder-plus" : "folder")).size(13).text_color(t.dim)))
         .child(div().flex_1().min_w(0).truncate().text_color(t.foreground).child(r.typed ? `Open ${r.path}` : label(r.path)))
         .child(div().flex_none().max_w(280).truncate().text_size(11.5).text_color(t.dim).child(r.typed ? (r.machine ? `on ${r.machine}` : "") : parent(r.path)))
@@ -182,6 +186,7 @@ export default class Open extends View {
       .track_focus(this.handle)
       .map((el) => panelKeys(el, Boolean(this.help)))
       .on_key_down((e, cx) => {
+        trackKey("mh-open", e, true);
         if (helpKey(this, e, this.input, !this.text)) return cx.stop_propagation(), cx.notify();
         const count = items.length;
         const ctrl = e.modifiers.control && !e.modifiers.platform && !e.modifiers.alt && !e.modifiers.shift;

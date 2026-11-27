@@ -8,6 +8,7 @@ import { fetchJiraPreview } from "./jira-data.js";
 import { countLine } from "./checks-data.js";
 import { GREEN, PRIORITY_COLOR, RED, TYPE_COLOR, YELLOW, hue } from "./jira.js";
 import { chip, darkOf, helpKey, keyPanel } from "./pixel.js";
+import { track, trackKey } from "./stats.js";
 
 const CHECK_COLOR = { failed: RED, running: YELLOW, passed: GREEN };
 const REVIEW_COLOR = { APPROVED: GREEN, CHANGES_REQUESTED: RED };
@@ -78,6 +79,7 @@ function go(view, i) {
 
 function key(view, e, cx) {
   const m = e.modifiers;
+  trackKey("mh-spaces.preview", e, false);
   if (helpKey(view, e)) return true;
   const linked = view.blocks?.[view.at]?.preview;
   // ↵ previews a linked Jira issue, ^O goes back, as vim's jump list does.
@@ -210,7 +212,7 @@ function header(d, view, t, dark) {
     .child(div().text_size(11.5).text_color(t.dim).child([`${d.author}, ${ago(d.created)} ago`, d.branch, d.size, d.people.length && `assigned: ${d.people.join(", ")}`].filter(Boolean).join(" · ")))
     .when(tags.length > 0, (el) => el.child(h_flex().gap(6).flex_wrap().children(tags)))
     .children(d.linked.map((l) => h_flex().id(`pv-link-${l.url}`).gap(6).text_size(12).cursor_pointer()
-      .on_click((_e, cx) => { view.url = l.url; load(view, cx); })
+      .on_click((_e, cx) => { track("mh-spaces.preview.linked-click", "click"); view.url = l.url; load(view, cx); })
       .child(div().text_color(t.dim).child(d.pr ? "Closes" : "Closed by"))
       .child(div().text_color(t.accent).child(`#${l.number} ${l.title}`))));
 }

@@ -5,6 +5,7 @@ import { v_flex, h_flex, InputState, Input, TextareaState, Textarea } from "gpui
 import { props, closeOverlay, setShared, theme } from "herdr";
 import { createJiraIssue } from "./jira-data.js";
 import { action, button, frame, helpKey, keyPanel } from "./pixel.js";
+import { track, trackKey } from "./stats.js";
 
 const ASSIGNEES = ["No one", "Me"];
 // Tab stops: the two text fields, then the two chip rows on the dialog's own focus.
@@ -45,6 +46,7 @@ function create(view, cx) {
   if (view.busy) return;
   if (view.created) return closeOverlay(props().overlay);
   const title = view.title.value().trim();
+  if (title) track("mh-spaces.create.done", "do");
   if (!title) {
     view.note = "Give it a title.";
     view.failed = true;
@@ -76,6 +78,7 @@ function create(view, cx) {
 function key(view, e, cx) {
   const m = e.modifiers;
   const field = view.stop < 2 ? focusOf(view) : null;
+  trackKey("mh-spaces.create", e, Boolean(field));
   if (helpKey(view, e, field, !field?.value())) return true;
   if (e.key === "escape") return closeOverlay(props().overlay), true;
   if (e.key === "enter" && m.platform) return create(view, cx), true;

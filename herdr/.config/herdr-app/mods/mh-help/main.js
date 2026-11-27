@@ -4,6 +4,7 @@ import { View, div } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input } from "gpui-base";
 import { keys, commands, props, closeOverlay, theme, window, shared } from "herdr";
 import { action, frame } from "./pixel.js";
+import { track } from "./stats.js";
 
 const SESSIONS = "Sessions";
 const SPACES = "Spaces and tabs";
@@ -175,6 +176,7 @@ function rows() {
 
 export default class Help extends View {
   init(_props, cx) {
+    track("mh-help.open", "open");
     this.filter = "";
     this.input = InputState.new({ placeholder: "Type to filter…" });
     this.input.on("change", (_e, cx) => { this.filter = this.input.value(); cx.notify(); });

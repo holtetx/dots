@@ -10,6 +10,7 @@ import { fetchJira, jiraSettings } from "./jira-data.js";
 import { avatars, loadAvatars } from "./preview-data.js";
 import { BLUE, GREEN, PRIORITY_COLOR, RED, TYPE_COLOR, YELLOW, foldKey, hue, initials } from "./jira.js";
 import { bindPanelKeys, button, chip, darkOf, frame, helpKey, keyPanel, panelKeys, spinner } from "./pixel.js";
+import { track, trackKey } from "./stats.js";
 
 const FRESH = 2 * 60000;
 const ICON = (name) => `mods/workspace-chrome/${name}.svg`;
@@ -383,6 +384,7 @@ function searchKey(view, e) {
 }
 
 function key(view, e, cx) {
+  trackKey(`mh-spaces.board.${view.picker ? "picker" : memory.tab}`, e, view.searching);
   if (view.picker) return pickerKey(view, e, cx);
   if (helpKey(view, e, view.searching ? view.input : null, !view.searching || !view.input.value())) return true;
   if (view.searching) return searchKey(view, e);
@@ -519,6 +521,7 @@ const stateIcon = (it, dark, t, size = 13) => {
 };
 
 function select(view, tabId, sel, e, cx, it) {
+  track(`mh-spaces.board.${tabId}.${e.modifiers.control ? "ctrl-click" : e.click_count >= 2 ? "double-click" : "click"}`, "click");
   memory.sel[tabId] = sel;
   view.note = "";
   if (e.modifiers.control) openUrl(it, cx);
@@ -579,6 +582,7 @@ function prRow(view, p, i, on, t, dark) {
       .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
       .on_click((_e, cx) => {
         cx.stop_propagation();
+        track("mh-spaces.board.prs.stack-click", "click");
         toggleStack(p.url);
         // A selected PR the fold hides hands the selection to the root, as h and z do.
         if (view.model.item?.root === p.url) memory.sel.prs = { url: p.url };
@@ -820,7 +824,7 @@ export function boardRender(view) {
   const tabEl = (x, i) => button(h_flex(), t, x.id === tab.id).id(`tab-${x.id}`).flex_none().px(9).py(3).gap(6).items_center().cursor_pointer()
     .text_size(11.5).font_semibold()
     .text_color(x.id === tab.id ? t.foreground : t.muted).hover((s) => s.text_color(t.foreground))
-    .on_click((_e, cx) => { showTab(view, x.id, cx); view.note = ""; cx.notify(); })
+    .on_click((_e, cx) => { track(`mh-spaces.board.tab-${x.id}`, "click"); showTab(view, x.id, cx); view.note = ""; cx.notify(); })
     .child(x.name.toUpperCase())
     .when(countOf(x) != null, (el) => el.child(div().text_size(11).text_color(t.dim).child(String(countOf(x)))))
     .tooltip(i < 9 ? `${i + 1} · tab` : "tab");
@@ -861,7 +865,7 @@ export function boardRender(view) {
       .child(h_flex().flex_none().gap(4).items_center().children(tabs.map(tabEl)))
       .child(div().id("status").flex_none().text_size(11).text_color(t.dim).child(status).tooltip("r · refresh"))
       .when(bots > 0, (el) => el.child(button(div(), t, false).id("bots").flex_none().px(7).py(2).cursor_pointer().text_size(11).text_color(t.muted).hover((s) => s.text_color(t.foreground))
-        .on_click((_e, cx) => { memory.bots = !memory.bots; view.reveal = true; cx.notify(); })
+        .on_click((_e, cx) => { track("mh-spaces.board.bots-click", "click"); memory.bots = !memory.bots; view.reveal = true; cx.notify(); })
         .child(memory.bots ? `Dependabot shown ${bots}` : `Dependabot hidden ${bots}`).tooltip("b · show or hide Dependabot PRs")))
       .child(div().flex_1().min_w(0).truncate().text_right().text_size(11).text_color(t.dim).child(hint)))
     .when(view.searching || Boolean(view.text), (el) => el.child(

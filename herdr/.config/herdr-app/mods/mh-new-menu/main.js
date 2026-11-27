@@ -1,6 +1,7 @@
 import { View, div, svg, image } from "gpui-kit";
 import { h_flex, v_flex } from "gpui-base";
 import { theme, spaces, panes, knownAgents, run, openOverlay, closeOverlay, props, window, keys, shared, setShared } from "herdr";
+import { track, trackKey } from "./stats.js";
 
 // The last agents each machine reported, shown at once while knownAgents() checks again.
 const KNOWN = "new-menu.agents";
@@ -24,6 +25,7 @@ function shortcut(name) {
 
 export default class NewMenu extends View {
   init(_props, cx) {
+    track("mh-new-menu.open", "open");
     const machine = spaces().find(s => s.active)?.machine;
     const where = machine ?? "";
     this.agents = shared(KNOWN)?.[where] ?? [];
@@ -42,7 +44,7 @@ export default class NewMenu extends View {
     const t = theme();
     return h_flex().id(id).h(31).px(9).gap(10).rounded(6).items_center().flex_none()
       .text_color(enabled ? t.foreground : t.dim).when(enabled, el => el.hover(s => s.bg(t.selected)))
-      .on_click(() => { if (enabled) { closeOverlay(props().overlay); action(); } })
+      .on_click(() => { if (enabled) { track(`mh-new-menu.${id}`, "click"); closeOverlay(props().overlay); action(); } })
       .child(icon).child(div().flex_1().child(name)).child(div().text_size(11).text_color(t.dim).child(hint));
   }
   render() {
@@ -54,6 +56,7 @@ export default class NewMenu extends View {
       .id("new-menu").track_focus(this.handle)
       .on_key_down((e) => {
         if (e.modifiers.control || e.modifiers.platform || e.modifiers.alt) return;
+        trackKey("mh-new-menu", e, false);
         const agent = /^[1-9]$/.test(e.key) ? installed[Number(e.key) - 1] : null;
         if (!agent) return;
         closeOverlay(props().overlay);

@@ -5,6 +5,7 @@ import { h_flex } from "gpui-base";
 import { agents, exec, focused, nextCommand, run, setShared, shared, theme, window as appWindow } from "herdr";
 import { WORDS } from "./pixel.js";
 import { FINAL, badge, branchPr, prsOf, spacePr } from "./github.js";
+import { track } from "./stats.js";
 
 // shortcut: polls the shown repo every 5 s instead of watching its files; switch to watchFolder if it lags.
 const EVERY = 5000;
@@ -89,7 +90,7 @@ function team(t) {
     .children(Object.entries(WORDS).map(([status, word]) => [status, word, all.filter((a) => a.status === status).length]).filter(([, , n]) => n).map(([status, word, n]) =>
       h_flex().id(`team-${status}`).gap(5).items_center().cursor_pointer().text_color(status === "idle" ? t.dim : t.muted).hover((s) => s.text_color(t.foreground))
         .tooltip("Go to the next one")
-        .on_click(() => next(status))
+        .on_click(() => { track(`mh-spaces.bar.team-${status}`, "click"); next(status); })
         .child(div().size(6).flex_none().rounded(3).bg(t[status]))
         .child(`${n} ${word}`)));
 }

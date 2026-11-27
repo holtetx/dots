@@ -9,6 +9,7 @@ import { View, div } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input } from "gpui-base";
 import { spaces, panes, shared, props, run, hc, theme, notify, closeOverlay } from "herdr";
 import { bindPanelKeys, frame, helpKey, ink, keyPanel, panelKeys } from "./pixel.js";
+import { track, trackKey, trackSubmit } from "./stats.js";
 
 const MARK = { ansi6: "#6fc7bd", ansi3: "#8fa3f0", ansi4: "#7aa7e8", ansi5: "#b394f0", ansi2: "#8fcf94", ansi1: "#e49ac8", yellow: "#e6c98a", peach: "#eaa37f", red: "#e3889a", sky: "#7cc4e0", sand: "#c9b28f", slate: "#9aa5c4" };
 
@@ -66,6 +67,7 @@ const fail = (error) => notify({ title: "Couldn't move the pane", body: String(e
 
 export default class Panes extends View {
   init(_props, cx) {
+    track("mh-panes.open", "open");
     const p = props() ?? {};
     this.picking = p.action === "space";
     this.handle = cx.focus_handle();
@@ -89,7 +91,7 @@ export default class Panes extends View {
       this.at = 0;
       cx.notify();
     });
-    this.input.on("submit", (_e, cx) => this.pick(this.choices()[this.at], cx));
+    this.input.on("submit", (e, cx) => { trackSubmit("mh-panes", e); this.pick(this.choices()[this.at], cx); });
     this.input.focus();
   }
 
@@ -142,7 +144,7 @@ export default class Panes extends View {
         .cursor_pointer()
         .when(i === this.at, (el) => el.bg(t.selected))
         .when(i !== this.at, (el) => el.hover((s) => s.bg(t.hover)))
-        .on_click((_e, cx) => this.pick(choice, cx))
+        .on_click((_e, cx) => { track("mh-panes.click", "click"); this.pick(choice, cx); })
         .child(choice.space ? avatar(choice.space) : div().w(16).flex_none().text_color(t.dim).child("+"))
         .child(div().flex_1().min_w(0).truncate().text_color(choice.space ? t.foreground : t.muted).child(choice.space ? choice.space.name : choice.name ? `New space “${choice.name}”` : "New space"));
     return v_flex()
@@ -151,6 +153,7 @@ export default class Panes extends View {
       .track_focus(this.handle)
       .map((el) => panelKeys(el, Boolean(this.help)))
       .on_key_down((e, cx) => {
+        trackKey("mh-panes", e, true);
         if (helpKey(this, e, this.input, !this.text)) return cx.stop_propagation(), cx.notify();
         const n = choices.length;
         const ctrl = e.modifiers.control && !e.modifiers.platform && !e.modifiers.alt;

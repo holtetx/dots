@@ -8,6 +8,7 @@ import { View, div } from "gpui-kit";
 import { h_flex } from "gpui-base";
 import { props, focused, terminals, theme, run, hc, closeOverlay } from "herdr";
 import { chip, frame, helpKey, keyPanel } from "./pixel.js";
+import { track, trackKey } from "./stats.js";
 
 // Each move: [the keys Claude gets, terminal.scroll's args for the rest].
 const MOVES = {
@@ -30,6 +31,7 @@ function moveOf(key, ctrl, shift) {
 
 export default class Scroll extends View {
   init(_props, cx) {
+    track("mh-scroll.open", "open");
     this.terminal = focused()?.terminal ?? null;
     const t = terminals().find((x) => x.address === this.terminal);
     this.claude = t?.program?.key === "claude" || t?.agent === "claude-code";
@@ -68,6 +70,7 @@ export default class Scroll extends View {
       .on_key_down((e, cx) => {
         const m = e.modifiers;
         if (m.platform || m.alt) return;
+        trackKey("mh-scroll", e, false);
         if (helpKey(this, e)) return cx.stop_propagation(), cx.notify();
         if (e.key === "escape" || (e.key === "q" && !m.control)) return closeOverlay(props().overlay);
         const name = moveOf(e.key, m.control && !m.shift, m.shift);

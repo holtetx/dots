@@ -2,6 +2,7 @@
 
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input } from "gpui-base";
+import { track, trackKey, trackSubmit } from "./stats.js";
 import { action, bindPanelKeys, frame, helpKey, ink, keyPanel, mark, panelKeys, statusMarks, WORDS } from "./pixel.js";
 import { agents, spaces, terminals, run, hc, theme, settings, props, closeOverlay, shared, setShared } from "herdr";
 
@@ -40,6 +41,7 @@ const avatar = (t, w) => h_flex().size(18).rounded(5).bg(spaceColor(t, w)).items
 
 export default class Picker extends View {
   init(_props, cx) {
+    track("mh-picker.open", "open");
     this.filter = "";
     this.input = InputState.new({ placeholder: "Go to a tab, space or agent…" });
     this.input.on("change", (_e, cx) => {
@@ -47,7 +49,7 @@ export default class Picker extends View {
       this.at = this.filter ? Math.max(0, this.rows().filter(r => r.kind !== "head").findIndex(r => r.kind === "ctx")) : 0;
       cx.notify();
     });
-    this.input.on("submit", (_e, cx) => this.go(this.rows().filter(r => r.kind !== "head")[this.at], cx));
+    this.input.on("submit", (e, cx) => { trackSubmit("mh-picker", e); this.go(this.rows().filter(r => r.kind !== "head")[this.at], cx); });
     this.input.focus();
     cx.timer.after(600, () => this.input.focus());
     this.at = null;
@@ -183,7 +185,7 @@ export default class Picker extends View {
           .cursor_pointer()
           .when(r === sel, (el) => el.bg(t.hover).text_color(t.foreground))
           .hover((s) => s.bg(t.hover).text_color(t.foreground))
-          .on_click((_e, cx) => this.go(r, cx))
+          .on_click((_e, cx) => { track("mh-picker.click", "click"); this.go(r, cx); })
           .child(`earlier: ${r.count} quiet space${r.count > 1 ? "s" : ""} ${this.showEarlier ? "▴" : "▾"}`);
       }
       const on = r === sel;
@@ -202,7 +204,7 @@ export default class Picker extends View {
           .cursor_pointer()
           .when(on, (el) => el.bg(t.hover))
           .hover((s) => s.bg(t.hover))
-          .on_click(() => this.go(r))
+          .on_click(() => { track("mh-picker.click", "click"); this.go(r); })
           .child(div().w(12).child("+"))
           .child(label);
       }
@@ -219,7 +221,7 @@ export default class Picker extends View {
         .cursor_pointer()
         .when(on, (el) => el.bg(t.hover))
         .hover((s) => s.bg(t.hover))
-        .on_click(() => this.go(r))
+        .on_click(() => { track("mh-picker.click", "click"); this.go(r); })
         .child(div().w(12).flex_none().flex().justify_center().text_color(t.dim).child(mark(r.ctx.status, t) ?? (r.ctx.status === "idle" ? "○" : "·")))
         .child(div().flex_1().truncate().text_color(t.foreground).when(here, (d) => d.font_semibold()).child(r.title))
         .when(r.ctx.status === "blocked" || r.ctx.status === "done", (el) => el.child(div().text_size(11).text_color(t[r.ctx.status]).child(WORDS[r.ctx.status])))
@@ -239,6 +241,7 @@ export default class Picker extends View {
       .bg(t.popover)
       .text_size(13)
       .on_key_down((e, cx) => {
+        trackKey("mh-picker", e, true);
         if (helpKey(this, e, this.input, !this.filter)) return cx.stop_propagation(), cx.notify();
         const k = e.key;
         if (k === "escape") return this.close();
