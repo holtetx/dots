@@ -20,7 +20,7 @@ const ORDER = [SESSIONS, SPACES, PANES, COPY, BOARD, APP, TERMINAL, OPEN, OTHER]
 // By action, or by "section|action" outside the global section. # is 1-9, * a direction.
 const DESCRIBE = {
   "mod.open:mh-sessions": [SESSIONS, "Search sessions: running, Waiting and ended ones"],
-  "mh-spaces.new-session": [SESSIONS, "New space with a Claude session, in a folder you pick"],
+  "mh-tabs.new-session": [SESSIONS, "New space with a Claude session, in a folder you pick"],
   '{"command":"tab.new","args":{"name":"Claude","argv":["claude","--worktree"]}}': [SESSIONS, "New tab with a Claude session in its own worktree"],
   "mh-tabs.agent-next": [SESSIONS, "Next agent, in sidebar order"],
   "mh-tabs.agent-prev": [SESSIONS, "Previous agent"],
@@ -61,11 +61,11 @@ const DESCRIBE = {
   "mod.open:mh-scroll": [COPY, "Scroll mode: vim keys scroll the terminal"],
   "send:\u0001": [COPY, "Send ctrl-a to the program"],
 
-  "mh-spaces.tasks": [BOARD, "Tasks: the PRs and issues of my sessions"],
-  "mh-spaces.board": [BOARD, "Board: open PRs and issues of my repos"],
+  "mh-tabs.tasks": [BOARD, "Tasks: the PRs and issues of my sessions"],
+  "mh-tabs.board": [BOARD, "Board: open PRs and issues of my repos"],
   "mh-tabs.pr": [BOARD, "The space's PR: status and CI checks, in the side panel"],
-  "mh-spaces.link": [BOARD, "Link a PR or issue to the focused agent"],
-  "mh-spaces.link-space": [BOARD, "Link a PR or issue to the space"],
+  "mh-tabs.link": [BOARD, "Link a PR or issue to the focused agent"],
+  "mh-tabs.link-space": [BOARD, "Link a PR or issue to the space"],
 
   "mod.open:mh-lunch": [OTHER, "This week's canteen lunch, today highlighted"],
 

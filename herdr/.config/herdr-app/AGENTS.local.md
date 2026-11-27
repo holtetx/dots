@@ -159,6 +159,7 @@ A second window closes with `cmd-q`.
 - Errors and focus: `herdr-app status`. Screenshot: `herdr-app shot <file>.png`. Labels: `hc get <terminal> --json`.
 - Reload: Herdr does not always see an edit made through a link. Run `touch -h` on the link of the mod or of `keys.json` in `~/.config/herdr-app`.
 - Layout: change it with `herdr-app do layout.set`.
+- A `focusable` mod (mh-spaces) gets `<mod>.<command>` only in a copy that has the keyboard, so its keys go to `mh-tabs`, which hands them on with `shared("spaces.command")`.
 - `tab` and `shift-tab` never reach `on_key_down`: the app binds them to focus movement. Bind them to an action of your own in a `key_context` (`cx.bind_keys` in `init`, `.key_context(...).on_action(...)` on the root), as the board and the spacing dialog do.
 - `exec` never closes stdin: a program that reads stdin when it is not a terminal (`op`) waits forever. Run it as `sh -c '... </dev/null'`.
 - Herdr adds `gpui-kit.d.ts` and `jsconfig.json` to mod folders. They are ignored by git.
