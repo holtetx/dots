@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
-# Claude Code hook for Herdr. Keeps the claude.running label on this session's herdr-core terminal: a JSON array of the running subagents and background shells, [{"kind":"agent"|"shell","name":..,"detail":..,"file":..}], oldest first.
-# PreToolUse (Agent) notes the description, SubagentStart/SubagentStop add and remove the subagent, PostToolUse (Bash in the background) adds the shell and starts a watcher that removes it when its processes exit.
-# SessionEnd removes the claude.* labels that statusline.sh and this hook set.
+# Claude Code hook: keeps Herdr's claude.running label (format: AGENTS.local.md in herdr-app) and clears the claude.* labels at SessionEnd.
 set -u
 [ -n "${HC_TERMINAL_ID:-}" ] || exit 0
 PATH="$HOME/.local/bin:$PATH:/usr/bin:/opt/homebrew/bin:/usr/local/bin"
@@ -23,25 +21,23 @@ relabel() {
 
 case "$event" in
 PreToolUse)
-  # SubagentStart has no description: keep it here, keyed by type, for the next start of that type.
-  id=$(jq -r '.tool_use_id // ""' <<<"$input")
-  safe "$id" || exit 0
+  # SubagentStart has no description: keep it for the next start of this type.
+  { read -r id; read -r type; IFS= read -r desc; } < <(jq -r '(.tool_use_id // ""), (.tool_input.subagent_type // "general-purpose"), (.tool_input.description // "" | gsub("\n"; " "))' <<<"$input")
+  safe "$id" && safe "$type" || exit 0
   mkdir -p "$run/pending"
-  jq -c '{kind: "agent", type: (.tool_input.subagent_type // "general-purpose"), name: (.tool_input.description // ""), detail: (.tool_input.subagent_type // "general-purpose")}' <<<"$input" >"$run/pending/$id"
+  printf '%s' "$desc" >"$run/pending/$type--$id"
   ;;
 SubagentStart)
   { read -r id; read -r type; IFS= read -r transcript; } < <(jq -r '(.agent_id // ""), (.agent_type // "agent"), (.transcript_path // "")' <<<"$input")
   safe "$id" || exit 0
-  file="${transcript%.jsonl}/subagents/agent-$id.jsonl"
   mkdir -p "$run/pending"
-  # The oldest description of this type from the last minute; older ones were never started.
   find "$run/pending" -type f -mmin +1 -delete 2>/dev/null
-  match=$(ls -tr "$run/pending" 2>/dev/null | while read -r p; do jq -e --arg t "$type" '.type == $t' "$run/pending/$p" >/dev/null 2>&1 && { echo "$p"; break; }; done)
-  if [ -n "$match" ]; then
-    jq -c --arg f "$file" '{kind, name: (if .name == "" then .type else .name end), detail, file: $f}' "$run/pending/$match" >"$run/agent-$id" && rm -f "$run/pending/$match"
-  else
-    jq -nc --arg t "$type" --arg f "$file" '{kind: "agent", name: $t, detail: $t, file: $f}' >"$run/agent-$id"
-  fi
+  # The oldest description of this type. mv is atomic, so of starts that run together each claims a different one.
+  name=""
+  for p in $(ls -tr "$run/pending"); do
+    case "$p" in "$type"--*) mv "$run/pending/$p" "$run/claim-$id" 2>/dev/null && name=$(cat "$run/claim-$id") && rm -f "$run/claim-$id" && break ;; esac
+  done
+  jq -nc --arg n "${name:-$type}" --arg t "$type" --arg f "${transcript%.jsonl}/subagents/agent-$id.jsonl" '{kind: "agent", name: $n, detail: $t, file: $f}' >"$run/agent-$id"
   relabel
   ;;
 SubagentStop)
@@ -66,8 +62,8 @@ Relabel)
   relabel
   ;;
 SessionEnd)
-  hc label "$HC_TERMINAL_ID" claude.context= claude.context_size= claude.session= claude.cwd= claude.running= claude.subagents= >/dev/null 2>&1
-  rm -rf "$dir/$HC_TERMINAL_ID.context" "$run" "$run.lock" "$dir/$HC_TERMINAL_ID.subagents" "$dir/$HC_TERMINAL_ID.activity" "$dir/$HC_TERMINAL_ID.activity.labels" "$dir/$HC_TERMINAL_ID.activity.lock"
+  hc label "$HC_TERMINAL_ID" claude.context= claude.context_size= claude.session= claude.cwd= claude.running= >/dev/null 2>&1
+  rm -rf "$dir/$HC_TERMINAL_ID.context" "$run" "$run.lock"
   ;;
 esac
 exit 0

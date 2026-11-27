@@ -935,7 +935,7 @@ export default class Spaces extends View {
     const order = [];
     const listed = [];
     const hidden = new Set();
-    const draw = (r) => (collapsed ? this.compact(r, t) : this.row(r, t));
+    const draw = (r) => (collapsed ? [this.compact(r, t)] : [this.row(r, t), ...this.runningRows(r, t)]);
     // Where the active space's row lands among the list's children: it scrolls by them.
     this.activeAt = -1;
     const rows = (members, shut) => {
@@ -947,8 +947,7 @@ export default class Spaces extends View {
         }
         r.n = order.push(r.w.id);
         if (r.w.active) this.activeAt = out.length;
-        out.push(draw(r));
-        if (!collapsed) out.push(...this.runningRows(r, t));
+        out.push(...draw(r));
       }
     };
     for (const f of tree.list) {
@@ -1107,7 +1106,7 @@ export default class Spaces extends View {
       .on_click((_e, cx) => { setShared("waiting.open", !open); cx.notify(); })
       .when(!collapsed, (el) => el.child(div().flex_1().child("Waiting")))
       .child(chevron(!open, top, t));
-    return [collapsed ? railCell(head) : head, ...(open ? waiting.map(draw) : [])];
+    return [collapsed ? railCell(head) : head, ...(open ? waiting.flatMap(draw) : [])];
   }
 
   // A row per machine that needs you: asleep, a login (with the command to Copy),
@@ -1265,7 +1264,7 @@ export default class Spaces extends View {
   // One line per subagent (↳) and background shell ($) of the space's agents, under its row.
   runningRows(r, t) {
     const { w } = r;
-    const items = (this.agentsOf.get(w.id) ?? []).flatMap((a) => this.running.get(a.address) ?? []);
+    const items = (this.agentsOf.get(w.id) ?? []).flatMap((a) => (this.running.get(a.address) ?? []).map((it) => ({ ...it, owner: a.address })));
     return items.map((it, i) => h_flex()
       .id(`space-running-${w.id}-${i}`)
       // The title's left edge: the row's padding, plus the icon and its gap when shown.
@@ -1286,16 +1285,21 @@ export default class Spaces extends View {
   }
 
   // A subagent's transcript or a shell's output, live, as a peek over the space (follow.sh).
+  // One view per file: a second click shows it again. The file path is local to its machine.
   follow(w, it, cx) {
     run("space.select", { id: w.id });
-    if (!it.file) return;
+    if (!it.file || w.machine) return;
+    this.followers ??= new Map();
+    const open = this.followers.get(it.file);
+    if (open && terminals().some((x) => x.address === open && x.state === "live")) return run("terminal.peek", { terminal: open });
     cx.spawn(async (cx) => {
-      const r = await hc(["run", "--json", "--bg", "--rm", "--no-parent", "--", "sh", `${appHome()}/mods/mh-spaces/follow.sh`, it.file]);
+      const r = await hc(["run", "--json", "--bg", "--rm", "--no-parent", "--", "bash", `${appHome()}/mods/mh-spaces/follow.sh`, it.file, it.owner]);
       let address = null;
       try {
         address = r.code === 0 ? JSON.parse(r.stdout).address : null;
       } catch {}
       if (!address) return notify({ title: `Couldn't show ${it.name}`, body: (r.stderr || r.stdout || "hc run failed").trim() });
+      this.followers.set(it.file, address);
       for (let waited = 0; waited < 3000 && !terminals().some((x) => x.address === address); waited += 25) await new Promise((done) => cx.timer.after(25, done));
       run("terminal.peek", { terminal: address });
     });

@@ -1,9 +1,18 @@
-#!/bin/sh
-# Follows a Claude Code subagent's transcript (.jsonl, shown as text, tool calls and results) or a background shell's output file.
+#!/usr/bin/env bash
+# Shows a subagent's transcript ($1, .jsonl) or a background shell's output ($1) live, until its entry leaves terminal $2's claude.running label.
 PATH="$PATH:/opt/homebrew/bin:/usr/local/bin"
-case "$1" in
+file=$1 owner=$2
+
+running() { hc get "$owner" --json 2>/dev/null | jq -e --arg f "$file" '.labels["claude.running"] // "[]" | fromjson | any(.file == $f)' >/dev/null 2>&1; }
+
+# A fifo, so the tail's pid is known and it can be stopped (macOS tail has no --pid).
+fifo=$(mktemp -u "${TMPDIR:-/tmp}/herdr-follow.XXXXXX") && mkfifo "$fifo" || exit 1
+trap 'rm -f "$fifo"; kill "$tailer" 2>/dev/null' EXIT
+tail -n +1 -F "$file" 2>/dev/null >"$fifo" &
+tailer=$!
+case "$file" in
 *.jsonl)
-  tail -n +1 -F "$1" 2>/dev/null | jq -Rr --unbuffered '
+  jq -Rr --unbuffered '
     def dim: "\u001b[2m" + . + "\u001b[0m";
     def short($n): gsub("\\s+"; " ") | if length > $n then .[0:$n] + "…" else . end;
     fromjson? |
@@ -19,7 +28,17 @@ case "$1" in
       else
         .[]? | select(.type == "tool_result") | "  ⎿ " + ((.content | if type == "array" then map(.text // "") | join(" ") else tostring end) | short(160)) | dim
       end
-    else empty end'
+    else empty end' <"$fifo" &
   ;;
-*) tail -n +1 -F "$1" ;;
+*) cat <"$fifo" & ;;
 esac
+viewer=$!
+
+sleep 1
+while running; do sleep 2; done
+sleep 1
+kill "$tailer" 2>/dev/null
+wait "$tailer" 2>/dev/null
+wait "$viewer"
+printf '\n\033[2m[finished] Enter closes this view.\033[0m\n'
+read -r -t 600 _
