@@ -1,9 +1,10 @@
-// Sidebar footer: context and plan limit pies (from claude/.claude/hooks/statusline.sh), then the Spacing and Settings buttons. Also syncs mh-settings.json and mh-state.json (settings.js).
+// Sidebar footer: context and plan limit gauges (from claude/.claude/hooks/statusline.sh), then the Spacing and Settings buttons. Also syncs mh-settings.json and mh-state.json (settings.js).
 
-import { View, div, svg, PathBuilder } from "gpui-kit";
+import { View, div, svg } from "gpui-kit";
 import { h_flex, HoverCard } from "gpui-base";
 import { theme, home, readTextFile, watchFolder, layout, run, window as appWindow } from "herdr";
 import { syncSettings } from "./settings.js";
+import { button } from "./pixel.js";
 import { contextPanel, measure, shownSession } from "./context.js";
 
 function find(node, id) {
@@ -24,19 +25,9 @@ const WINDOWS = [
   ["seven_day", "7d", "Weekly limit"],
 ];
 
-// The ring and a full pie are rounded divs: a circle made of two path arcs was drawn as an oval.
-function pie(fraction, size, fill, track) {
-  const f = Math.max(0, Math.min(1, fraction));
-  const c = size / 2, r = size * 0.32;
-  const a = f * 2 * Math.PI;
-  const wedge = () => PathBuilder.fill().move_to(c, c).line_to(c, c - r).arc_to(r, r, 0, f > 0.5, true, c + Math.sin(a) * r, c - Math.cos(a) * r).close().build();
-  return div()
-    .relative()
-    .size(size)
-    .flex_none()
-    .child(div().absolute().inset_0().rounded(c).border_1().border_color(track))
-    .when(f >= 0.999, (el) => el.child(div().absolute().top(c - r).left(c - r).size(2 * r).rounded(r).bg(fill)))
-    .when(f > 0 && f < 0.999, (el) => el.child(window.paint_path(wedge(), fill).absolute().inset_0()));
+function gauge(fraction, fill, track) {
+  const lit = fraction > 0 ? Math.ceil(Math.min(1, fraction) * 5) : 0;
+  return h_flex().flex_none().gap(1).children([0, 1, 2, 3, 4].map((i) => div().w(4).h(8).rounded(1).bg(i < lit ? fill : track)));
 }
 
 const until = (s) => {
@@ -79,50 +70,51 @@ export default class Footer extends View {
     const session = shownSession();
     const shown = WINDOWS.map(([key, short, long]) => ({ key, short, long, w: this.limits?.[key] })).filter((x) => x.w);
     const collapsed = narrow();
-    const button = (id, icon, tip, action) => div().id(id).flex_none().p(3).rounded(5).text_color(t.dim)
-      .cursor_pointer().hover((s) => s.bg(t.hover).text_color(t.foreground)).tooltip(tip)
+    const iconButton = (id, icon, tip, action) => button(div(), t, false).id(id).flex_none().size(18).flex().items_center().justify_center().text_color(t.muted)
+      .cursor_pointer().hover((s) => s.text_color(t.foreground)).tooltip(tip)
       .on_click(action)
-      .child(svg(icon).size(13));
-    const settings = button("settings", "mods/workspace-chrome/settings.svg", "Settings", () => run("app.settings"));
+      .child(svg(icon).size(11));
+    const settings = iconButton("settings", "mods/workspace-chrome/settings.svg", "Settings", () => run("app.settings"));
     const context = (s) => {
-      const fill = s.context >= 80 ? t.blocked : s.context >= 60 ? t.ansi3 : t.muted;
+      const fill = s.context >= 80 ? t.blocked : s.context >= 60 ? t.ansi3 : t.done;
       const trigger = h_flex()
         .id("limit-context")
         .gap(6)
         .items_center()
         .on_hover((on, cx) => on && measure(s, cx))
-        .child(pie(s.context / 100, 13, fill, t.dim))
-        .when(!collapsed, (el) => el.child(div().text_color(s.context >= 60 ? fill : t.muted).child(`ctx ${Math.round(s.context)}%`)));
+        .child(gauge(s.context / 100, fill, t.raised))
+        .when(!collapsed, (el) => el.child(div().text_color(s.context >= 60 ? fill : t.muted).child(`CTX ${Math.round(s.context)}%`)));
       return HoverCard.new("context-card").anchor("bottom_left").open_delay(200).trigger(trigger).content(contextPanel(t, s));
     };
     return h_flex()
       .size_full()
       .px(collapsed ? 0 : 12)
-      .gap(collapsed ? 8 : 10)
+      .gap(8)
       .items_center()
       .when(collapsed, (el) => el.justify_center())
       .bg(t.chrome)
       .border_t(1)
       .border_color(t.border)
-      .text_size(11.8)
+      .text_size(11)
+      .font_semibold()
       .text_color(t.muted)
       .when(Boolean(session), (el) => el.child(context(session)))
       .children(
         shown.map(({ key, short, long, w }) => {
           const stale = w.resets_at && w.resets_at < now;
           const pct = stale ? 0 : Math.round(w.used_percentage ?? 0);
-          const fill = pct >= 90 ? t.blocked : pct >= 75 ? t.ansi3 : t.muted;
+          const fill = pct >= 90 ? t.blocked : pct >= 75 ? t.ansi3 : t.accent;
           return h_flex()
             .id(`limit-${key}`)
             .gap(6)
             .items_center()
             .tooltip(stale ? `${long}: reset since Claude last reported` : `${long}: ${pct}% used${w.resets_at ? `, resets in ${until(w.resets_at)}` : ""}`)
-            .child(pie(pct / 100, 13, fill, t.dim))
-            .when(!collapsed, (el) => el.child(div().text_color(pct >= 75 ? fill : t.muted).child(`${short} ${pct}%`)));
+            .child(gauge(pct / 100, fill, t.raised))
+            .when(!collapsed, (el) => el.child(div().text_color(pct >= 75 ? fill : t.muted).child(`${short.toUpperCase()} ${pct}%`)));
         }),
       )
-      .when(!collapsed, (el) => el.child(div().flex_1()).child(h_flex().flex_none().gap(2)
-        .child(button("spacing", "mods/mh-spacing/sliders.svg", "Spacing, hints, links and sidebar", () => run("mod.open", { name: "mh-spacing" })))
+      .when(!collapsed, (el) => el.child(div().flex_1()).child(h_flex().flex_none().gap(3)
+        .child(iconButton("spacing", "mods/mh-spacing/sliders.svg", "Spacing, hints, links and sidebar", () => run("mod.open", { name: "mh-spacing" })))
         .child(settings)))
       .when(collapsed, (el) => el.child(settings));
   }

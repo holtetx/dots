@@ -3,6 +3,7 @@
 import { View, div } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input } from "gpui-base";
 import { keys, commands, props, closeOverlay, theme, window, shared } from "herdr";
+import { action, frame } from "./pixel.js";
 
 const SESSIONS = "Sessions";
 const SPACES = "Spaces and tabs";
@@ -25,6 +26,7 @@ const DESCRIBE = {
   "mh-tabs.wait": [SESSIONS, "Put the space in Waiting, or take it out"],
   "mh-tabs.waiting": [SESSIONS, "Show or hide the Waiting section"],
   "mod.open:mh-picker": [SESSIONS, "Go to a tab"],
+  "mh-tabs.test-toast": [APP, "Show a sample toast; again for the next kind"],
   "mod.open:mh-open": [SESSIONS, "Open a recent folder as a space, tab or pane"],
   "mod.open:mh-ssh": [SESSIONS, "SSH to a host: a space with ssh and a Claude session beside it"],
 
@@ -203,10 +205,10 @@ export default class Help extends View {
           .h(22)
           .items_center()
           .justify_between()
-          .child(div().text_size(15).font_semibold().text_color(t.foreground).child("My keys"))
-          .child(div().id("mh-help-esc").px(6).py(2).rounded(5).text_size(11).text_color(t.dim).cursor_pointer().hover((s) => s.bg(t.hover).text_color(t.foreground)).on_click(() => closeOverlay(props().overlay)).child("Esc")),
+          .child(div().text_size(15).font_semibold().text_color(t.foreground).child("MY KEYS"))
+          .child(action(t, "mh-help-esc", "Esc", false, () => closeOverlay(props().overlay))),
       )
-      .child(Input.new(this.input).h(36).flex_none().px(10).rounded(9).border_1().border_color(t.accent).bg(t.background).text_size(12.8).text_color(t.foreground))
+      .child(frame(Input.new(this.input), t.accent, t.background).flex_none().h(36).px(10).text_size(12.8).text_color(t.foreground))
       .child(
         v_flex()
           .id("mh-help-list")
@@ -219,14 +221,14 @@ export default class Help extends View {
             groups.map(([name, list]) =>
               v_flex()
                 .gap(2)
-                .child(div().text_size(11.5).font_medium().text_color(t.dim).child(name))
+                .child(div().text_size(11.5).font_semibold().text_color(t.dim).child(name.toUpperCase()))
                 .children(
                   list.map((r) =>
                     h_flex()
                       .min_h(30)
                       .px(8)
                       .gap(12)
-                      .rounded(7)
+                      .rounded(6)
                       .items_center()
                       .child(div().w(230).flex_none().text_color(t.accent).child(r.keys))
                       .child(div().flex_1().min_w(0).text_color(t.foreground).child(r.words))

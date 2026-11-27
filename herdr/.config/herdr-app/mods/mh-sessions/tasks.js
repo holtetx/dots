@@ -1,34 +1,29 @@
-// The tasks list (ctrl-a t): every PR and issue a Claude session had linked
-// (by hand, through its space, or found by mh-spaces), on any machine, each with those
-// sessions under it. mh-spaces keeps them in each machine's mh-tasks document and shares
-// them as shared("tasks.sessions"); running ones add their links now. ↵ opens a task, goes
-// to a running session or resumes an ended one where it ran; ⌘↵ brings one from another
-// machine here first; ^D forgets an ended one's link; ⌃space previews a task (mh-spaces' preview).
-// A mh-sessions overlay with props { tasks: true }. With { url, parent?, start?, item? } it's that
-// task's sessions only, the board's (ctrl-a T) session picker, and new ones to start in its
-// repos (start: { repos, branch, name }, where shared("board.places") has them);
-// picking one closes `parent` too.
+// The tasks list (ctrl-a t): PRs and issues Claude sessions had linked, each with those sessions under it.
 
 import { div, svg } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, ScrollHandle } from "gpui-base";
-import { agents, terminals, settings, shared, setShared, props, run, exec, closeOverlay, openOverlay } from "herdr";
+import { agents, terminals, shared, setShared, props, run, exec, closeOverlay, openOverlay } from "herdr";
 import { ago, base, bring, label, missing, resume, startNew, worktree } from "./sessions.js";
+import { darkOf, frame, helpKey, keyPanel, mark, panelKeys, statusMarks } from "./pixel.js";
 
 const ICON = (name) => `mods/workspace-chrome/${name}.svg`;
-// mh-spaces/github.js's: GitHub's colors, [light, dark].
-const GREEN = ["#1a7f37", "#3fb950"], PURPLE = ["#8250df", "#a371f7"], GRAY = ["#59636e", "#9198a1"];
+// Catppuccin [Latte, Mocha] pairs, as in mh-spaces/jira.js.
+const GREEN = ["#40a02b", "#a6e3a1"], PURPLE = ["#8839ef", "#cba6f7"], GRAY = ["#7c7f93", "#9399b2"];
 const GH = {
   open: { icon: "mods/mh-spaces/git-pull-request.svg", color: GREEN, label: "Open" },
   draft: { icon: "mods/mh-spaces/git-pull-request-draft.svg", color: GRAY, label: "Draft" },
-  queued: { icon: "mods/mh-spaces/git-pull-request.svg", color: ["#9a6700", "#d29922"], label: "Merge queued" },
+  queued: { icon: "mods/mh-spaces/git-pull-request.svg", color: ["#df8e1d", "#f9e2af"], label: "Merge queued" },
   merged: { icon: "mods/mh-spaces/git-merge.svg", color: PURPLE, label: "Merged" },
-  closed: { icon: "mods/mh-spaces/git-pull-request-closed.svg", color: ["#cf222e", "#f85149"], label: "Closed" },
+  closed: { icon: "mods/mh-spaces/git-pull-request-closed.svg", color: ["#d20f39", "#f38ba8"], label: "Closed" },
   "issue-open": { icon: "mods/mh-spaces/circle-dot.svg", color: GREEN, label: "Open" },
   "issue-done": { icon: "mods/workspace-chrome/circle-check.svg", color: PURPLE, label: "Closed" },
   "issue-skip": { icon: "mods/mh-spaces/circle-slash.svg", color: GRAY, label: "Not planned" },
 };
 const FINAL = new Set(["merged", "closed", "issue-done", "issue-skip"]);
 const FALLBACK = { pr: GH.open.icon, issue: GH["issue-open"].icon };
+
+const idleDot = (t) => div().size(6).rounded_full().bg(t.dim);
+const stateIcons = (dark, ...states) => h_flex().gap(6).items_center().children(states.map((k) => svg(GH[k].icon).size(13).text_color(GH[k].color[dark ? 1 : 0])));
 
 const machineOf = (id) => (id.includes("/") ? id.split("/")[0] : null);
 const keyOf = (s) => (s.machine ? `${s.machine}/${s.id}` : s.id);
@@ -210,21 +205,39 @@ function preview(row) {
   if (previewUrl(row)) openOverlay({ mod: "mh-spaces", kind: "dialog", width: 0.8, height: 0.86, props: { preview: previewUrl(row), back: "tasks.focus" } });
 }
 
+// What ↵ does on a session whose folder is gone; the ? panel has the rest.
 function hintOf(view, row) {
   if (view.busy) return view.busy.startsWith("new:") ? "starting…" : "resuming…";
-  if (!row) return "";
-  if (row.kind === "task") return "↵ open";
-  if (row.kind === "new") return `↵ start${row.branch ? ` on ${row.branch}` : ""}`;
-  const s = row.s;
-  if (s.running) return "↵ go to";
-  const w = goneOf(view, s) && worktree(s.cwd);
-  const resuming = goneOf(view, s) ? (w ? `↵ recreate workspace · ⇧↵ resume in ${base(w.repo)}` : "↵ resume in a parent folder") : `↵ resume${s.machine ? ` on ${s.machine}` : ""}`;
-  return [resuming, s.machine && "⌘↵ bring here", "^D forget"].filter(Boolean).join(" · ");
+  const s = row?.s;
+  if (!s || s.running || !goneOf(view, s)) return "";
+  const w = worktree(s.cwd);
+  return w ? `↵ recreate workspace · ⇧↵ resume in ${base(w.repo)}` : "↵ resume in a parent folder";
+}
+
+function helpPanel(t, dark, only) {
+  const keys = [
+    ["type", only ? "search its sessions" : "search tasks and their sessions"], ["↓↑ ^J ^K ^N ^P", "move"],
+    ["↵", only ? "go to or resume a session, start a new one" : "open a task; go to or resume a session"],
+    ["⇧↵", "resume in its repo when its folder is gone"], ["⌘↵", "bring a session from another machine here"],
+    ["⌃space", "preview the task"], ["^D", "forget an ended session's link"], ["esc", "close"],
+  ];
+  const marks = [
+    ...(only ? [] : [
+      [stateIcons(dark, "open", "draft", "queued"), "PR: open, draft, in the merge queue"],
+      [stateIcons(dark, "merged", "closed"), "PR: merged, closed"],
+      [stateIcons(dark, "issue-open", "issue-done", "issue-skip"), "issue: open, closed, not planned"],
+    ]),
+    [statusMarks(t).child(idleDot(t)), "running session: working, needs you, done, idle"],
+    [svg(ICON("clock")).size(12).text_color(t.dim), "ended session"],
+    [div().text_size(11.5).text_color(t.dim).child("gone"), "its folder is gone"],
+    ...(only ? [[svg(ICON("plus")).size(12).text_color(t.dim), "a new session, in the checkout or a new worktree"]] : []),
+  ];
+  return keyPanel(t, [["KEYS", keys], ["MARKS", marks]]);
 }
 
 export function taskRender(view, t) {
   const only = props()?.url;
-  const dark = Boolean(settings()?.dark);
+  const dark = darkOf(t);
   const secs = sections(view);
   view.rows = secs.flatMap((sec) => sec.rows);
   view.at = Math.min(view.at, Math.max(0, view.rows.length - 1));
@@ -237,7 +250,7 @@ export function taskRender(view, t) {
       .px(10)
       .gap(9)
       .items_center()
-      .rounded(7)
+      .rounded(6)
       .cursor_pointer()
       .when(i === view.at, (el) => el.bg(t.selected))
       .when(i !== view.at, (el) => el.hover((st) => st.bg(t.hover)))
@@ -247,10 +260,9 @@ export function taskRender(view, t) {
     const s = GH[it.state];
     const color = s ? s.color[dark ? 1 : 0] : t.dim;
     return line(`tk-${task.url}`, i, row)
-      .child(h_flex().w(14).flex_none().justify_center().child(svg(s?.icon ?? FALLBACK[it.kind] ?? FALLBACK.pr).size(13).text_color(color)))
+      .child(h_flex().id(`tk-state-${task.url}`).w(14).flex_none().justify_center().when(Boolean(s), (el) => el.tooltip(s.label)).child(svg(s?.icon ?? FALLBACK[it.kind] ?? FALLBACK.pr).size(13).text_color(color)))
       .child(div().flex_none().text_size(11.5).text_color(t.dim).child(refOf(it)))
-      .child(div().flex_1().min_w(0).truncate().text_color(task.done ? t.muted : t.foreground).child(it.title || task.url))
-      .child(h_flex().flex_none().justify_end().text_size(11).text_color(color).child(s?.label ?? ""));
+      .child(div().flex_1().min_w(0).truncate().text_color(task.done ? t.muted : t.foreground).child(it.title || task.url));
   };
   const newRow = (r, i, row) => {
     const where = view.busy === r.key ? "starting…" : `${r.place.machine ? `${r.place.machine} · ` : ""}${label(r.worktree ? `${r.place.path}/.claude/worktrees/${r.name}` : r.place.path)}`;
@@ -258,28 +270,29 @@ export function taskRender(view, t) {
       .child(h_flex().w(14).flex_none().justify_center().child(svg(ICON("plus")).size(12).text_color(t.dim)))
       .child(div().flex_1().min_w(0).truncate().text_color(t.foreground).child(`New session${r.worktree ? " in a new worktree" : ""}${r.branch ? ` on ${r.branch}` : ""}`))
       .child(div().flex_none().max_w(260).truncate().text_size(11.5).text_color(t.dim).child(where))
-      .child(h_flex().flex_none().w(52).justify_end().text_size(11).text_color(t.dim).child(r.worktree ? "worktree" : "checkout"));
+      .child(h_flex().flex_none().w(60).justify_end().text_size(11).text_color(t.dim).child(r.worktree ? "worktree" : "checkout"));
   };
   const sessionRow = (task, s, i, row) => {
     const gone = goneOf(view, s);
-    const where = view.busy === keyOf(s) ? "resuming…" : `${s.machine ? `${s.machine} · ` : ""}${label(s.cwd)}${gone ? " · gone" : ""}`;
+    // The task's line names the repo; a session adds only its machine, or that its folder is gone.
+    const where = view.busy === keyOf(s) ? "resuming…" : [s.machine, gone && "gone"].filter(Boolean).join(" · ");
     return line(`tk-${task.url}-${keyOf(s)}`, i, row)
       .when(!props()?.url, (el) => el.pl(33))
-      .child(h_flex().w(14).flex_none().justify_center().child(s.running ? div().size(7).rounded(4).bg(t[s.running.status] ?? t.idle) : svg(ICON("clock")).size(12).text_color(t.dim)))
-      .child(div().flex_1().min_w(0).truncate().text_color(gone ? t.dim : t.foreground).child(s.title))
-      .child(div().flex_none().max_w(220).truncate().text_size(11.5).text_color(t.dim).child(where))
-      .child(h_flex().flex_none().w(52).justify_end().text_size(11).text_color(t.dim).child(s.running ? s.running.status : ago(s.at)));
+      .child(h_flex().w(14).flex_none().justify_center().child(s.running ? (mark(s.running.status, t) ?? idleDot(t)) : svg(ICON("clock")).size(12).text_color(t.dim)))
+      .child(div().id(`tk-title-${keyOf(s)}`).flex_1().min_w(0).truncate().text_color(gone ? t.dim : t.foreground).child(s.title).tooltip(label(s.cwd)))
+      .when(Boolean(where), (el) => el.child(div().flex_none().max_w(220).truncate().text_size(11.5).text_color(t.dim).child(where)))
+      .when(!s.running, (el) => el.child(h_flex().flex_none().w(52).justify_end().text_size(11).text_color(t.dim).child(ago(s.at))));
   };
   const children = [];
   view.childOf = [];
   let n = 0;
   for (const sec of secs) {
     const head = !only
-      ? `${sec.name} · ${sec.rows.filter((r) => r.kind === "task").length}`
-      : sec.name !== "Sessions" ? sec.name
-      : sec.rows.length ? `Sessions · ${sec.rows.length}`
+      ? `${sec.name.toUpperCase()} · ${sec.rows.filter((r) => r.kind === "task").length}`
+      : sec.name !== "Sessions" ? sec.name.toUpperCase()
+      : sec.rows.length ? `SESSIONS · ${sec.rows.length}`
       : view.text.trim() ? "No matching sessions" : "No Claude session has had this yet";
-    children.push(h_flex().h(26).px(10).pt(6).flex_none().items_center().text_size(11).text_color(t.dim).child(head));
+    children.push(h_flex().h(26).px(10).pt(6).flex_none().items_center().text_size(11).font_semibold().text_color(t.dim).child(head));
     for (const row of sec.rows) {
       view.childOf[n] = children.length;
       children.push(row.kind === "task" ? taskRow(row.task, n, row) : row.kind === "new" ? newRow(row, n, row) : sessionRow(row.task, row.s, n, row));
@@ -293,8 +306,11 @@ export function taskRender(view, t) {
   const none = !Object.keys(shared("tasks.sessions") ?? {}).length && !view.text.trim();
   return v_flex()
     .id("tasks")
+    .relative()
     .track_focus(view.handle)
+    .map((el) => panelKeys(el, Boolean(view.help)))
     .on_key_down((e, cx) => {
+      if (helpKey(view, e, view.input, !view.text)) return cx.stop_propagation(), cx.notify();
       const count = view.rows.length;
       const ctrl = e.modifiers.control && !e.modifiers.platform && !e.modifiers.alt && !e.modifiers.shift;
       const down = e.key === "down" || (ctrl && (e.key === "j" || e.key === "n"));
@@ -315,18 +331,14 @@ export function taskRender(view, t) {
     .gap(10)
     .bg(t.popover)
     .text_size(13)
-    .child(div().text_size(15).font_semibold().text_color(t.foreground).truncate().child(it ? `Sessions · ${refOf(it)}${it.title ? ` ${it.title}` : ""}` : "Tasks"))
+    .child(div().text_size(15).font_semibold().text_color(t.foreground).truncate().child(it ? `SESSIONS · ${refOf(it)}${it.title ? ` ${it.title}` : ""}` : "TASKS"))
     .child(
-      h_flex()
+      frame(h_flex(), t.accent, t.background)
         .h(36)
         .flex_none()
-        .px(10)
+        .px(12)
         .gap(8)
         .items_center()
-        .rounded(9)
-        .border_1()
-        .border_color(t.accent)
-        .bg(t.background)
         .child(svg(ICON("search")).size(15).text_color(t.dim))
         .child(Input.new(view.input).flex_1().h_full().text_size(12.8).text_color(t.foreground)),
     )
@@ -343,5 +355,6 @@ export function taskRender(view, t) {
         .when(empty, (el) => el.child(div().p(10).text_color(t.dim).child(none ? "No linked tasks yet. Link a PR or issue to an agent with ctrl-a g, or to its space with ctrl-a G." : "No matching tasks."))),
     )
     .when(Boolean(view.error), (el) => el.child(div().text_color(t.blocked).child(view.error)))
-    .child(h_flex().justify_end().text_size(11).text_color(t.dim).child([hintOf(view, selected), previewUrl(selected) && "⌃space preview", "esc close"].filter(Boolean).join(" · ")));
+    .child(h_flex().justify_end().text_size(11).text_color(t.dim).child([hintOf(view, selected), "? keys", "esc close"].filter(Boolean).join(" · ")))
+    .when(Boolean(view.help), (el) => el.child(helpPanel(t, dark, only)));
 }

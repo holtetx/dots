@@ -1,6 +1,6 @@
 // Run: node mods/mh-copy/fingers.test.mjs
 import assert from "node:assert";
-import { find, hints, patterns } from "./fingers.mjs";
+import { find, helpBox, hints, patterns } from "./fingers.mjs";
 
 const pats = patterns(["url", "path", "sha", "github"]);
 const lines = [
@@ -25,4 +25,8 @@ assert.deepStrictEqual([...labels], [["b", "s"], ["a", "d"]]);
 // More texts than letters: two-letter labels, all different.
 const many = hints(Array.from({ length: 40 }, (_, i) => ({ row: 0, start: i, text: `t${i}` })));
 assert.strictEqual(new Set(many.values()).size, 40);
+
+// The ? panel is a closed box: every line as wide as its frame.
+const box = helpBox().map((l) => [...l.replace(/\x1b\[[0-9;]*m/g, "")].length);
+assert.ok(box.every((n) => n === box[0]));
 console.log("ok");

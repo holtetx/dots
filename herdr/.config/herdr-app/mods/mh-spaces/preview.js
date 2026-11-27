@@ -1,19 +1,19 @@
 import { div, svg, image } from "gpui-kit";
 import { v_flex, h_flex, ScrollHandle, TextView } from "gpui-base";
-import { props, closeOverlay, theme, settings, shared } from "herdr";
-import { GH, FINAL, open } from "./github.js";
-import { ago, avatar, chip, colorOf, openStatus, pick, statusChip } from "./board.js";
+import { props, closeOverlay, theme, shared } from "herdr";
+import { GH, FINAL, open, stateMarks } from "./github.js";
+import { ago, avatar, colorOf, epic, openStatus, pick, statusChip, statusLegend } from "./board.js";
 import { REVIEW_WORD, canCache, cacheImage, fetchPreview, loadAvatars, pruneCache } from "./preview-data.js";
 import { fetchJiraPreview } from "./jira-data.js";
-import { PRIORITY_COLOR, TYPE_COLOR, hue } from "./jira.js";
+import { GREEN, PRIORITY_COLOR, RED, TYPE_COLOR, YELLOW, hue } from "./jira.js";
+import { chip, darkOf, helpKey, keyPanel } from "./pixel.js";
 
-const GREEN = ["#1a7f37", "#3fb950"], RED = ["#cf222e", "#f85149"], YELLOW = ["#9a6700", "#d29922"];
 const CHECK_COLOR = { failed: RED, running: YELLOW, passed: GREEN };
 const REVIEW_COLOR = { APPROVED: GREEN, CHANGES_REQUESTED: RED };
 const MERGE_COLOR = { conflicts: RED, "checks failing": RED, "ready to merge": GREEN };
+const mergeChip = (word, t, dark) => chip(word, MERGE_COLOR[word] ? pick(MERGE_COLOR[word], dark) : t.ansi3);
 // The last answer per URL: shown at once on the next opening while it asks again.
 const memory = {};
-
 
 export function previewInit(view, cx) {
   view.handle = cx.focus_handle();
@@ -77,6 +77,7 @@ function go(view, i) {
 
 function key(view, e, cx) {
   const m = e.modifiers;
+  if (helpKey(view, e)) return true;
   const linked = view.blocks?.[view.at]?.preview;
   // ↵ previews a linked Jira issue, ^O goes back, as vim's jump list does.
   if (e.key === "enter" && !m.control && !m.alt && !m.platform && linked) return view.trail.push({ url: view.url, at: view.at }), (view.url = linked), load(view, cx), true;
@@ -100,8 +101,6 @@ function key(view, e, cx) {
 
 const md = (id, text) => TextView.markdown(id, text).selectable(true).on_link_click((url, cx) => open(url, cx));
 
-const tag = (text, color) => div().flex_none().px(5).rounded(4).text_size(10.5).text_color(color).border_1().border_color(color).child(text);
-
 function parts(id, list, view, t) {
   return v_flex().gap(6).children(list.map((p, i) => {
     if (p.md) return md(`${id}-${i}`, p.md);
@@ -116,7 +115,7 @@ function parts(id, list, view, t) {
   }));
 }
 
-function field(name, value, t) {
+function entry(name, value, t) {
   return h_flex().gap(12).items_start().min_h(24)
     .child(div().w(64).flex_none().pt(3).text_size(11.5).text_color(t.dim).child(name))
     .child(div().flex_1().min_w(0).flex().items_center().min_h(22).child(value));
@@ -124,30 +123,29 @@ function field(name, value, t) {
 
 const person = (name, url, t) => h_flex().gap(8).items_center().min_w(0).child(avatar(name, t, 22, url)).child(div().min_w(0).truncate().text_color(name ? t.foreground : t.muted).child(name || "Unassigned"));
 
-
 // One row per linked issue; the link word only on the first of its group.
 function linkRow(l, first, t, dark) {
   const done = l.statusCategory === "done";
   return h_flex().h(30).gap(10).items_center()
-    .child(div().w(104).flex_none().truncate().text_size(11.5).text_color(l.blocker && !done ? pick(RED, dark) : t.dim).child(first ? l.why : ""))
+    .child(div().w(120).flex_none().truncate().text_size(11.5).text_color(l.blocker && !done ? pick(RED, dark) : t.dim).child(first ? l.why : ""))
     .child(div().size(8).flex_none().rounded(2).bg(colorOf(TYPE_COLOR, l.type, dark, t)))
-    .child(div().w(72).flex_none().text_size(11.5).text_color(t.dim).when(done, (el) => el.line_through()).child(l.key))
+    .child(div().w(80).flex_none().truncate().text_size(11.5).text_color(t.dim).when(done, (el) => el.line_through()).child(l.key))
     .child(div().flex_1().min_w(0).truncate().text_color(done ? t.muted : t.foreground).child(l.title))
     .child(statusChip(l.status, l.statusCategory, t, dark));
 }
 
 function jiraDetails(d, t, dark) {
   const priority = colorOf(PRIORITY_COLOR, d.priority, dark, t);
-  return v_flex().w(310).flex_none().self_start().px(16).py(14).gap(8).rounded(10).bg(t.surface).text_size(12.5)
-    .child(field("Status", statusChip(d.status, d.statusCategory, t, dark), t))
-    .child(field("Assignee", person(d.assignee, d.assigneeAvatar, t), t))
-    .child(field("Reporter", person(d.reporter, d.reporterAvatar, t), t))
-    .child(field("Priority", h_flex().gap(8).items_center().child(div().size(8).rounded_full().bg(priority)).child(div().text_color(t.foreground).child(d.priority || "None")), t))
-    .when(Boolean(d.parent), (el) => el.child(field("Parent", h_flex().min_w(0).child(chip(d.parent?.title ?? "", hue(d.parent?.key ?? "", t), t, true)), t)))
-    .when(d.labels.length > 0, (el) => el.child(field("Labels", h_flex().gap(4).flex_wrap().children(d.labels.map((l) => chip(l, t.muted, t))), t)))
+  return v_flex().w(310).flex_none().self_start().px(16).py(14).gap(8).rounded(6).bg(t.surface).text_size(12.5)
+    .child(entry("Status", statusChip(d.status, d.statusCategory, t, dark), t))
+    .child(entry("Assignee", person(d.assignee, d.assigneeAvatar, t), t))
+    .child(entry("Reporter", person(d.reporter, d.reporterAvatar, t), t))
+    .child(entry("Priority", h_flex().gap(8).items_center().child(div().size(8).rounded(2).bg(priority)).child(div().text_color(t.foreground).child(d.priority || "None")), t))
+    .when(Boolean(d.parent), (el) => el.child(entry("Parent", h_flex().min_w(0).child(epic(d.parent?.title ?? "", hue(d.parent?.key ?? "", t), t)), t)))
+    .when(d.labels.length > 0, (el) => el.child(entry("Labels", h_flex().gap(4).flex_wrap().children(d.labels.map((l) => chip(l, t.muted))), t)))
     .child(div().my(4).h(1).bg(t.border))
-    .child(field("Created", div().text_color(t.muted).child(`${ago(d.created)} ago`), t))
-    .child(field("Updated", div().text_color(t.muted).child(`${ago(d.updated)} ago`), t));
+    .child(entry("Created", div().text_color(t.muted).child(`${ago(d.created)} ago`), t))
+    .child(entry("Updated", div().text_color(t.muted).child(`${ago(d.updated)} ago`), t));
 }
 
 // The left side's blocks, which j k move through: description pieces, linked issues, comments.
@@ -159,13 +157,13 @@ function jiraBlocks(view, d, t, dark) {
   const body = d.body.length ? d.body : [{ md: "" }];
   view.blocks = [
     ...body.map((b, i) => ({ url: d.url, el: v_flex().gap(10)
-      .when(i === 0, (el) => el.child(label("Description")))
+      .when(i === 0, (el) => el.child(label("DESCRIPTION")))
       .child(b.md ? md(`pv-body-${i}`, b.md) : div().text_color(t.dim).child("No description.")) })),
     ...links.map((l, i) => ({ url: l.url, preview: l.url, tight: true, start: i === 0, el: v_flex().gap(6)
-      .when(i === 0, (el) => el.child(label("Linked issues", links.length)))
+      .when(i === 0, (el) => el.child(label("LINKED ISSUES", links.length)))
       .child(linkRow(l, l.why !== links[i - 1]?.why, t, dark)) })),
     ...d.posts.map((p, i) => ({ url: p.url, start: i === 0, el: v_flex().gap(8)
-      .when(i === 0, (el) => el.child(label("Comments", d.posts.length)))
+      .when(i === 0, (el) => el.child(label("COMMENTS", d.posts.length)))
       .child(h_flex().gap(8).items_center().child(avatar(p.who, t, 24, p.avatar)).child(div().text_size(12.5).font_semibold().text_color(t.foreground).child(p.who)).child(div().text_size(11.5).text_color(t.dim).child(`${ago(p.at)} ago`)))
       .child(div().pl(32).child(md(`pv-post-${i}`, p.parts[0].md || "_Empty._"))) })),
   ];
@@ -198,9 +196,9 @@ function header(d, view, t, dark) {
   const s = GH[d.state];
   const live = !FINAL.has(d.state);
   const tags = [
-    ...(live && d.merge ? [tag(d.merge, MERGE_COLOR[d.merge] ? pick(MERGE_COLOR[d.merge], dark) : t.ansi3)] : []),
-    ...(props().behind && view.url === props().preview ? [tag("behind", t.ansi3)] : []),
-    ...d.labels.map((l) => tag(l, t.dim)),
+    ...(live && d.merge ? [mergeChip(d.merge, t, dark)] : []),
+    ...(props().behind && view.url === props().preview ? [chip("behind", t.ansi3)] : []),
+    ...d.labels.map((l) => chip(l, t.dim)),
   ];
   return v_flex().gap(6)
     .child(h_flex().gap(8).items_center().text_size(11.5)
@@ -221,14 +219,14 @@ function status(d, t, dark) {
   const sum = ["failed", "running", "passed", "skipped"].map((s) => count(s) && `${count(s)} ${s}`).filter(Boolean).join(", ");
   return v_flex().gap(6)
     .child(h_flex().gap(10).flex_wrap().text_size(12)
-      .child(div().text_color(t.dim).child("Reviews"))
+      .child(div().font_semibold().text_color(t.dim).child("REVIEWS"))
       .children(d.reviewers.length
         ? d.reviewers.map((r) => div().text_color(REVIEW_COLOR[r.state] ? pick(REVIEW_COLOR[r.state], dark) : t.foreground).child(`${r.who} ${REVIEW_WORD[r.state] ?? r.state.toLowerCase()}`))
         : [div().text_color(t.muted).child("none yet")]))
-    .child(h_flex().gap(10).text_size(12).child(div().text_color(t.dim).child("CI")).child(div().text_color(t.foreground).child(sum || "no checks")))
+    .child(h_flex().gap(10).text_size(12).child(div().font_semibold().text_color(t.dim).child("CI")).child(div().text_color(t.foreground).child(sum || "no checks")))
     .children(d.checks.filter((c) => c.state === "failed" || c.state === "running").map((c) => h_flex().id(`pv-check-${c.name}-${c.url}`).gap(8).pl(22).text_size(12).cursor_pointer()
       .on_click((_e, cx) => open(c.url, cx))
-      .child(div().w(52).flex_none().text_color(pick(CHECK_COLOR[c.state], dark)).child(c.state))
+      .child(div().w(60).flex_none().text_color(pick(CHECK_COLOR[c.state], dark)).child(c.state))
       .child(div().flex_1().min_w(0).truncate().text_color(t.foreground).child(c.name))));
 }
 
@@ -244,7 +242,7 @@ function post(p, i, view, t) {
 
 export function previewRender(view) {
   const t = theme();
-  const dark = Boolean(settings()?.dark);
+  const dark = darkOf(t);
   const d = memory[view.url];
   if (d?.jira) jiraBlocks(view, d, t, dark);
   else view.blocks = d
@@ -256,14 +254,9 @@ export function previewRender(view) {
       ]
     : [];
   const note = view.busy ? "loading" : view.error;
-  // Only the keys that do something here: ↵ on a linked issue, ^O after one.
-  const hint = ["j k move", "^D ^U 3 blocks", "g G top, end",
-    ...(view.blocks[view.at]?.preview ? ["↵ preview it"] : []),
-    ...(view.trail?.length ? ["^O back"] : []),
-    ...(d?.jira ? ["s status", "⌃↵ open in Jira"] : ["⌃↵ open on GitHub"]), "r refresh", "space close"].join(" · ");
   const footer = h_flex().flex_none().gap(12).items_center().text_size(11).text_color(t.dim)
     .child(div().flex_1().min_w(0).truncate().text_color(view.error ? t.blocked : t.dim).child(d ? note : ""))
-    .child(div().flex_none().child(hint));
+    .child(div().flex_none().child("? keys · esc close"));
   const root = v_flex()
     .id("preview")
     .track_focus(view.handle)
@@ -273,18 +266,55 @@ export function previewRender(view) {
       cx.notify();
     })
     .size_full()
+    .relative()
     .min_h(0)
     .p(16)
     .gap(10)
     .bg(t.popover)
     .text_size(13);
-  if (d?.jira) return root.p(22).child(jiraRender(view, d, t, dark, footer));
-  return root
+  const help = (el) => el.when(Boolean(view.help), (el) => el.child(helpPanel(d, t, dark)));
+  if (d?.jira) return help(root.p(22).child(jiraRender(view, d, t, dark, footer)));
+  return help(root
     .child(v_flex().id("pv-list").flex_1().min_h(0).overflow_y_scrollbar().track_scroll(view.scroll).gap(4)
-      .children(view.blocks.map((b, i) => v_flex().id(`pv-block-${i}`).p(10).rounded(8).border_1()
+      .children(view.blocks.map((b, i) => v_flex().id(`pv-block-${i}`).p(10).rounded(6).border_1()
         .border_color(i === view.at ? t.accent : t.popover)
         .on_click((_e, cx) => { view.at = i; cx.notify(); })
         .child(b.el)))
       .when(!d, (el) => el.child(div().p(10).text_color(view.error ? t.blocked : t.dim).child(note || "Nothing to show."))))
-    .child(footer);
+    .child(footer));
+}
+
+// ?: the preview's keys, and what its marks mean, for a Jira issue or a GitHub PR or issue.
+function helpPanel(d, t, dark) {
+  const keys = [
+    ["j k ↓ ↑", "move between blocks"], ["^D ^U", "3 blocks down, up"], ["g G", "top, end"],
+    ...(d?.jira
+      ? [["↵", "preview a linked issue"], ["^O", "back"], ["s", "change status"], ["⌃↵", "open the block in Jira"]]
+      : [["⌃↵", "open the block on GitHub"]]),
+    ["r", "refresh"], ["esc space", "close"],
+  ];
+  const text = (word, color) => div().text_size(12).text_color(color).child(word);
+  const marks = d?.jira
+    ? [
+      [h_flex().gap(4).children(["Bug", "Story", "Task", "Epic"].map((k) => div().size(10).rounded(2).bg(colorOf(TYPE_COLOR, k, dark, t)))), "type: bug, story, task, epic"],
+      [h_flex().gap(4).children(["High", "Medium", "Low", "Lowest"].map((p) => div().size(8).rounded(2).bg(colorOf(PRIORITY_COLOR, p, dark, t)))), "priority: high, medium, low, lowest"],
+      ...statusLegend(t, dark),
+      [text("is blocked by", pick(RED, dark)), "an open issue blocks it"],
+      [div().text_size(12).text_color(t.dim).line_through().child("ABC-12"), "the linked issue is done"],
+      [epic("Epic", hue("ABC-1", t), t), "parent"],
+      [chip("label", t.muted), "label"],
+    ]
+    : [
+      ...stateMarks(t),
+      [text("approved", pick(REVIEW_COLOR.APPROVED, dark)), "a review approved it"],
+      [text("changes", pick(REVIEW_COLOR.CHANGES_REQUESTED, dark)), "a review asks for changes"],
+      [text("failed", pick(CHECK_COLOR.failed, dark)), "a check failed; a click opens it"],
+      [text("running", pick(CHECK_COLOR.running, dark)), "a check is running"],
+      ...[["ready to merge", "GitHub can merge it"], ["conflicts", "conflicts with the base branch"], ["checks failing", "required checks fail"],
+        ["behind base", "the base has newer commits"], ["blocked", "a rule blocks the merge"]].map(([w, x]) => [mergeChip(w, t, dark), x]),
+      [chip("behind", t.ansi3), "your checkout is behind the PR"],
+      [chip("label", t.dim), "label"],
+      [text("bot", t.foreground).opacity(0.5), "faded: a bot wrote it"],
+    ];
+  return keyPanel(t, [["KEYS", keys], ["MARKS", marks]]);
 }

@@ -36,6 +36,17 @@ export function stacked(items) {
   return [...stacks, ...rest].sort((a, b) => b.key[0] - a.key[0] || b.key[1] - a.key[1]).flatMap((s) => s.rows);
 }
 
+// A search (`all`) folds nothing.
+export function foldStacks(rows, open, all) {
+  let root = null;
+  for (const p of rows) {
+    if (p.depth === 0) (root = p), (p.kids = []), (p.root = null);
+    else if (root) root.kids.push(p), (p.root = root.url);
+  }
+  for (const p of rows) if (p.depth === 0) p.folded = !all && p.kids.length > 0 && !open.has(p.url);
+  return rows.filter((p) => p.depth === 0 || !rows.find((r) => r.url === p.root)?.folded);
+}
+
 // `git worktree list --porcelain` as [{ path, head, branch }] (branch null when detached).
 export const worktreesOf = (text) =>
   text.split("\n\n").filter((b) => b.startsWith("worktree ")).map((b) => {

@@ -1,13 +1,10 @@
-// The folder dialog: a folder's name, color and where it is on each machine (one or
-// more paths there). A
-// mh-spaces overlay with props { folder: { id? (an existing one), from? (a space whose
-// repo to start a new one from) } }. Saving asks the sidebar to keep it
-// (shared("space-folders.ask")); what it shows comes from shared("space-folders").
+// The folder dialog, a mh-spaces overlay { folder: { id?, from? (a space to start from) } }; saving goes through shared("space-folders.ask").
 
 import { div, svg } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input } from "gpui-base";
 import { props, closeOverlay, theme, spaces, panes, exec, shared, setShared, pickFolder } from "herdr";
 import { MARK, base, expand, tilde, trim } from "./folders.js";
+import { action, bindPanelKeys, button, frame, helpKey, keyPanel, panelKeys } from "./pixel.js";
 
 const COLORS = [null, ...Object.keys(MARK)];
 const info = () => shared("space-folders") ?? {};
@@ -23,7 +20,9 @@ export function folderInit(view, cx) {
   view.color = f?.color ?? null;
   view.error = "";
   view.busy = false;
-  view.name = InputState.new({ placeholder: "Name", value: f?.name ?? "" });
+  view.handle = cx.focus_handle();
+  bindPanelKeys(cx);
+  view.name = track(view, InputState.new({ placeholder: "Name", value: f?.name ?? "" }));
   view.name.on("submit", (_e, cx) => save(view, cx));
   view.rows = ["", ...(sf.machines ?? []).map((m) => m.name)].map((key) => {
     const at = f?.paths?.[key];
@@ -37,9 +36,16 @@ export function folderInit(view, cx) {
   if (p.from) prefill(view, p.from, cx);
 }
 
+// The field with the keyboard, kept while the ? panel has it.
+function track(view, input) {
+  input.on("focus", () => { view.typing = input; });
+  input.on("blur", () => { if (view.typing === input && !view.help) view.typing = null; });
+  return input;
+}
+
 // One more path field for a machine's row.
 function add(view, row, value = "", placeholder = "Another path") {
-  const input = InputState.new({ placeholder, value });
+  const input = track(view, InputState.new({ placeholder, value }));
   input.on("submit", (_e, cx) => save(view, cx));
   row.inputs.push(input);
   return input;
@@ -118,15 +124,12 @@ function choose(input, cx) {
 export function folderRender(view) {
   const t = theme();
   const states = new Map((info().machines ?? []).map((m) => [m.name, m.state]));
-  const field = (state) => Input.new(state).h(30).px(9).flex_1().min_w(0).items_center().rounded(6).border(1).border_color(t.input).bg(t.background).text_color(t.foreground);
-  const button = (id, text, primary, click) => div().id(id).flex_none().px(12).py(5).rounded(6).cursor_pointer()
-    .bg(primary ? t.solid : t.raised).text_color(primary ? t.solid_foreground : t.foreground)
-    .when(!primary, (el) => el.hover((s) => s.bg(t.hover))).on_click(click).child(text);
+  const entry = (state) => frame(Input.new(state), t.input, t.background).flex_1().min_w(0).h(30).px(11).items_center().text_color(t.foreground);
   const id = (r) => r.key || "local";
   const pathField = (r, input, i) => h_flex().id(`folder-path-${id(r)}-${i}`).gap(6).items_center().flex_none()
-    .child(field(input))
-    .when(!r.key, (el) => el.child(button(`folder-choose-${i}`, "Choose…", false, (_e, cx) => choose(input, cx))))
-    .when(r.inputs.length > 1, (el) => el.child(div().id(`folder-path-drop-${id(r)}-${i}`).flex_none().p(4).rounded(4).cursor_pointer().text_color(t.dim)
+    .child(entry(input))
+    .when(!r.key, (el) => el.child(action(t, `folder-choose-${i}`, "Choose…", false, (_e, cx) => choose(input, cx))))
+    .when(r.inputs.length > 1, (el) => el.child(div().id(`folder-path-drop-${id(r)}-${i}`).flex_none().p(4).rounded(6).cursor_pointer().text_color(t.dim)
       .hover((s) => s.bg(t.hover).text_color(t.foreground))
       .tooltip("Remove this path")
       .on_click((_e, cx) => { r.inputs.splice(i, 1); cx.notify(); })
@@ -146,31 +149,41 @@ export function folderRender(view) {
       .when(!r.editable, (el) => el.child(div().flex_1().min_w(0).h(30).flex().items_center().truncate().text_color(t.dim)
         .child(`${r.was.length ? `${r.was.join(", ")} · ` : ""}${(states.get(r.key) ?? "asleep").replace(/_/g, " ")}, can't change it now`)));
   };
-  const dots = h_flex().gap(6).flex_none().items_center().children(COLORS.map((c) => div().id(`folder-color-${c ?? "none"}`).size(16).rounded(8).cursor_pointer()
-    .bg(c ? MARK[c] : t.dim)
+  const dots = h_flex().gap(6).flex_none().items_center().children(COLORS.map((c) => div().id(`folder-color-${c ?? "none"}`).size(16).rounded(6).bg(c ? MARK[c] : t.dim).cursor_pointer()
     .when(view.color === c, (el) => el.border_2().border_color(t.foreground))
     .on_click((_e, cx) => { view.color = c; cx.notify(); })));
 
   return v_flex()
     .id("folder-dialog")
+    .track_focus(view.handle)
+    .map((el) => panelKeys(el, Boolean(view.help)))
+    .on_key_down((e, cx) => {
+      if (!helpKey(view, e, view.typing, !view.typing?.value())) return;
+      cx.stop_propagation();
+      cx.notify();
+    })
     .size_full()
+    .relative()
     .p(16)
     .gap(12)
     .bg(t.popover)
     .text_size(13)
-    .child(div().flex_none().font_semibold().text_color(t.foreground).child(view.id ? "Edit folder" : "New folder"))
-    .child(h_flex().gap(10).items_center().flex_none().child(field(view.name)).child(dots))
-    .child(div().flex_none().text_size(11).text_color(t.dim).child("Where it is"))
+    .child(div().flex_none().font_semibold().text_color(t.foreground).child(view.id ? "EDIT FOLDER" : "NEW FOLDER"))
+    .child(h_flex().gap(10).items_center().flex_none().child(entry(view.name)).child(dots))
+    .child(div().flex_none().text_size(11).font_semibold().text_color(t.dim).child("WHERE IT IS"))
     .child(v_flex().id("folder-paths").flex_1().min_h(0).gap(10).overflow_y_scrollbar().children(view.rows.map(pathRow)))
     .child(div().flex_none().text_size(11).text_color(t.dim)
       .child("Spaces under one of its paths go in it, worktrees nested there too. A machine left empty uses another's paths, moved to its own home."))
     .when(Boolean(view.error), (el) => el.child(div().flex_none().text_color(t.blocked).child(view.error)))
     .child(h_flex().gap(8).items_center().flex_none()
-      .when(Boolean(view.id), (el) => el.child(button("folder-delete", "Delete", false, () => {
+      .when(Boolean(view.id), (el) => el.child(action(t, "folder-delete", "Delete", false, () => {
         ask({ op: "delete", id: view.id });
         closeOverlay(props().overlay);
       })))
-      .child(div().flex_1())
-      .child(button("folder-cancel", "Cancel", false, () => closeOverlay(props().overlay)))
-      .child(button("folder-save", view.busy ? "Saving…" : "Save", true, (_e, cx) => save(view, cx))));
+      .child(div().flex_1().min_w(0).truncate().text_right().text_size(11).text_color(t.dim).child("? keys · esc close"))
+      .child(action(t, "folder-cancel", "Cancel", false, () => closeOverlay(props().overlay)))
+      .child(action(t, "folder-save", view.busy ? "Saving…" : "Save", true, (_e, cx) => save(view, cx))))
+    .when(Boolean(view.help), (el) => el.child(keyPanel(t, [["KEYS", [
+      ["tab ⇧tab", "next, previous field"], ["↵", "save, from a field"], ["?", "this list, in an empty field"], ["esc", "close"],
+    ]]])));
 }

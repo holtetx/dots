@@ -12,6 +12,21 @@ Read these first. They are in `~/.config/herdr-app`:
 - The `mh-*` mods are git only. `mh-ssh` (ssh passwords) and the board's Jira tab use `op` (1Password).
 - Claude Code side: stow package `claude` in dots. `hooks/statusline.sh` sets the `claude.session`, `claude.cwd`, `claude.context` and `claude.context_size` labels and writes `~/.cache/herdr-claude/limits.json`. `hooks/herdr-activity.sh` keeps `claude.running`: the running subagents and background shells, which have no terminal of their own, as JSON `[{kind: "agent" | "shell", name, detail, file}]`, oldest first. It removes all these labels at SessionEnd. The sidebar lists them under the space's row (`runningRows` in `mods/mh-spaces/main.js`). A click shows the subagent's transcript or the shell's output, live, in a peek until it ends; Esc closes it (`mods/mh-spaces/follow.sh`); not on another machine's space. `claude.cwd` is the project folder. `~/.claude/settings.json` (not in dots) runs both; `hooks/install.sh` adds them there.
 
+## Look
+
+Inspired by Pixel HQ (github.com/bnhan2710/pixel-hq), built by hand.
+
+- Theme `themes/pixel-hq.json`: Catppuccin Mocha with Pixel HQ's window colors. The `layouts/mh.json` root sets it, JetBrains Mono for terminals and mods, and terminal padding 16 by 14.
+- Cards: the root has padding 8 and gap 8. The sidebar, tab bar, panes, side panel and git bar are rounded cards (radius 12). The spacing dialog's defaults match (gap 8, padding 16 by 14).
+- `mods/mh-spaces/pixel.js`, copied unchanged into each mh-* mod that uses it (mods can't import each other): `button()` (rounded 6, 1px frame, brighter when on) for buttons, toggles and tabs, `frame()` for inputs and cards, `chip()` for tinted pills, `mark()` for an agent's status (`px-spinner.svg` turning, `px-bang.svg`, `px-tick.svg`, nothing when idle), `WORDS` for status words (needs you, working, done, idle), `ink()` for text on a colored tile, `keyPanel()` for a dialog's `?` panel (keys and marks). Rows and small icon buttons are rounded 6; the sidebar's space rows and Jira cards are rounded 8. Section headers are in caps. The shown tab is a soft lavender pill (`#b4befe` tint, rounded 10) with a status dot (working and blocked pulse) and its close mark, as in Pixel HQ's preview; other tabs are plain.
+- Toasts (`mh-toast`): a framed card with no Herdr frame (`mod.json` overlay frame none). The title on the first line; a chip (`NEEDS YOU`, `DONE`, `ERR`, `WARN`, `OK`, `INFO`) with the space and branch, or the body, on the second. `ctrl-a N` (`mh-tabs.test-toast`) shows a sample, the next kind each time.
+- Pane headers: `mods/mh-pane` (a clone of Herdr's `pane`), always shown, 36 px: program, folder (folder and branch in its tooltip), the pane's status chip. The session title shows as a chip only in a split tab: the tab already shows it.
+- Git bar: branch, diff, PRs, then `N on the team` and a count per status (`team()` in `bar.js`). A click goes to the next agent in that state.
+- Sidebar: folders use Pixel HQ's metro line colors (`MARK` in `folders.js` and its copies). Under a folder's name, its checkout's branch on a faint tint of the folder's color, with no outline (`branchLine()`; `checkoutBranch()` picks the one most of its spaces share). The track is a solid, softened version of the folder's color (`soften()`) and ends at the last station. A station per space is framed in the folder's color and filled with its status color while an agent is busy (working pulses slowly and keeps its spinner on the right, blocked pulses fast); the shown space has a light core. A row gets a second line only with something of its own: the space name when the title is a session and no folder names it, a branch other than the folder's (a worktree), `N agents` from 2. A space with two or more busy agents gets count chips. Subagent rows sit on the track with a blue spinner.
+- A PR with new activity has a small yellow square on its icon (sidebar and board).
+- The footer's limits are 5-segment gauges. `mh-tabs` sets the Dock badge to the number of agents that need you.
+- Folder and space colors: `MARK` (folders.js and its copies in mh-sessions, mh-picker, mh-panes), 12 soft colors; new spaces get one of the first 6. Fixed colors: GitHub and Jira states are Catppuccin pairs `[Latte, Mocha]`, defined once in `mods/mh-spaces/jira.js`.
+
 ## Where state lives
 
 All `mh-state.json` keys, their shape and which Mac needs them: README.md in dots, "Herdr: this Mac's settings". Keep that list in step with `FILES` in `mods/mh-footer/settings.js`.
@@ -30,7 +45,7 @@ All `mh-state.json` keys, their shape and which Mac needs them: README.md in dot
 
 ## Key list (`cmd-/`, `ctrl-a ?`)
 
-`mods/mh-help` lists every binding in `keys.json` with words from its `DESCRIBE` table. When you add or change a key, give it a line there. A key without a line shows Herdr's text and "no description". Keys inside lists (board, tasks, copy mode) are not in it: each list shows them in its own key hints. `cmd-shift-/` is Herdr's raw list.
+`mods/mh-help` lists every binding in `keys.json` with words from its `DESCRIBE` table. When you add or change a key, give it a line there. A key without a line shows Herdr's text and "no description". Keys inside a dialog or list (board, tasks, sessions, preview, copy mode and the rest) are not in it: `?` in that dialog shows its keys and what its marks mean (`^/` in copy mode, where `?` searches; on a search field only while it is empty). The hint line says `? keys · esc close`. `cmd-shift-/` is Herdr's raw list.
 
 ## Sidebar
 
@@ -53,7 +68,7 @@ A space takes its git info from the folder of its first tab, or from that termin
 
 ## Toasts
 
-`mods/mh-toast` (layout `"toast"`) draws every notification. Herdr's agent toasts carry only "<program> needs you|finished" and "<space> / <tab>". The mod finds the agent from the click action (`agent.focus {terminal}`), else from that text when only one agent fits, and shows its `mh.description` or title, status, space and branch. Other toasts look like Herdr's, with a status bar on the left.
+`mods/mh-toast` (layout `"toast"`) draws every notification. Herdr's agent toasts carry only "<program> needs you|finished" and "<space> / <tab>". The mod finds the agent from the click action (`agent.focus {terminal}`), else from that text when only one agent fits, and shows its `mh.description` or title, status, space and branch. Other toasts show a level chip (see Look).
 
 ## Git bar
 
@@ -66,14 +81,14 @@ Choices the owner made. Do not change them without a question.
 - Repos: those found in the sidebar folders, but those in `mh-board.skip` (`owner/repo`, any case), plus `mh-board.repos`. `mh-board` is in `mh-state.json`, not in dots: this repo is public and the repo names are internal. A `git@<host>:owner/repo` remote counts as GitHub (ssh host aliases).
 - Repos whose `owner/repo` name contains an entry of `mh-board.hide` are hidden.
 - PRs are asked for in three separate `gh` calls. One combined query gives HTTP 502.
-- The PR and issue tabs are grouped by repo. There are no status groups. A stacked PR (its base is the branch of another open PR in the repo) sits under its parent with an indent (`mods/mh-spaces/stack.js`, test: `node mods/mh-spaces/stack.test.mjs`).
-- A yellow `review` label marks a PR where GitHub says the owner's review is requested. PRs with the label come first in their repo.
-- Each PR row, left to right: `#number`, title, labels, comment count (GitHub `totalCommentsCount`), links, author, `+added -deleted`, age, one review word (`needs review`, `in review`, `approved`, `changes`, `draft`, `queued`; GitHub's `reviewDecision`, else the latest reviews; a change request shows unless GitHub says approved; `in review` when a person other than the author reviewed or commented, bots do not count) and `CI` with its state. Use words, not icons alone.
-- The title line is the tabs in a fixed order (Pull requests, Issues, Jira; the shown one highlighted), the refresh state and the main keys. Hover the keys for all of them. A line under the list shows only when there is a note.
+- The PR and issue tabs are grouped by repo. There are no status groups. A stacked PR (its base is the branch of another open PR in the repo) sits under its parent with an indent (`mods/mh-spaces/stack.js`, test: `node mods/mh-spaces/stack.test.mjs`). A stack is folded under its root by default (`foldStacks()`), which shows a gray `▸ N STACKED` chip in a fixed column after the title. While folded, the root's own columns speak for the PRs it hides: a red CI cross if any fails, the `↓` if any is behind, `YOUR REVIEW` if any asks yours; the tooltips name which PRs. On any PR of the stack `l`/`→` open it, `h`/`←` fold it, `z` or a click on the chip toggles it (elsewhere `h`/`l` jump between repos). An open stack keeps the columns, with its tree marks in the title column; the open ones are kept in localStorage (`prs.open`). A search shows every match.
+- When GitHub says the owner's review is requested, the review chip reads `YOUR REVIEW` (yellow). Those PRs come first in their repo.
+- Each PR row, left to right: the new-activity square, `#number`, title, the `STACKED` chip column, comment count (GitHub `totalCommentsCount`), one blue dot when you have Claude sessions or links on the PR (its tooltip counts them), author, `+added -deleted`, age, the review word as a chip (`NEEDS REVIEW`, `IN REVIEW`, `APPROVED`, `CHANGES`, `DRAFT`, `QUEUED`; GitHub's `reviewDecision`, else the latest reviews; a change request shows unless GitHub says approved; `in review` when a person other than the author reviewed or commented, bots do not count), the `↓` column, and CI as a tick, cross or dot, its state in the tooltip.
+- The title line is the tabs in a fixed order (Pull requests, Issues, Jira; the shown one highlighted), the refresh state and `? keys`. `?` opens a panel over the board with every key and a legend of the marks (`helpPanel()`); `?` or esc closes it. A line under the list shows only when there is a note.
 - `/` opens a search field under the title line. It filters the shown tab by ref, title, repo, author, branch, assignees and labels; every word must match. `↵` keeps the filter, `esc` clears it.
 - Dependabot PRs are hidden each time the mod loads. `b`, or the `Dependabot hidden N` button on the title line, shows them until the next load.
 - A board session on a PR branch moves the local branch to origin: fast-forward, or after a force-push a reset when the branch has no commits or changes of its own. Otherwise it stops with an error.
-- A yellow `behind` label marks a PR with a checkout here that does not have the PR's newest commit (new commits or a force-push). A checkout is a worktree on the PR's branch, or a `review-<number>` folder as the `review-pr` skill makes. Only repos with a space or a sidebar folder are checked.
+- A yellow `↓` in its own column before CI marks a PR with a checkout here that does not have the PR's newest commit (new commits or a force-push). A checkout is a worktree on the PR's branch, or a `review-<number>` folder as the `review-pr` skill makes. Only repos with a space or a sidebar folder are checked.
 - Not tested: worktree recreate on resume.
 
 ## Jira tab on the board (work Mac only)

@@ -1,17 +1,21 @@
-// Claude Code sessions: the session search (mod.open; spaces in Waiting and their
-// sessions in a section of their own) and the tasks list ({ tasks: true }, or one
-// task's sessions with { url }, tasks.js).
+// Claude Code sessions: the session search (mod.open) and the tasks list ({ tasks: true }, tasks.js).
 
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, ScrollHandle } from "gpui-base";
 import { agents, spaces, panes, theme, shared, setShared, props, run, exec, hc, home, appHome, readTextFile, closeOverlay } from "herdr";
 import { base, ago, worktree, label, place, missing, resume } from "./sessions.js";
+import { bindPanelKeys, frame, helpKey, ink, keyPanel, mark, panelKeys, statusMarks, WORDS } from "./pixel.js";
 import { taskInit, taskRender } from "./tasks.js";
 
 const LIST = 440;
 const ICON = (name) => `mods/workspace-chrome/${name}.svg`;
 // Space avatar colors, as the mh-spaces sidebar draws them.
-const MARK = { ansi6: "#22a99a", ansi3: "#e3814f", ansi4: "#5b8def", ansi5: "#8b7cf6", ansi2: "#3fae6a", ansi1: "#d9649a" };
+const MARK = { ansi6: "#6fc7bd", ansi3: "#8fa3f0", ansi4: "#7aa7e8", ansi5: "#b394f0", ansi2: "#8fcf94", ansi1: "#e49ac8", yellow: "#e6c98a", peach: "#eaa37f", red: "#e3889a", sky: "#7cc4e0", sand: "#c9b28f", slate: "#9aa5c4" };
+
+const avatar = (color, title, t) => {
+  const fill = color.startsWith("#") ? color : (MARK[color] ?? t[color]);
+  return h_flex().size(14).rounded(4).bg(fill).items_center().justify_center().text_size(8.5).font_bold().text_color(ink(fill)).child([...title][0]?.toUpperCase() ?? "?");
+};
 
 // When an agent in the space last changed state (0: not since Herdr started).
 const activity = (w) => Math.max(0, ...w.tabs.map((t) => t.changed_at ?? 0));
@@ -58,6 +62,7 @@ export default class Sessions extends View {
     this.error = "";
     this.handle = cx.focus_handle();
     this.handle.focus();
+    bindPanelKeys(cx);
     if (this.mode === "tasks") return taskInit(this, cx);
     this.initSearch(cx);
   }
@@ -137,7 +142,7 @@ export default class Sessions extends View {
       cwd: place(w, ps) ?? "",
       machine: w.machine,
       color: colors[w.id] ?? "ansi6",
-      meta: ["blocked", "done", "working"].includes(w.status) ? w.status : `${w.tabs.length} tab${w.tabs.length === 1 ? "" : "s"}`,
+      meta: ["blocked", "done", "working"].includes(w.status) ? WORDS[w.status] : `${w.tabs.length} tab${w.tabs.length === 1 ? "" : "s"}`,
     }));
     const skip = new Set((this.open ?? []).map((s) => s.id));
     const past = (this.history ?? []).filter((s) => !skip.has(s.id) && match(s));
@@ -186,9 +191,9 @@ export default class Sessions extends View {
       const on = i === this.at;
       const icon =
         kind === "open"
-          ? div().size(7).rounded(4).bg(t[s.status] ?? t.idle)
+          ? (mark(s.status, t) ?? "")
           : kind === "space"
-            ? h_flex().size(14).rounded(4).bg(s.color.startsWith("#") ? s.color : (MARK[s.color] ?? t[s.color])).items_center().justify_center().text_size(8.5).font_bold().text_color("#ffffff").child([...s.title][0]?.toUpperCase() ?? "?")
+            ? avatar(s.color, s.title, t)
             : svg(ICON("clock")).size(13).text_color(t.dim);
       return h_flex()
         .id(`ss-${kind}-${s.id}`)
@@ -197,7 +202,7 @@ export default class Sessions extends View {
         .px(10)
         .gap(9)
         .items_center()
-        .rounded(7)
+        .rounded(6)
         .cursor_pointer()
         .when(on, (el) => el.bg(t.selected))
         .when(!on, (el) => el.hover((st) => st.bg(t.hover)))
@@ -205,14 +210,14 @@ export default class Sessions extends View {
         .child(h_flex().w(14).flex_none().justify_center().child(icon))
         .child(div().flex_1().min_w(0).truncate().text_color(t.foreground).child(s.title))
         .child(div().flex_none().max_w(220).truncate().text_size(11.5).text_color(t.dim).child(this.busy === s.id ? "resuming…" : `${s.machine ? `${s.machine} · ` : ""}${label(s.cwd)}${this.gone[s.cwd] && kind !== "open" ? " · gone" : ""}`))
-        .child(h_flex().flex_none().w(52).justify_end().text_size(11).text_color(t.dim).child(kind === "open" ? s.status : kind === "space" ? s.meta : ago(s.at)));
+        .child(h_flex().flex_none().w(52).justify_end().text_size(11).text_color(t.dim).child(kind === "open" ? WORDS[s.status] : kind === "space" ? s.meta : ago(s.at)));
     };
     const children = [];
     this.childOf = [];
     let n = 0;
     for (const { name, kind, list, total, loading } of sections) {
       if (!list.length && !loading) continue;
-      children.push(h_flex().h(26).px(10).pt(6).flex_none().items_center().text_size(11).text_color(t.dim).child(loading ? `${name} · loading…` : `${name} · ${total > list.length ? `${list.length} of ${total}` : list.length}`));
+      children.push(h_flex().h(26).px(10).pt(6).flex_none().items_center().text_size(11).font_semibold().text_color(t.dim).child(loading ? `${name.toUpperCase()} · loading…` : `${name.toUpperCase()} · ${total > list.length ? `${list.length} of ${total}` : list.length}`));
       for (const s of list) {
         this.childOf[n] = children.length;
         children.push(row(kind === "waiting" ? s.kind : kind, s, n++));
@@ -220,12 +225,14 @@ export default class Sessions extends View {
     }
     const empty = items.length === 0 && !sections.some((s) => s.loading);
     const height = Math.min(LIST, empty ? 40 : sections.filter((s) => s.list.length || s.loading).length * 26 + items.length * 32);
-    const resuming = selected && this.gone[selected.s.cwd] ? this.goneHint(selected.s, "↵", "⇧↵") : "↵ resume";
-    const hint = this.busy ? "resuming…" : ({ open: "↵ go to", space: "↵ go to", history: resuming }[selected?.kind] ?? "");
+    const hint = this.busy ? "resuming…" : selected?.kind === "history" && this.gone[selected.s.cwd] ? this.goneHint(selected.s, "↵", "⇧↵") : "";
     return v_flex()
       .id("sessions")
+      .relative()
       .track_focus(this.handle)
+      .map((el) => panelKeys(el, Boolean(this.help)))
       .on_key_down((e, cx) => {
+        if (helpKey(this, e, this.input, !this.text)) return cx.stop_propagation(), cx.notify();
         const count = items.length;
         const ctrl = e.modifiers.control && !e.modifiers.platform && !e.modifiers.alt && !e.modifiers.shift;
         const down = e.key === "down" || (ctrl && (e.key === "j" || e.key === "n"));
@@ -240,22 +247,19 @@ export default class Sessions extends View {
       })
       .w_full()
       .min_h(0)
+      .when(Boolean(this.help), (el) => el.min_h(390))
       .p(18)
       .gap(10)
       .bg(t.popover)
       .text_size(13)
-      .child(div().text_size(15).font_semibold().text_color(t.foreground).child("Sessions"))
+      .child(div().text_size(15).font_semibold().text_color(t.foreground).child("SESSIONS"))
       .child(
-        h_flex()
+        frame(h_flex(), t.accent, t.background)
           .h(36)
           .flex_none()
-          .px(10)
+          .px(12)
           .gap(8)
           .items_center()
-          .rounded(9)
-          .border_1()
-          .border_color(t.accent)
-          .bg(t.background)
           .child(svg(ICON("search")).size(15).text_color(t.dim))
           .child(Input.new(this.input).flex_1().h_full().text_size(12.8).text_color(t.foreground)),
       )
@@ -270,6 +274,21 @@ export default class Sessions extends View {
           .when(empty, (el) => el.child(div().p(10).text_color(t.dim).child("No matching sessions."))),
       )
       .when(Boolean(this.error), (el) => el.child(div().text_color(t.blocked).child(this.error)))
-      .child(h_flex().justify_end().text_size(11).text_color(t.dim).child([hint, "esc close"].filter(Boolean).join(" · ")));
+      .child(h_flex().justify_end().text_size(11).text_color(t.dim).child([hint, "? keys", "esc close"].filter(Boolean).join(" · ")))
+      .when(Boolean(this.help), (el) => el.child(this.helpPanel(t)));
+  }
+
+  helpPanel(t) {
+    const keys = [
+      ["type", "search titles, folders, machines and prompts"], ["↓↑ ^J ^K ^N ^P", "move"],
+      ["↵", "go to an open session or space, resume a past one"], ["⇧↵", "resume in its repo when its folder is gone"], ["esc", "close"],
+    ];
+    const marks = [
+      [statusMarks(t), "open session: working, needs you, done; idle has none"],
+      [avatar("ansi6", "Space", t), "a space, in its sidebar color"],
+      [svg(ICON("clock")).size(13).text_color(t.dim), "a past session"],
+      [div().text_size(11.5).text_color(t.dim).child("· gone"), "its folder is gone"],
+    ];
+    return keyPanel(t, [["KEYS", keys], ["MARKS", marks]]);
   }
 }

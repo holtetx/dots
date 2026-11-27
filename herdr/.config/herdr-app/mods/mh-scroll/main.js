@@ -7,6 +7,7 @@
 import { View, div } from "gpui-kit";
 import { h_flex } from "gpui-base";
 import { props, focused, terminals, theme, run, hc, closeOverlay } from "herdr";
+import { chip, frame, helpKey, keyPanel } from "./pixel.js";
 
 // Each move: [the keys Claude gets, terminal.scroll's args for the rest].
 const MOVES = {
@@ -57,29 +58,33 @@ export default class Scroll extends View {
 
   render() {
     const t = theme();
-    return h_flex()
+    return frame(h_flex(), t.accent, t.popover)
       .id("scroll")
+      .relative()
+      .w_full()
+      .h(this.help ? 300 : 30)
+      .when(Boolean(this.help), (el) => el.items_start().pt(5))
       .track_focus(this.handle)
       .on_key_down((e, cx) => {
         const m = e.modifiers;
         if (m.platform || m.alt) return;
+        if (helpKey(this, e)) return cx.stop_propagation(), cx.notify();
         if (e.key === "escape" || (e.key === "q" && !m.control)) return closeOverlay(props().overlay);
         const name = moveOf(e.key, m.control && !m.shift, m.shift);
         if (!name) return;
         this.go(name, cx);
         cx.stop_propagation();
       })
-      .size_full()
       .px(10)
       .gap(10)
-      .items_center()
-      .rounded(8)
-      .bg(t.popover)
-      .border_1()
-      .border_color(t.accent)
+      .when(!this.help, (el) => el.items_center())
       .text_size(12)
-      .child(div().flex_none().px(6).rounded(4).bg(t.accent).text_size(11).font_semibold().text_color(t.accent_foreground).child("SCROLL"))
+      .child(chip("SCROLL", t.accent))
       .child(div().flex_1().min_w(0).truncate().text_color(t.muted)
-        .child(this.terminal ? "j/k line · ^U/^D half page · ^B/^F page · g/G top/bottom · q quit" : "No terminal in focus · q quit"));
+        .child(this.terminal ? "? keys · q quit" : "No terminal in focus · q quit"))
+      .when(Boolean(this.help), (el) => el.child(keyPanel(t, [["KEYS", [
+        ["j k ↓↑", "a line down, up; ^E ^Y ^N ^P too"], ["^D ^U", "half a page down, up; pgdn pgup too"],
+        ["^F ^B", "a page down, up; space b too"], ["g G", "top, bottom; home end too"], ["q esc", "back to the bottom and quit"],
+      ]]])));
   }
 }

@@ -5,6 +5,7 @@ import { View, div } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { props, closeOverlay, theme, shared, checking } from "herdr";
 import { emojis } from "./emoji.js";
+import { action, frame, helpKey, keyPanel } from "./pixel.js";
 
 const canteen = () => {
   const c = shared("mh-lunch");
@@ -48,13 +49,9 @@ export default class Lunch extends View {
   }
 
   today(t, day) {
-    return v_flex()
+    return frame(v_flex(), t.accent, t.raised)
       .gap(10)
       .p(14)
-      .rounded(12)
-      .bg(t.raised)
-      .border_1()
-      .border_color(t.accent)
       .child(div().text_size(11).font_semibold().text_color(t.accent).child(`TODAY · ${day.name.toUpperCase()}`))
       .children(
         day.dishes.map((name) => {
@@ -62,7 +59,7 @@ export default class Lunch extends View {
           return h_flex()
             .gap(12)
             .items_center()
-            .child(h_flex().flex_none().w(44).h(44).rounded(10).bg(t.background).items_center().justify_center().text_size(26).child(lead))
+            .child(h_flex().flex_none().w(44).h(44).rounded(4).bg(t.background).items_center().justify_center().text_size(26).child(lead))
             .child(
               v_flex()
                 .flex_1()
@@ -101,10 +98,13 @@ export default class Lunch extends View {
     const sub = [this.place, this.week && `week ${this.week}`].filter(Boolean).join(" · ");
     return v_flex()
       .id("mh-lunch")
+      .relative()
       .track_focus(this.handle)
-      .on_key_down((e) => {
+      .on_key_down((e, cx) => {
+        if (helpKey(this, e)) return cx.stop_propagation(), cx.notify();
         if (e.key === "escape" || e.key === "enter") hide();
       })
+      .when(Boolean(this.help), (el) => el.min_h(270))
       .px(14)
       .pt(14)
       .pb(12)
@@ -115,11 +115,20 @@ export default class Lunch extends View {
           .px(4)
           .items_center()
           .gap(8)
-          .child(div().text_size(16).font_semibold().text_color(t.foreground).child("Lunch"))
+          .child(div().text_size(16).font_semibold().text_color(t.foreground).child("LUNCH"))
           .child(div().flex_1().text_size(12).text_color(t.dim).child(sub))
-          .child(div().id("mh-lunch-esc").px(6).py(2).rounded(5).text_size(11).text_color(t.dim).cursor_pointer().hover((s) => s.bg(t.hover).text_color(t.foreground)).on_click(hide).child("Esc")),
+          .child(action(t, "mh-lunch-esc", "Esc", false, hide)),
       )
       .when(!!text, (el) => el.child(div().px(4).pb(4).text_size(13).text_color(t.dim).child(text)))
-      .when(!text, (el) => el.children(this.days.map((day) => (day.date === now ? this.today(t, day) : this.row(t, day, day.date < now)))));
+      .when(!text, (el) => el.children(this.days.map((day) => (day.date === now ? this.today(t, day) : this.row(t, day, day.date < now)))))
+      .child(h_flex().px(4).justify_end().text_size(11).text_color(t.dim).child("? keys · esc close"))
+      .when(Boolean(this.help), (el) => el.child(keyPanel(t, [
+        ["KEYS", [["esc ↵", "close"]]],
+        ["MARKS", [
+          [frame(div(), t.accent, t.raised).px(6).text_size(11).font_semibold().text_color(t.accent).child("TODAY"), "today's dishes"],
+          [div().opacity(0.45).text_size(11.5).font_medium().text_color(t.dim).child("Mon"), "a day that has passed"],
+          [div().text_size(17).child("🍽️"), "no known food word in its name"],
+        ]],
+      ])));
   }
 }

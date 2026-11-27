@@ -8,6 +8,7 @@ import { View, div } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input } from "gpui-base";
 import { props, theme, settings, terminals, run, exec, hc, appHome, home, notify, closeOverlay, shared, setShared, readTextFile } from "herdr";
 import * as vim from "./vim.js";
+import { chip, keyPanel } from "./pixel.js";
 
 const HISTORY = "100000";
 const sleep = (cx, ms) => new Promise((resolve) => cx.timer.after(ms, () => resolve()));
@@ -238,6 +239,12 @@ export default class Copy extends View {
 
   key(e, cx) {
     if (!this.lines) return e.key === "escape" && this.close();
+    // ^/ opens it, not ?: ? searches back, as in vim.
+    if (this.help) {
+      if (e.key === "escape" || e.key === "/" || e.key === "?") this.help = false;
+      cx.stop_propagation();
+      return cx.notify();
+    }
     if (this.searching) {
       if (e.key === "escape") {
         this.searching = 0;
@@ -286,6 +293,7 @@ export default class Copy extends View {
       else if (k === "j" || k === "n") this.go(row + 5 * n, col, true);
       else if (k === "k" || k === "p") this.go(row - 5 * n, col, true);
       else if (k === "c") this.close();
+      else if (k === "/") this.help = true;
       else return;
     } else if (k === "j" || k === "down") this.go(row + n, col, true);
     else if (k === "k" || k === "up") this.go(row - n, col, true);
@@ -370,9 +378,11 @@ export default class Copy extends View {
     const rows = [];
     if (L) for (let r = this.top; r < Math.min(L.length, this.top + this.rows); r++) rows.push(this.line(t, r, lh));
     const mode = this.mode === "line" ? "V-LINE" : this.mode === "char" ? "VISUAL" : "COPY";
-    const hint = this.anchor ? "y copy · o other end · esc cancel" : "v select · V lines · / search · y copy line · q quit";
+    const tone = this.mode ? t.accent : t.foreground;
+    const hint = this.anchor ? "y copy · ^/ keys · esc cancel" : "^/ keys · esc close";
     return v_flex()
       .id("copy-mode")
+      .relative()
       .track_focus(this.handle)
       .on_key_down((e, cx) => this.key(e, cx))
       .size_full()
@@ -420,7 +430,7 @@ export default class Copy extends View {
           .border_color(t.border)
           .text_size(11.5)
           .text_color(t.muted)
-          .child(div().flex_none().font_semibold().text_color(this.mode ? t.accent : t.foreground).child(mode))
+          .child(chip(mode, tone))
           .when(Boolean(this.searching), (el) =>
             el.child(div().flex_none().text_color(t.foreground).child(this.searching > 0 ? "/" : "?")).child(Input.new(this.input).flex_1().h(20).text_color(t.foreground)),
           )
@@ -430,7 +440,25 @@ export default class Copy extends View {
           .when(Boolean(this.count || this.pending), (el) => el.child(div().flex_none().text_color(t.foreground).child(this.count + this.pending)))
           .when(Boolean(L), (el) => el.child(div().flex_none().child(`${this.cur.row + 1}/${L.length}`)))
           .child(div().flex_none().text_color(t.dim).child(hint)),
-      );
+      )
+      .when(Boolean(this.help), (el) => el.child(this.helpPanel(t)));
+  }
+
+  helpPanel(t) {
+    const keys = [
+      ["h j k l", "move; ↓↑←→ too"], ["w b e", "next word, back a word, word end"], ["0 ^ $", "line start, first letter, line end"],
+      ["gg G", "top, bottom; with a count, that line"], ["H M L", "top, middle, bottom of the view"],
+      ["^D ^U", "half a page down, up"], ["^F ^B", "a page down, up; pgdn pgup too"], ["^J ^K", "5 lines down, up"],
+      ["1-9", "count for the next move"], ["v V", "select letters, lines"], ["o", "go to the other end of the selection"],
+      ["y ↵", "copy the selection or the line, and close"], ["/ ?", "search down, up"], ["n N", "next, previous match"],
+      ["esc", "cancel the selection, else close"], ["q ^C", "close"],
+    ];
+    const marks = [
+      [chip("COPY", t.foreground), "moving"], [chip("VISUAL", t.accent), "selecting letters"], [chip("V-LINE", t.accent), "selecting lines"],
+      [div().bg(t.accent).text_color(t.background).child("a"), "the cursor"], [div().bg(t.selection).child("text"), "the selection"],
+      [div().bg(t.ansi3).text_color(t.background).child("match"), "a search match"],
+    ];
+    return keyPanel(t, [["KEYS", keys], ["MARKS", marks]]);
   }
 
   render() {

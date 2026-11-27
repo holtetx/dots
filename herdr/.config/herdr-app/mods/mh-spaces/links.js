@@ -1,19 +1,12 @@
-// The link dialog of a space, or of one of its agents: its GitHub PRs and issues,
-// those linked by hand (a space's include its agents', an agent's its
-// space's) beside its branch's PR and its Claude sessions', then what those bring
-// along (a PR's issues, an issue's PRs: "via #12"), then its
-// repo's open PRs to link.
-// Typing filters both (a number picks that one; a URL or owner/repo#12 is looked up).
-// ^D (or the row's button) unlinks one linked by hand, and hides the others from the
-// space and its agents until ^D shows them again. Both are kept on the space's
-// machine (docs.js), so every screen shows the same.
-// A mh-spaces overlay with props { link: spaceId, agent?: terminalAddress }.
+// The link dialog of a space or an agent, a mh-spaces overlay { link: spaceId, agent?: terminalAddress }; links are kept by docs.js.
 
 import { div, svg } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, ScrollHandle } from "gpui-base";
 import { props, closeOverlay, theme, spaces, panes, agents, terminals, exec, shared, setShared } from "herdr";
-import { badge, expand, githubRepo, open, openPrs, resolve } from "./github.js";
+import { GH, badge, expand, githubRepo, open, openPrs, resolve, stateMarks } from "./github.js";
 import { editLinks, forgetHistory, linksOf, split } from "./docs.js";
+import { bindPanelKeys, darkOf, frame, helpKey, keyPanel, panelKeys, spinner } from "./pixel.js";
+import { GREEN, RED } from "./jira.js";
 
 const spaceOf = () => spaces().find((s) => s.id === props()?.link);
 const agentOf = () => agents().find((a) => a.address === props()?.agent);
@@ -21,6 +14,7 @@ const nameOf = (a) => a.tab_name || a.title || a.address;
 const targetOf = () => (props()?.agent ? { agent: props().agent } : { space: props()?.link });
 
 export function linkInit(view, cx) {
+  bindPanelKeys(cx);
   view.resolved = {}; // url -> item, until the sidebar has asked GitHub itself
   view.error = "";
   view.busy = false;
@@ -156,6 +150,7 @@ function filter(text) {
 
 export function linkRender(view) {
   const t = theme();
+  const dark = darkOf(t);
   const s = spaceOf();
   const id = props()?.link;
   const agent = props()?.agent ? agentOf() ?? { address: props().agent } : null;
@@ -192,7 +187,6 @@ export function linkRender(view) {
   view.rows = [...mine, ...others];
   view.at = Math.min(view.at, Math.max(0, view.rows.length - 1));
   const selected = view.rows[view.at];
-  const verb = (r) => (r.owner ? "unlink" : r.hidden ? "show" : "hide");
 
   const base = (r, i) => h_flex()
     .id(`${r.pr ? "open" : "link"}-${r.url}`)
@@ -201,36 +195,36 @@ export function linkRender(view) {
     .gap(8)
     .flex_none()
     .items_center()
-    .rounded(7)
+    .rounded(6)
     .cursor_pointer()
     .when(i === view.at, (el) => el.bg(t.selected))
     .when(i !== view.at, (el) => el.hover((el) => el.bg(t.hover)));
   const linkedRow = (r, i) => base(r, i)
     .when(r.hidden, (el) => el.opacity(0.5))
     .on_click((_e, cx) => open(r.url, cx))
-    .child(div().w(52).flex_none().child(badge(r.url, items, t, `link-badge-${r.url}`)))
+    .child(div().w(64).flex_none().child(badge(r.url, items, t, `link-badge-${r.url}`)))
     .child(div().flex_1().min_w(0).truncate().text_color(t.foreground).child(items[r.url]?.title || r.url.replace(/^https:\/\/(github\.com\/)?/, "")))
     .child(div().flex_none().max_w(160).truncate().text_size(11).text_color(t.dim).child(r.hidden ? `hidden · ${r.from}` : r.from))
-    .child(div().id(`drop-${r.url}`).flex_none().p(2).rounded(4).text_color(t.dim)
+    .child(div().id(`drop-${r.url}`).flex_none().p(2).rounded(6).text_color(t.dim)
       .hover((el) => el.bg(t.selected).text_color(t.foreground))
       .tooltip(r.owner ? "Unlink" : r.hidden ? "Show in the sidebar" : "Hide from the sidebar")
       .on_click((_e, cx) => { cx.stop_propagation(); drop(view, id, r, cx); })
       .child(svg(`mods/workspace-chrome/${r.hidden ? "plus" : "x"}.svg`).size(12)));
   const openRow = (r, i) => base(r, i)
     .on_click((_e, cx) => { link(view, r.pr, cx); cx.notify(); })
-    .child(div().w(52).flex_none().child(badge(r.url, { [r.url]: r.pr }, t, `open-badge-${r.url}`)))
+    .child(div().w(64).flex_none().child(badge(r.url, { [r.url]: r.pr }, t, `open-badge-${r.url}`)))
     .child(div().flex_1().min_w(0).truncate().text_color(t.foreground).child(r.pr.title))
     .child(div().flex_none().max_w(200).truncate().text_size(11).text_color(t.dim).child(r.pr.mine ? r.pr.branch : `${r.pr.author} · ${r.pr.branch}`));
-  const header = (label) => h_flex().h(26).px(8).pt(6).flex_none().items_center().text_size(11).text_color(t.dim).child(label);
+  const header = (label) => h_flex().h(26).px(8).pt(6).flex_none().items_center().text_size(11).font_semibold().text_color(t.dim).child(label);
 
   const children = [];
   view.childOf = [];
   let n = 0;
-  if (mine.length) children.push(header("Linked"));
+  if (mine.length) children.push(header("LINKED"));
   for (const r of mine) { view.childOf[n] = children.length; children.push(linkedRow(r, n++)); }
   if (view.repo) {
     const count = others.length === candidates.length ? `${candidates.length}` : `${others.length} of ${candidates.length}`;
-    children.push(header(view.open === undefined ? `Open in ${view.repo} · loading…` : `Open in ${view.repo} · ${count}`));
+    children.push(header(view.open === undefined ? `OPEN IN ${view.repo} · loading…` : `OPEN IN ${view.repo} · ${count}`));
   }
   for (const r of others) { view.childOf[n] = children.length; children.push(openRow(r, n++)); }
   const empty = !view.rows.length && view.open !== undefined;
@@ -242,19 +236,20 @@ export function linkRender(view) {
     : /^#?\d+$/.test(text) ? `${text.replace(/^#?/, "#")} isn't here: ↵ looks it up on GitHub.`
     : "Nothing matches.";
 
-  const hint = view.busy ? "looking it up…" : [
-    view.rows.length > 1 ? "↑↓ choose" : "",
-    selected?.pr ? "↵ link" : selected ? "↵ open" : text ? "↵ look up" : "",
-    selected && !selected.pr ? `^D ${verb(selected)}` : "",
-    "esc close",
-  ].filter(Boolean).join(" · ");
+  const hint = view.busy ? "looking it up…" : "? keys · esc close";
 
   return v_flex()
     .id("links")
     .track_focus(view.handle)
+    .map((el) => panelKeys(el, Boolean(view.help)))
     .on_key_down((e, cx) => {
-      const ctrl = e.modifiers.control && !e.modifiers.platform && !e.modifiers.alt && !e.modifiers.shift;
+      const m = e.modifiers;
+      const ctrl = m.control && !m.platform && !m.alt && !m.shift;
       const count = view.rows.length;
+      if (helpKey(view, e, view.input, !view.input.value())) {
+        cx.stop_propagation();
+        return cx.notify();
+      }
       if (e.key === "escape") return closeOverlay(props().overlay);
       if ((e.key === "down" || (ctrl && (e.key === "j" || e.key === "n"))) && count) view.at = (view.at + 1) % count;
       else if ((e.key === "up" || (ctrl && (e.key === "k" || e.key === "p"))) && count) view.at = (view.at + count - 1) % count;
@@ -265,18 +260,32 @@ export function linkRender(view) {
       cx.notify();
     })
     .size_full()
+    .relative()
     .p(16)
     .gap(10)
     .bg(t.popover)
     .text_size(13)
     .child(div().flex_none().truncate().font_semibold().text_color(t.foreground)
-      .child(agent ? `Links of ${agent.pane ? nameOf(agent) : "the agent"}${s ? ` in ${s.name}` : ""}` : `Links${s ? ` of ${s.name}` : ""}`))
-    .child(Input.new(view.input).h(32).px(10).flex_none().items_center().rounded(6).border(1).border_color(t.accent).bg(t.background).text_color(t.foreground))
+      .child(agent ? `LINKS OF ${agent.pane ? nameOf(agent) : "THE AGENT"}${s ? ` IN ${s.name}` : ""}` : `LINKS${s ? ` OF ${s.name}` : ""}`))
+    .child(frame(Input.new(view.input), t.accent, t.background).flex_none().h(32).px(12).items_center().text_color(t.foreground))
     .when(Boolean(view.error), (el) => el.child(div().flex_none().text_color(t.blocked).child(view.error)))
     .child(v_flex().id("link-list").flex_1().min_h(0).overflow_y_scrollbar().track_scroll(view.scroll)
       .children(children)
       .when(empty, (el) => el.child(div().p(8).text_color(t.dim).child(why))))
     .child(h_flex().flex_none().justify_end().gap(6).text_size(11).text_color(t.dim)
-      .when(view.busy, (el) => el.child(div().frames(["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"], 90)))
-      .child(hint));
+      .when(view.busy, (el) => el.child(spinner(11).text_color(t.dim)))
+      .child(hint))
+    .when(Boolean(view.help), (el) => el.child(keyPanel(t, [
+      ["KEYS", [
+        ["↑↓ ^J ^K", "choose (^N ^P too)"], ["↵", "link an open PR, open a linked one, look up #12"],
+        ["^D", "unlink, or hide or show a found one"], ["type", "filter the open PRs"], ["?", "this list, in an empty field"], ["esc", "close"],
+      ]],
+      ["MARKS", [
+        ...stateMarks(t),
+        [svg("mods/workspace-chrome/check.svg").size(10).text_color(GREEN[dark ? 1 : 0]), "after the icon: approved"],
+        [svg("mods/mh-spaces/file-diff.svg").size(10).text_color(RED[dark ? 1 : 0]), "after the icon: changes requested"],
+        [div().relative().child(svg(GH.open.icon).size(11).text_color(t.dim)).child(div().absolute().top(-2).right(-3).size(4).bg(t.ansi3)), "new activity since you last opened it"],
+        [div().opacity(0.5).text_size(11).text_color(t.dim).child("hidden · branch"), "hidden from the sidebar"],
+      ]],
+    ])));
 }

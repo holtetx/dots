@@ -1,10 +1,9 @@
-// Open a recent location (zoxide's ranked folders and open panes', per machine) as a new
-// space (↵), a tab in the shown space (⌘↵) or a pane beside the focused one (⇧↵); or
-// start Claude Code there in a new space (mh-open.claude, mh-open.claude-worktree).
+// Open a recent folder (zoxide's and open panes', per machine) as a space, tab or pane, or start Claude Code there.
 
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, ScrollHandle } from "gpui-base";
 import { spaces, panes, machines, theme, props, run, exec, closeOverlay, nextCommand } from "herdr";
+import { bindPanelKeys, frame, helpKey, keyPanel, panelKeys } from "./pixel.js";
 
 const LIST = 440;
 const CAP = 100;
@@ -33,6 +32,7 @@ export default class Open extends View {
   init(_props, cx) {
     this.handle = cx.focus_handle();
     this.handle.focus();
+    bindPanelKeys(cx);
     this.text = "";
     this.at = 0;
     this.error = "";
@@ -92,7 +92,7 @@ export default class Open extends View {
       const here = open.get(k) ?? new Set();
       const all = [...new Set([...(ranked ?? []), ...here])].map((path) => ({ path, machine: m, open: here.has(path) }));
       const hits = all.filter((r) => tokens.every((t) => `${tilde(r.path)} ${k}`.toLowerCase().includes(t)));
-      out.push({ name: m ?? "This computer", list: hits.slice(0, CAP), total: hits.length, loading: ranked === undefined });
+      out.push({ name: m ?? "THIS COMPUTER", list: hits.slice(0, CAP), total: hits.length, loading: ranked === undefined });
     }
     return out;
   }
@@ -140,7 +140,6 @@ export default class Open extends View {
     const items = sections.flatMap((s) => s.list);
     this.at = Math.min(this.at, Math.max(0, items.length - 1));
     const selected = items[this.at];
-    const cur = shown();
     const row = (r, i) => {
       const on = i === this.at;
       return h_flex()
@@ -150,7 +149,7 @@ export default class Open extends View {
         .px(10)
         .gap(9)
         .items_center()
-        .rounded(7)
+        .rounded(6)
         .cursor_pointer()
         .when(on, (el) => el.bg(t.selected))
         .when(!on, (el) => el.hover((st) => st.bg(t.hover)))
@@ -168,7 +167,7 @@ export default class Open extends View {
       if (!list.length && !loading) continue;
       if (name) {
         headers++;
-        children.push(h_flex().h(26).px(10).pt(6).flex_none().items_center().text_size(11).text_color(t.dim).child(loading ? `${name} · loading…` : `${name} · ${total > list.length ? `${list.length} of ${total}` : list.length}`));
+        children.push(h_flex().h(26).px(10).pt(6).flex_none().items_center().text_size(11).font_semibold().text_color(t.dim).child(loading ? `${name} · loading…` : `${name} · ${total > list.length ? `${list.length} of ${total}` : list.length}`));
       }
       for (const r of list) {
         this.childOf[n] = children.length;
@@ -177,12 +176,13 @@ export default class Open extends View {
     }
     const empty = items.length === 0 && !sections.some((s) => s.loading);
     const height = Math.min(LIST, empty ? 40 : headers * 26 + items.length * 32);
-    const here = selected && (!cur || (cur.machine ?? null) === selected.machine);
-    const hint = !selected ? "" : [here ? "↵ space · ⌘↵ tab · ⇧↵ pane" : "↵ space", "⌘⇧C claude · ⌥⇧C worktree", selected.typed ? "" : "^D forget"].filter(Boolean).join(" · ");
     return v_flex()
       .id("open")
+      .relative()
       .track_focus(this.handle)
+      .map((el) => panelKeys(el, Boolean(this.help)))
       .on_key_down((e, cx) => {
+        if (helpKey(this, e, this.input, !this.text)) return cx.stop_propagation(), cx.notify();
         const count = items.length;
         const ctrl = e.modifiers.control && !e.modifiers.platform && !e.modifiers.alt && !e.modifiers.shift;
         const down = e.key === "down" || (ctrl && (e.key === "j" || e.key === "n"));
@@ -198,22 +198,19 @@ export default class Open extends View {
       })
       .w_full()
       .min_h(0)
+      .when(Boolean(this.help), (el) => el.min_h(450))
       .p(18)
       .gap(10)
       .bg(t.popover)
       .text_size(13)
-      .child(div().text_size(15).font_semibold().text_color(t.foreground).child("Open location"))
+      .child(div().text_size(15).font_semibold().text_color(t.foreground).child("OPEN LOCATION"))
       .child(
-        h_flex()
+        frame(h_flex(), t.accent, t.background)
           .h(36)
           .flex_none()
-          .px(10)
+          .px(12)
           .gap(8)
           .items_center()
-          .rounded(9)
-          .border_1()
-          .border_color(t.accent)
-          .bg(t.background)
           .child(svg(ICON("search")).size(15).text_color(t.dim))
           .child(Input.new(this.input).flex_1().h_full().text_size(12.8).text_color(t.foreground)),
       )
@@ -228,6 +225,22 @@ export default class Open extends View {
           .when(empty, (el) => el.child(div().p(10).text_color(t.dim).child("No matching folders."))),
       )
       .when(Boolean(this.error), (el) => el.child(div().text_color(t.blocked).child(this.error)))
-      .child(h_flex().justify_end().text_size(11).text_color(t.dim).child([hint, "esc close"].filter(Boolean).join(" · ")));
+      .child(h_flex().justify_end().text_size(11).text_color(t.dim).child("? keys · esc close"))
+      .when(Boolean(this.help), (el) => el.child(this.helpPanel(t)));
+  }
+
+  helpPanel(t) {
+    const keys = [
+      ["type", "filter; a path from ~ or / opens that folder"], ["↓↑ ^J ^K ^N ^P", "move"],
+      ["↵", "open as a new space"], ["⌘↵", "open as a tab in this space"], ["⇧↵", "open as a pane beside this one"],
+      ["⌘⇧C", "Claude Code there, in a new space"], ["⌥⇧C", "the same, in a new worktree"],
+      ["^D", "forget the folder"], ["esc", "close"],
+    ];
+    const marks = [
+      [svg(ICON("folder")).size(13).text_color(t.dim), "a recent folder, or one a pane is in"],
+      [svg(ICON("folder-plus")).size(13).text_color(t.dim), "the path you typed"],
+      [div().text_size(11).text_color(t.dim).child("open"), "a pane is in it now"],
+    ];
+    return keyPanel(t, [["KEYS", keys], ["MARKS", marks]]);
   }
 }

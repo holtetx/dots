@@ -8,8 +8,9 @@
 import { View, div } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input } from "gpui-base";
 import { spaces, panes, shared, props, run, hc, theme, notify, closeOverlay } from "herdr";
+import { bindPanelKeys, frame, helpKey, ink, keyPanel, panelKeys } from "./pixel.js";
 
-const MARK = { ansi6: "#22a99a", ansi3: "#e3814f", ansi4: "#5b8def", ansi5: "#8b7cf6", ansi2: "#3fae6a", ansi1: "#d9649a" };
+const MARK = { ansi6: "#6fc7bd", ansi3: "#8fa3f0", ansi4: "#7aa7e8", ansi5: "#b394f0", ansi2: "#8fcf94", ansi1: "#e49ac8", yellow: "#e6c98a", peach: "#eaa37f", red: "#e3889a", sky: "#7cc4e0", sand: "#c9b28f", slate: "#9aa5c4" };
 
 const hex = () => Array.from({ length: 32 }, () => ((Math.random() * 16) | 0).toString(16)).join("");
 const machineOf = (id) => (id.includes("/") ? id.split("/")[0] : null);
@@ -68,6 +69,7 @@ export default class Panes extends View {
     const p = props() ?? {};
     this.picking = p.action === "space";
     this.handle = cx.focus_handle();
+    bindPanelKeys(cx);
     if (!this.picking) {
       cx.spawn(async (cx) => {
         try {
@@ -125,7 +127,8 @@ export default class Panes extends View {
     const colors = shared("space.colors") ?? {};
     const avatar = (s) => {
       const c = colors[s.id] ?? "ansi6";
-      return h_flex().size(16).flex_none().rounded(4).bg(c.startsWith("#") ? c : (MARK[c] ?? t[c])).items_center().justify_center().text_size(9).font_bold().text_color("#ffffff").child([...s.name][0]?.toUpperCase() ?? "?");
+      const fill = c.startsWith("#") ? c : (MARK[c] ?? t[c]);
+      return h_flex().size(16).flex_none().rounded(4).bg(fill).items_center().justify_center().text_size(9).font_bold().text_color(ink(fill)).child([...s.name][0]?.toUpperCase() ?? "?");
     };
     const row = (choice, i) =>
       h_flex()
@@ -135,7 +138,7 @@ export default class Panes extends View {
         .px(10)
         .gap(9)
         .items_center()
-        .rounded(7)
+        .rounded(6)
         .cursor_pointer()
         .when(i === this.at, (el) => el.bg(t.selected))
         .when(i !== this.at, (el) => el.hover((s) => s.bg(t.hover)))
@@ -144,8 +147,11 @@ export default class Panes extends View {
         .child(div().flex_1().min_w(0).truncate().text_color(choice.space ? t.foreground : t.muted).child(choice.space ? choice.space.name : choice.name ? `New space “${choice.name}”` : "New space"));
     return v_flex()
       .id("move-pane")
+      .relative()
       .track_focus(this.handle)
+      .map((el) => panelKeys(el, Boolean(this.help)))
       .on_key_down((e, cx) => {
+        if (helpKey(this, e, this.input, !this.text)) return cx.stop_propagation(), cx.notify();
         const n = choices.length;
         const ctrl = e.modifiers.control && !e.modifiers.platform && !e.modifiers.alt;
         if (e.key === "escape") return closeOverlay(props().overlay);
@@ -160,9 +166,13 @@ export default class Panes extends View {
       .gap(10)
       .bg(t.popover)
       .text_size(13)
-      .child(div().font_semibold().text_color(t.foreground).child("Move pane to space"))
-      .child(Input.new(this.input).h(32).px(10).items_center().rounded(6).border(1).border_color(t.accent).bg(t.background).text_color(t.foreground))
+      .child(div().font_semibold().text_color(t.foreground).child("MOVE PANE TO SPACE"))
+      .child(frame(Input.new(this.input), t.accent, t.background).flex_none().h(32).px(10).items_center().text_color(t.foreground))
       .child(v_flex().flex_1().min_h(0).overflow_y_scrollbar().children(choices.map(row)))
-      .child(h_flex().justify_end().text_size(11).text_color(t.dim).child(this.busy ? "moving…" : "↵ move · esc cancel"));
+      .child(h_flex().justify_end().text_size(11).text_color(t.dim).child(this.busy ? "moving…" : "? keys · esc close"))
+      .when(Boolean(this.help), (el) => el.child(keyPanel(t, [
+        ["KEYS", [["type", "filter, or name a new space"], ["↓↑ ^J ^K ^N ^P", "move"], ["↵", "move the pane there"], ["esc", "close"]]],
+        ["MARKS", [[avatar({ id: "", name: "Space" }), "a space on the pane's machine"], [div().w(16).text_color(t.dim).child("+"), "a new space"]]],
+      ])));
   }
 }

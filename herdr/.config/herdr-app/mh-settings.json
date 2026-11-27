@@ -4,10 +4,10 @@
   },
   "mh-spacing.header": {
     "content": {
-      "mod": "pane"
+      "mod": "mh-pane"
     },
     "reveal": "always",
-    "height": 26,
+    "height": 36,
     "position": "top"
   },
   "mh-spaces": {

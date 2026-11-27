@@ -1,16 +1,17 @@
-// Go to a tab. Drops from the Terminals layout's space chip (popup, at: "top"). Spaces with
-// something that needs you come first, quiet spaces (no agent running)
-// fold into "earlier". Type to filter, ↑/↓ and Enter to go, ctrl+d to close
-// a tab, Esc to leave. Last rows: new work (a tab here, a Claude Code session,
-// one in a worktree, a space on this computer or on each connected machine).
+// Go to a tab: drops from the Terminals layout's space chip.
 
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input } from "gpui-base";
+import { action, bindPanelKeys, frame, helpKey, ink, keyPanel, mark, panelKeys, statusMarks, WORDS } from "./pixel.js";
 import { agents, spaces, terminals, run, hc, theme, settings, props, closeOverlay, shared, setShared } from "herdr";
 
-const SPARKLE = ["·", "✢", "✳", "✶", "✻", "✽", "✻", "✶", "✳", "✢"];
+// As the tab bar shows it: a name someone gave, else its agent's session title, else Herdr's tab number.
+const titleOf = (ctx, mine) => (ctx.named ? ctx.name : null)
+  || mine.map((a) => terminals().find((x) => x.address === a.address)?.labels?.["mh.description"]).find(Boolean)
+  || mine.map((a) => [(a.title ?? "").replace(/^[^\p{L}\p{N}]+/u, "").trim(), a.program?.name]).find(([x, prog]) => x && x !== prog)?.[0]
+  || ctx.name;
 
-const MARK = { ansi6: "#22a99a", ansi3: "#e3814f", ansi4: "#5b8def", ansi5: "#8b7cf6", ansi2: "#3fae6a", ansi1: "#d9649a" };
+const MARK = { ansi6: "#6fc7bd", ansi3: "#8fa3f0", ansi4: "#7aa7e8", ansi5: "#b394f0", ansi2: "#8fcf94", ansi1: "#e49ac8", yellow: "#e6c98a", peach: "#eaa37f", red: "#e3889a", sky: "#7cc4e0", sand: "#c9b28f", slate: "#9aa5c4" };
 
 // Space colors, kept by space id in shared "space.colors": a theme
 // color name ("ansi6") or a picked #rrggbb. A space seen without one gets
@@ -35,6 +36,7 @@ function spaceColor(t, p) {
   const c = spaceColors()[p.id] ?? PROJECT_COLORS[0];
   return c.startsWith("#") ? c : (MARK[c] ?? t[c]);
 }
+const avatar = (t, w) => h_flex().size(18).rounded(5).bg(spaceColor(t, w)).items_center().justify_center().text_size(10.5).font_bold().text_color(ink(spaceColor(t, w))).child([...w.name][0]?.toUpperCase() ?? "?");
 
 export default class Picker extends View {
   init(_props, cx) {
@@ -53,6 +55,7 @@ export default class Picker extends View {
     this.showEarlier = false;
     this.machines = [];
     this.handle = cx.focus_handle();
+    bindPanelKeys(cx);
     cx.spawn(async (cx) => {
       try {
         const r = await hc(["machine", "ls", "--json"]);
@@ -80,9 +83,9 @@ export default class Picker extends View {
       const ctxs = w.tabs
         .map((ctx) => {
           const mine = all.filter((a) => a.tab === ctx.id);
-          return { w, ctx, mine, team: teamOf(mine.map((a) => a.address)) };
+          return { w, ctx, mine, title: titleOf(ctx, mine), team: teamOf(mine.map((a) => a.address)) };
         })
-        .filter((c) => !f || [w.name, c.ctx.name, ...c.mine.map((a) => a.program?.name ?? "")].join(" ").toLowerCase().includes(f));
+        .filter((c) => !f || [w.name, c.title, ...c.mine.map((a) => a.program?.name ?? "")].join(" ").toLowerCase().includes(f));
       return { w, ctxs };
     });
     const busy = groups.filter((p) => p.w.status && p.ctxs.length);
@@ -120,11 +123,6 @@ export default class Picker extends View {
     else if (r.kind === "new") run("tab.new");
     else if (r.kind === "claude") run("tab.new", { name: "Claude", argv: r.worktree ? ["claude", "--worktree"] : ["claude"] });
     else if (r.kind === "space") run("space.new", { machine: r.machine ?? "" });
-  }
-
-  glyph(t, st) {
-    if (st === "working") return div().w(12).flex_none().flex().justify_center().text_size(13).text_color(t.working).child("·").frames(SPARKLE, 120);
-    return div().w(12).flex_none().text_color(t[st] ?? t.dim).child(st === "idle" ? "○" : st ? "●" : "·");
   }
 
   render() {
@@ -169,7 +167,7 @@ export default class Picker extends View {
           .text_size(11)
           .font_semibold()
           .text_color(t.dim)
-          .child(h_flex().size(18).rounded(5).bg(spaceColor(t, r.w)).items_center().justify_center().text_size(10.5).font_bold().text_color("#ffffff").child([...r.w.name][0]?.toUpperCase() ?? "?"))
+          .child(avatar(t, r.w))
           .child(r.w.name);
       }
       if (r.kind === "earlier") {
@@ -198,7 +196,7 @@ export default class Picker extends View {
           .px(10)
           .h(32)
           .items_center()
-          .rounded(7)
+          .rounded(6)
           .gap(8)
           .text_color(t.muted)
           .cursor_pointer()
@@ -214,31 +212,34 @@ export default class Picker extends View {
         .id(`pk-${r.ctx.id}`)
         .mx(4)
         .px(10)
-.h(32)
-        .rounded(7)
+        .h(32)
+        .rounded(6)
         .gap(10)
         .items_center()
         .cursor_pointer()
         .when(on, (el) => el.bg(t.hover))
         .hover((s) => s.bg(t.hover))
         .on_click(() => this.go(r))
-        .child(this.glyph(t, r.ctx.status))
-        .child(div().flex_1().truncate().text_color(t.foreground).when(here, (d) => d.font_semibold()).child(r.ctx.name))
-        .when(r.ctx.status === "blocked", (el) => el.child(div().text_size(11).text_color(t.blocked).child("needs you")))
-        .when(r.ctx.status === "done", (el) => el.child(div().text_size(11).text_color(t.done).child("finished")))
+        .child(div().w(12).flex_none().flex().justify_center().text_color(t.dim).child(mark(r.ctx.status, t) ?? (r.ctx.status === "idle" ? "○" : "·")))
+        .child(div().flex_1().truncate().text_color(t.foreground).when(here, (d) => d.font_semibold()).child(r.title))
+        .when(r.ctx.status === "blocked" || r.ctx.status === "done", (el) => el.child(div().text_size(11).text_color(t[r.ctx.status]).child(WORDS[r.ctx.status])))
         .child(div().text_size(11).text_color(t.dim).child(who + (r.team ? `  +${r.team}` : "")));
     };
 
     return v_flex()
       .id("picker")
+      .relative()
       .track_focus(this.handle)
+      .map((el) => panelKeys(el, Boolean(this.help)))
       .w_full()
       .min_h(0)
+      .when(Boolean(this.help), (el) => el.min_h(400))
       .p(18)
       .gap(10)
       .bg(t.popover)
       .text_size(13)
       .on_key_down((e, cx) => {
+        if (helpKey(this, e, this.input, !this.filter)) return cx.stop_propagation(), cx.notify();
         const k = e.key;
         if (k === "escape") return this.close();
         if (k === "down") this.at = (this.at + 1) % pickable.length;
@@ -252,9 +253,9 @@ export default class Picker extends View {
         cx.stop_propagation();
         cx.notify();
       })
-      .child(h_flex().items_center().child(div().flex_1().text_size(15).font_semibold().text_color(t.foreground).child("Go to…")).child(div().id("picker-esc").px(6).py(2).rounded(5).text_size(11).text_color(t.dim).cursor_pointer().hover((s) => s.bg(t.hover).text_color(t.foreground)).on_click(() => this.close()).child("Esc")))
+      .child(h_flex().items_center().gap(10).child(div().flex_1().text_size(15).font_semibold().text_color(t.foreground).child("GO TO…")).child(action(t, "picker-esc", "Esc", false, () => this.close())))
       .child(
-        h_flex().h(36).flex_none().px(10).gap(8).items_center().rounded(9).border_1().border_color(t.accent).bg(t.background)
+        frame(h_flex(), t.accent, t.background).h(36).flex_none().px(12).gap(8).items_center()
           .child(svg("mods/workspace-chrome/search.svg").size(15).text_color(t.dim))
           .child(Input.new(this.input).flex_1().h_full().text_size(12.8).text_color(t.foreground)),
       )
@@ -277,6 +278,23 @@ export default class Picker extends View {
               cx.notify();
             }))
           .children(rows.map((r, i) => (visible(i) ? place(row(r), i) : null)).filter(Boolean)),
-      );
+      )
+      .child(h_flex().justify_end().text_size(11).text_color(t.dim).child("? keys · esc close"))
+      .when(Boolean(this.help), (el) => el.child(this.helpPanel(t)));
+  }
+
+  helpPanel(t) {
+    const keys = [
+      ["type", "filter by space, tab or agent"], ["↓↑", "move"], ["↵", "go to the tab, or make what a + row says"],
+      ["^D", "close the tab"], ["esc", "close"],
+    ];
+    const marks = [
+      [statusMarks(t), "tab: working, needs you, done"],
+      [div().text_color(t.dim).child("○  ·"), "tab: idle agent, no agent"],
+      [div().font_semibold().text_color(t.foreground).child("bold"), "the tab you are on"],
+      [avatar(t, { id: "", name: "Space" }), "a space, in its sidebar color; busy ones first"],
+      [div().text_size(12).text_color(t.dim).child("earlier: 2"), "spaces with no agent running; ↵ shows them"],
+    ];
+    return keyPanel(t, [["KEYS", keys], ["MARKS", marks]]);
   }
 }

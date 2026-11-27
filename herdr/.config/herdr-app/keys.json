@@ -99,7 +99,8 @@
     "ctrl-a shift-h": "mh-tabs.wait",
     "ctrl-a ?": "mod.open:mh-help",
     "ctrl-a s": "mod.open:mh-ssh",
-    "ctrl-a l": "mod.open:mh-lunch"
+    "ctrl-a l": "mod.open:mh-lunch",
+    "ctrl-a shift-n": "mh-tabs.test-toast"
   },
   "mod:mh-open": {
     "cmd-shift-c": "mh-open.claude",

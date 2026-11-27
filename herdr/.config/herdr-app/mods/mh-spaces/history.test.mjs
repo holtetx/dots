@@ -20,6 +20,8 @@ try {
     { type: "user", message: { content: [{ type: "tool_result", tool_use_id: "t1", content: `${pr(5)}\n${pr(6)}` }] } },
     { type: "assistant", message: { content: [{ type: "tool_use", id: "t2", input: { command: `node herdr-link.mjs https://www.github.com/o/r/issues/7` } }] } },
     { type: "assistant", message: { content: [{ type: "text", text: `Only said: ${pr(8)}` }] } },
+    { type: "assistant", message: { content: [{ type: "tool_use", id: "t3", input: { command: `grep -n "herdr-link.mjs" history.test.mjs # ${pr(10)}` } }] } },
+    { type: "assistant", message: { content: [{ type: "tool_use", id: "t4", input: { command: `u=${pr(11)}; node herdr-link.mjs "$u"` } }] } },
     { type: "pr-link", prUrl: pr(9) },
     { type: "ai-title", aiTitle: "A title" },
   ];
@@ -30,7 +32,7 @@ try {
   assert.strictEqual(out.length, 1);
   assert.strictEqual(out[0].cwd, "/p");
   assert.strictEqual(out[0].title, "A title");
-  assert.deepStrictEqual([...out[0].links].sort(), [pr(1), pr(5), "https://github.com/o/r/issues/7", pr(9)].sort());
+  assert.deepStrictEqual([...out[0].links].sort(), [pr(1), pr(5), "https://github.com/o/r/issues/7", pr(9), pr(11)].sort());
 } finally {
   rmSync(home, { recursive: true, force: true });
 }

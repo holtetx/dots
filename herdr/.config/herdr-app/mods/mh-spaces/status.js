@@ -1,13 +1,11 @@
-// The status dialog (s on a Jira card or in its preview; openStatus in board.js): the statuses
-// Jira's workflow allows a move to. 1-9 or ↵ makes one, sets shared("jira.moved") and closes.
-// Its own dialog, so esc never reaches the board under it.
-// A mh-spaces overlay with props { status: key, url, title, from: { id, name, category }, back }.
+// The status dialog (s on a Jira card or in its preview), a mh-spaces overlay { status: key, url, title, from: { id, name, category }, back }.
 
 import { div } from "gpui-kit";
 import { v_flex, h_flex, ScrollHandle } from "gpui-base";
-import { props, closeOverlay, setShared, settings, theme } from "herdr";
+import { props, closeOverlay, setShared, theme } from "herdr";
 import { jiraTransition, jiraTransitions } from "./jira-data.js";
-import { statusChip } from "./board.js";
+import { statusChip, statusLegend } from "./board.js";
+import { darkOf, helpKey, keyPanel } from "./pixel.js";
 
 export function statusInit(view, cx) {
   const { status: issue, from } = props();
@@ -55,6 +53,7 @@ function move(view, cx) {
 
 function key(view, e, cx) {
   const m = e.modifiers;
+  if (helpKey(view, e)) return true;
   if (m.control || m.alt || m.platform) return false;
   if (e.key === "escape") return closeOverlay(props().overlay), true;
   if (e.key === "enter") return move(view, cx), true;
@@ -68,7 +67,7 @@ function key(view, e, cx) {
 
 export function statusRender(view) {
   const t = theme();
-  const dark = Boolean(settings()?.dark);
+  const dark = darkOf(t);
   const { status: issue, title, from } = props();
   return v_flex()
     .id("status")
@@ -79,6 +78,7 @@ export function statusRender(view) {
       cx.notify();
     })
     .size_full()
+    .relative()
     .min_h(0)
     .p(16)
     .gap(12)
@@ -87,7 +87,7 @@ export function statusRender(view) {
     .child(v_flex().flex_none().gap(8)
       .child(div().truncate().text_size(11.5).text_color(t.dim).child(`${issue} · ${title}`))
       .child(h_flex().gap(8).items_center()
-        .child(div().font_semibold().text_color(t.foreground).child("Move from"))
+        .child(div().font_semibold().text_color(t.foreground).child("MOVE FROM"))
         .when(Boolean(from?.name), (el) => el.child(statusChip(from.name, from.category, t, dark)))))
     .child(div().flex_none().h(1).bg(t.border))
     .when(Boolean(view.note), (el) => el.child(div().flex_none().text_color(view.failed ? t.blocked : t.muted).child(view.note)))
@@ -103,5 +103,9 @@ export function statusRender(view) {
         .child(div().w(10).flex_none().text_size(11).text_color(t.dim).child(i < 9 ? String(i + 1) : ""))
         .child(statusChip(r.to, r.category, t, dark))
         .when(r.name !== r.to, (el) => el.child(div().flex_1().min_w(0).truncate().text_size(11.5).text_color(t.dim).child(r.name))))))
-    .child(h_flex().flex_none().justify_end().text_size(11).text_color(t.dim).child("1-9 or j k ↵ move · esc back"));
+    .child(h_flex().flex_none().justify_end().text_size(11).text_color(t.dim).child("? keys · esc close"))
+    .when(Boolean(view.help), (el) => el.child(keyPanel(t, [
+      ["KEYS", [["j k ↓ ↑", "choose"], ["↵", "move to it"], ["1-9", "move to that status"], ["esc", "close"]]],
+      ["MARKS", statusLegend(t, dark)],
+    ])));
 }

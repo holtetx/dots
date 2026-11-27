@@ -1,30 +1,18 @@
-// The board (ctrl-a T): the open PRs in its repos and those involving you, and the open
-// issues in its repos, both by repo. Each item shows how many
-// Claude sessions, PRs and issues it's linked to: GitHub's own links and the other links
-// of the sessions that had it.
-// hjkl moves (^D/^U half a page, ^J/^K five); ↵ picks one of its sessions or
-// starts one in its repo (mh-sessions' tasks list for that item), ⌃↵ opens
-// it, ⌥↵ lists what it's linked to, space previews it (preview.js), / searches the tab shown.
-// The Jira tab (jira-data.js, only with shared("mh-jira")): one Jira board as columns of cards; hl
-// moves between columns, z folds or opens one, s changes an issue's status (status.js), ↵ opens
-// it in the browser, space previews it.
-// It asks Jira only while it's shown.
-// What was fetched is kept for the next opening.
-// A mh-spaces overlay with props { board: true }.
+// The board (ctrl-a T), a mh-spaces overlay { board: true }: open PRs and issues by repo, and one Jira board (jira-data.js).
 
-import { asks, stacked } from "./stack.js";
+import { asks, foldStacks, stacked } from "./stack.js";
 import { div, svg, image } from "gpui-kit";
 import { v_flex, h_flex, ScrollHandle, InputState, Input } from "gpui-base";
-import { props, closeOverlay, openOverlay, theme, settings, shared, terminals } from "herdr";
+import { props, closeOverlay, openOverlay, theme, shared, terminals } from "herdr";
 import { GH, FINAL, markRead, open, prKey, unknown } from "./github.js";
 import { boardRepos, fetchIssues, fetchPrs } from "./board-data.js";
 import { fetchJira, jiraSettings } from "./jira-data.js";
 import { avatars, loadAvatars } from "./preview-data.js";
-import { BLUE, PRIORITY_COLOR, TYPE_COLOR, foldKey, hue, initials } from "./jira.js";
+import { BLUE, GREEN, PRIORITY_COLOR, RED, TYPE_COLOR, YELLOW, foldKey, hue, initials } from "./jira.js";
+import { bindPanelKeys, button, chip, darkOf, frame, helpKey, keyPanel, panelKeys, spinner } from "./pixel.js";
 
 const FRESH = 2 * 60000;
 const ICON = (name) => `mods/workspace-chrome/${name}.svg`;
-const GREEN = ["#1a7f37", "#3fb950"], RED = ["#cf222e", "#f85149"], YELLOW = ["#9a6700", "#d29922"];
 const CHECKS = { SUCCESS: ["check", GREEN, "Checks passed"], FAILURE: ["x", RED, "Checks failed"], ERROR: ["x", RED, "Checks failed"], PENDING: [null, YELLOW, "Checks running"], EXPECTED: [null, YELLOW, "Checks expected"] };
 const KIND_ORDER = { pr: 0, issue: 1 };
 const ROW = 28;
@@ -48,11 +36,10 @@ const kindOf = (url, items) => items[url]?.kind ?? (/\/issues\/\d+/.test(url) ? 
 const refOf = (it) => it.key ?? `${it.repo.split("/").pop()}#${it.number ?? "?"}`;
 
 // Each tab: its items, how a row looks, and its texts. Rows are hoisted functions further down.
-const GITHUB_KEYS = ["space preview", "↵ sessions", "⌃↵ GitHub"];
 const tabsOf = () => [
-  { id: "prs", name: "Pull requests", list: () => memory.data.prs?.prs, row: prRow, empty: "No open PRs.", asking: "Asking GitHub…", keys: GITHUB_KEYS, github: true },
-  { id: "issues", name: "Issues", list: () => memory.data.issues?.issues, row: issueRow, empty: "No open issues.", asking: "Asking GitHub…", keys: GITHUB_KEYS, github: true },
-  ...(jiraSettings() ? [{ id: "jira", name: "Jira", list: () => memory.data.jira?.sections.flatMap((s) => s.items), empty: "No issues on the board.", asking: "Asking Jira… (approve 1Password if it asks)", keys: ["hl column", "z fold", "s status", "n new", "space preview", "↵ open in Jira"] }] : []),
+  { id: "prs", name: "Pull requests", list: () => memory.data.prs?.prs, row: prRow, empty: "No open PRs.", asking: "Asking GitHub…", github: true },
+  { id: "issues", name: "Issues", list: () => memory.data.issues?.issues, row: issueRow, empty: "No open issues.", asking: "Asking GitHub…", github: true },
+  ...(jiraSettings() ? [{ id: "jira", name: "Jira", list: () => memory.data.jira?.sections.flatMap((s) => s.items), empty: "No issues on the board.", asking: "Asking Jira… (approve 1Password if it asks)" }] : []),
 ];
 
 export function boardInit(view, cx) {
@@ -63,6 +50,7 @@ export function boardInit(view, cx) {
       { keystroke: "shift-tab", action: "mh_board_prev_tab", context: "MhBoard" },
     ]);
   } catch {}
+  bindPanelKeys(cx);
   view.handle = cx.focus_handle();
   view.handle.focus();
   // The session picker over it gives the keyboard back when it closes (shared("board.focus")).
@@ -104,7 +92,7 @@ export function boardInit(view, cx) {
     cx.notify();
   });
   view.input.on("blur", (_e, cx) => {
-    view.searching = false;
+    if (!view.help) view.searching = false;
     cx.notify();
   });
   view.busy = {};
@@ -206,6 +194,37 @@ const matches = (it, words) => {
   return words.every((w) => text.includes(w));
 };
 
+// The stacks opened with z or a click on their count (folded is the default), kept in localStorage.
+let openStacks = null;
+function openSet() {
+  if (openStacks) return openStacks;
+  try {
+    openStacks = new Set(JSON.parse(localStorage.getItem("prs.open")) ?? []);
+  } catch {
+    openStacks = new Set();
+  }
+  return openStacks;
+}
+function toggleStack(url) {
+  const s = openSet();
+  if (s.has(url)) s.delete(url);
+  else s.add(url);
+  try {
+    localStorage.setItem("prs.open", JSON.stringify([...s]));
+  } catch {}
+}
+
+// Opened stacks whose root is no longer an open stack.
+function forgetStacks(rows) {
+  const roots = new Set(rows.filter((p) => p.kids?.length).map((p) => p.url));
+  const gone = [...openSet()].filter((u) => !roots.has(u));
+  if (!gone.length || !memory.data.prs) return;
+  gone.forEach((u) => openSet().delete(u));
+  try {
+    localStorage.setItem("prs.open", JSON.stringify([...openSet()]));
+  } catch {}
+}
+
 function sectionsOf(tab, text) {
   const words = text.trim().toLowerCase().split(/\s+/).filter(Boolean);
   // Jira comes grouped by the board's columns.
@@ -215,8 +234,9 @@ function sectionsOf(tab, text) {
   }
   const by = new Map();
   for (const i of tab.list() ?? []) if (shown(i) && matches(i, words)) by.set(i.repo, [...(by.get(i.repo) ?? []), i]);
-  return [...by]
-    .map(([name, items]) => ({ name, items: tab.id === "prs" ? stacked(items) : items.sort((a, b) => b.updated - a.updated) }))
+  const secs = [...by].map(([name, items]) => ({ name, items: tab.id === "prs" ? foldStacks(stacked(items), openSet(), words.length > 0) : items.sort((a, b) => b.updated - a.updated) }));
+  if (tab.id === "prs" && !words.length) forgetStacks(secs.flatMap((s) => s.items));
+  return secs
     .sort((a, b) => Math.max(...b.items.map((i) => i.updated)) - Math.max(...a.items.map((i) => i.updated)));
 }
 
@@ -237,7 +257,7 @@ function listAt(tab, rows) {
 
 // Tab and shift-tab: the next or previous tab, wrapping. Not while the picker or search has the keyboard.
 function stepTab(view, by, cx) {
-  if (view.picker || view.searching) return;
+  if (view.picker || view.searching || view.help) return;
   const tabs = tabsOf();
   const i = tabs.findIndex((t) => t.id === view.model.tab.id);
   showTab(view, tabs[(i + by + tabs.length) % tabs.length].id, cx);
@@ -364,6 +384,7 @@ function searchKey(view, e) {
 
 function key(view, e, cx) {
   if (view.picker) return pickerKey(view, e, cx);
+  if (helpKey(view, e, view.searching ? view.input : null, !view.searching || !view.input.value())) return true;
   if (view.searching) return searchKey(view, e);
   const m = e.modifiers;
   const plain = !m.control && !m.alt && !m.platform;
@@ -389,6 +410,16 @@ function key(view, e, cx) {
   if (/^[1-9]$/.test(e.key) && tabs[Number(e.key) - 1]) return showTab(view, tabs[Number(e.key) - 1].id, cx), true;
   if (e.key === "r") return refresh(view, cx, true), true;
   if (e.key === "b") return (memory.bots = !memory.bots), (view.reveal = true), true;
+  if (view.model.tab.id === "prs" && it && (it.root || it.kids?.length)) {
+    const root = it.root ?? it.url;
+    const open = openSet().has(root);
+    const want = e.key === "z" ? !open : ["l", "right"].includes(e.key) ? true : ["h", "left"].includes(e.key) ? false : null;
+    if (want !== null && (want !== open || e.key === "z")) {
+      toggleStack(root);
+      memory.sel.prs = { url: root };
+      return (view.reveal = true), true;
+    }
+  }
   if (e.key === "g" || e.key === "G") return edge(view, m.shift || e.key === "G"), true;
   const dir = { h: "left", left: "left", j: "down", down: "down", k: "up", up: "up", l: "right", right: "right" }[e.key];
   if (!dir) return false;
@@ -466,21 +497,21 @@ function jiraKey(view, e) {
   return true;
 }
 
-function counts(url, view, t) {
+function counts(url, view, t, comments) {
   const { graph, items } = view.model;
   const k = { pr: 0, issue: 0 };
   for (const u of graph.links.get(url)?.keys() ?? []) k[kindOf(u, items)]++;
-  const chip = (icon, n) => (n ? [h_flex().flex_none().gap(3).items_center().child(svg(icon).size(11)).child(String(n))] : []);
-  return h_flex()
-    .flex_none()
-    .gap(8)
-    .items_center()
-    .text_size(11)
-    .text_color(t.dim)
-    .children([...chip(ICON("terminal"), graph.sessions.get(url) ?? 0), ...chip(GH.open.icon, k.pr), ...chip(GH["issue-open"].icon, k.issue)]);
+  const sessions = graph.sessions.get(url) ?? 0;
+  const yours = [[sessions, "session"], [k.pr, "linked PR"], [k.issue, "linked issue"]].filter(([n]) => n).map(([n, w]) => `${n} ${w}${n === 1 ? "" : "s"}`);
+  return h_flex().flex_none().gap(8).items_center().text_size(11).text_color(t.dim)
+    .when(comments !== undefined, (el) => el.child(h_flex().w(32).flex_none().gap(3).items_center().opacity(0.7)
+      .when(comments > 0, (c) => c.child(svg("mods/mh-spaces/comment.svg").size(11)).child(String(comments)))))
+    .child(h_flex().id(`yours-${url}`).w(8).flex_none().justify_center()
+      .when(yours.length > 0, (el) => el.tooltip(yours.join(" · ")).child(div().size(6).rounded_full().bg(t.accent))));
 }
 
 export const pick = (c, dark) => c[dark ? 1 : 0];
+
 const stateIcon = (it, dark, t, size = 13) => {
   const s = GH[it.state];
   const fallback = it.kind === "issue" ? GH["issue-open"].icon : GH.open.icon;
@@ -509,8 +540,7 @@ function rowBase(id, on, t) {
     .when(!on, (el) => el.hover((s) => s.bg(t.hover)));
 }
 
-// One word for the review state: GitHub's review decision, else the latest reviews. A change request shows unless GitHub says approved.
-// "in review" when a person other than the author reviewed or commented; bots do not count.
+// "in review": a person other than the author reviewed or commented; bots do not count.
 function verdict(p, t, dark) {
   if (p.state === "draft") return ["draft", t.dim];
   if (p.state === "queued") return ["queued", pick(YELLOW, dark)];
@@ -520,8 +550,6 @@ function verdict(p, t, dark) {
   return ["needs review", pick(YELLOW, dark)];
 }
 
-const tag = (text, t) => div().flex_none().px(5).rounded(4).text_size(10.5).text_color(t.ansi3).border_1().border_color(t.ansi3).child(text);
-
 // Lines, not text: the font draws the └ and ├ characters with different weight.
 const branchMark = (last, t) =>
   div().relative().w(10).h(14).flex_none()
@@ -530,26 +558,45 @@ const branchMark = (last, t) =>
 
 function prRow(view, p, i, on, t, dark) {
   const unread = shared("github")?.unread?.[prKey(p)];
-  const check = CHECKS[p.checks];
-  const [word, color] = verdict(p, t, dark);
+  // A folded stack's root speaks for the PRs it hides, in its own columns.
+  const hid = p.folded ? p.kids : [];
+  const nums = (l) => l.map((k) => `#${k.number}`).join(", ");
+  const failing = CHECKS[p.checks]?.[1] === RED ? [] : hid.filter((k) => CHECKS[k.checks]?.[1] === RED);
+  const check = failing.length ? CHECKS.FAILURE : CHECKS[p.checks];
+  const checkTip = failing.length ? `Checks failed in ${nums(failing)}` : check?.[2];
+  const behind = [p, ...hid].filter((k) => k.behind);
+  const asked = [p, ...hid].filter(asks);
+  const [word, color] = asked.length ? ["your review", t.ansi3] : verdict(p, t, dark);
   return rowBase(`pr-${p.url}`, on, t)
     .on_click((e, cx) => select(view, "prs", { url: p.url, i }, e, cx, p))
-    .when(p.depth > 0, (el) => el.child(h_flex().w(p.depth * 14).flex_none().justify_end().child(branchMark(p.last, t))))
-    .child(div().size(6).flex_none().rounded(3).when(Boolean(unread), (el) => el.bg(pick(["#0969da", "#4493f8"], dark))))
+    .child(div().size(4).mx(1).flex_none().when(Boolean(unread), (el) => el.bg(t.ansi3)))
     .child(div().w(52).flex_none().text_size(11.5).text_color(t.dim).child(`#${p.number}`))
-    .child(div().flex_1().min_w(0).truncate().text_color(t.foreground).when(p.state === "draft", (el) => el.text_color(t.muted)).child(p.title))
-    .when(asks(p), (el) => el.child(tag("review", t)))
-    .when(Boolean(p.behind), (el) => el.child(tag("behind", t)))
-    .when(p.comments > 0, (el) => el.child(h_flex().flex_none().gap(3).items_center().text_size(11).text_color(t.dim).child(svg("mods/mh-spaces/comment.svg").size(11)).child(String(p.comments))))
-    .child(counts(p.url, view, t))
+    // A stacked PR keeps the columns; its tree mark sits in the title's column.
+    .child(h_flex().flex_1().min_w(0).gap(4).items_center()
+      .when(p.depth > 0, (el) => el.child(div().w((p.depth - 1) * 14).flex_none()).child(branchMark(p.last, t)))
+      .child(div().flex_1().min_w(0).truncate().text_color(t.foreground).when(p.state === "draft", (el) => el.text_color(t.muted)).child(p.title)))
+    .child(h_flex().w(118).flex_none().when(p.kids?.length > 0, (el) => el.child(div().id(`fold-${p.url}`).cursor_pointer().tooltip(`${p.folded ? "Open" : "Fold"} the stack · l h z`)
+      .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
+      .on_click((_e, cx) => {
+        cx.stop_propagation();
+        toggleStack(p.url);
+        // A selected PR the fold hides hands the selection to the root, as h and z do.
+        if (view.model.item?.root === p.url) memory.sel.prs = { url: p.url };
+        cx.notify();
+      })
+      .child(chip(`${p.kids.length} STACKED`, t.muted, div().child(p.folded ? "▸" : "▾"))))))
+    .child(counts(p.url, view, t, p.comments ?? 0))
     .child(div().w(140).flex_none().truncate().text_size(11.5).text_color(t.dim).child(p.mine ? "you" : p.author))
     .child(h_flex().w(84).flex_none().justify_end().gap(4).text_size(11)
       .child(div().text_color(pick(GREEN, dark)).child(`+${p.additions ?? 0}`))
       .child(div().text_color(pick(RED, dark)).child(`-${p.deletions ?? 0}`)))
     .child(div().w(30).flex_none().text_right().text_size(11).text_color(t.dim).child(ago(p.updated)))
-    .child(div().w(80).flex_none().text_size(11.5).text_color(color).child(word))
-    .child(h_flex().w(34).flex_none().gap(4).items_center().text_size(11).text_color(t.dim).when(Boolean(check), (el) => el.child("CI").child(
-      check[0] ? svg(ICON(check[0])).size(12).text_color(pick(check[1], dark)) : div().size(7).rounded(4).bg(pick(check[1], dark)))));
+    .child(h_flex().id(`rv-${p.url}`).w(112).flex_none().when(asked.length > 0, (el) => el.tooltip(`Your review is asked in ${nums(asked)}`)).child(chip(word.toUpperCase(), color)))
+    .child(h_flex().id(`behind-${p.url}`).w(12).flex_none().justify_center().text_size(12).font_bold().text_color(t.ansi3)
+      .when(behind.length > 0, (el) => el.tooltip(`Your checkout is behind in ${nums(behind)}`).child("↓")))
+    .child(h_flex().id(`ci-${p.url}`).w(16).flex_none().justify_center().when(Boolean(check), (el) => el.tooltip(checkTip).child(
+      check[0] === "check" ? svg("mods/mh-spaces/px-tick.svg").size(11).text_color(pick(check[1], dark))
+      : check[0] ? svg(ICON(check[0])).size(12).text_color(pick(check[1], dark)) : div().size(7).rounded_full().bg(pick(check[1], dark)))));
 }
 
 function issueRow(view, it, i, on, t, dark, login) {
@@ -576,13 +623,14 @@ export const avatar = (name, t, size, url) => {
 };
 export const colorOf = (map, key, dark, t) => (map[key] ? pick(map[key], dark) : t.dim);
 // A see-through version of a #rrggbb or #rrggbbaa color, for soft backgrounds.
-export const tint = (c, alpha = "26") => (/^#[0-9a-f]{6}([0-9a-f]{2})?$/i.test(c) ? c.slice(0, 7) + alpha : c);
+const tint = (c, alpha = "26") => (/^#[0-9a-f]{6}([0-9a-f]{2})?$/i.test(c) ? c.slice(0, 7) + alpha : c);
 
 const STATUS_COLOR = { done: GREEN, indeterminate: BLUE };
-export const statusChip = (text, category, t, dark) => chip(text, STATUS_COLOR[category] ? pick(STATUS_COLOR[category], dark) : t.muted, t);
+export const statusChip = (text, category, t, dark) => chip(text, STATUS_COLOR[category] ? pick(STATUS_COLOR[category], dark) : t.muted);
+export const statusLegend = (t, dark) => [["To Do", "new", "not started"], ["In Progress", "indeterminate", "in progress"], ["Done", "done", "done"]]
+  .map(([name, category, text]) => [statusChip(name, category, t, dark), `status: ${text}`]);
 
-// s: the status dialog (status.js) for a Jira card or preview. back: the shared key it sets when it
-// closes, so the view under it takes the keyboard back.
+// back: the shared key the status dialog sets when it closes, so the view under it takes the keyboard back.
 export const openStatus = (it, back) => openOverlay({ mod: "mh-spaces", kind: "dialog", width: 420, height: 440, props: { status: it.key, url: it.url, title: it.title ?? "", from: { id: it.statusId, name: it.status, category: it.statusCategory }, back } });
 
 // n: the create dialog (create.js), the selected column chosen first.
@@ -592,18 +640,16 @@ function openCreate(view, md) {
   openOverlay({ mod: "mh-spaces", kind: "dialog", width: 520, height: 460, props: { create: project, columns: md.cols.map((c) => ({ name: c.name, statuses: c.statuses })), col: md.col, back: "board.focus" } });
 }
 
-export const chip = (text, color, t, dot) => h_flex().flex_none().gap(5).px(6).h(18).items_center().rounded(4).text_size(10.5).font_medium()
-  .bg(tint(color, "22")).text_color(dot ? t.muted : color)
-  .when(Boolean(dot), (el) => el.child(div().size(6).flex_none().rounded_full().bg(color)))
-  .child(div().truncate().child(text));
+// An epic's chip: muted text after a dot in its color.
+export const epic = (text, color, t) => chip(text, color, div().size(6).flex_none().rounded(1).bg(color)).text_color(t.muted);
 
 function jiraCard(view, it, col, i, on, t, dark) {
   const done = it.statusCategory === "done";
   const p = it.parent;
   const priority = colorOf(PRIORITY_COLOR, it.priority, dark, t);
   const tags = [
-    it.blockedBy.length && div().id(`jb-${it.key}`).child(chip("blocked", pick(RED, dark), t)).tooltip(`blocked by ${it.blockedBy.join(", ")}`),
-    p && div().id(`jp-${it.key}`).min_w(0).child(chip(p.title, hue(p.key, t), t, true)).tooltip(p.key),
+    it.blockedBy.length && div().id(`jb-${it.key}`).child(chip("blocked", pick(RED, dark))).tooltip(`blocked by ${it.blockedBy.join(", ")}`),
+    p && div().id(`jp-${it.key}`).min_w(0).child(epic(p.title, hue(p.key, t), t)).tooltip(p.key),
   ].filter(Boolean);
   return v_flex()
     .id(`jira-${it.key}`)
@@ -647,9 +693,7 @@ function jiraColumns(view, t, dark) {
     cx.notify();
   };
   const red = pick(RED, dark);
-  const count = (c, over, short) => div().flex_none().px(6).h(16).flex().items_center().rounded_full().text_size(10.5).font_medium()
-    .bg(over ? tint(red, "2e") : t.hover).text_color(over ? red : t.muted)
-    .child(over && !short ? `${c.items.length} / ${c.max}` : String(c.items.length));
+  const count = (c, over, short) => chip(over && !short ? `${c.items.length} / ${c.max}` : String(c.items.length), over ? red : t.muted);
   return h_flex()
     .id("jira-cols")
     .on_size_change((size) => (view.listHeight = size.height))
@@ -661,7 +705,7 @@ function jiraColumns(view, t, dark) {
       const over = c.max != null && c.items.length > c.max;
       const ring = ci === sel && at < 0 ? t.accent : "#00000000";
       if (c.folded) {
-        return v_flex().id(`jf-${c.name}`).w(32).flex_none().pt(10).gap(10).items_center().rounded(10).border_1().border_color(ring).bg(t.surface)
+        return v_flex().id(`jf-${c.name}`).w(32).flex_none().pt(10).gap(10).items_center().rounded(6).border_1().border_color(ring).bg(t.surface)
           .cursor_pointer().hover((s) => s.bg(t.hover)).on_click(fold(c)).tooltip(`${c.name}${over ? ` · over max ${c.max}` : ""} · z open`)
           .child(count(c, over, true))
           .child(v_flex().gap(1).items_center().text_size(10).font_semibold().text_color(t.dim)
@@ -669,7 +713,7 @@ function jiraColumns(view, t, dark) {
       }
       const scroll = view.colScroll[ci];
       if (scroll && view.reveal && ci === sel && at >= 0) scroll.scroll_to_item(at);
-      return v_flex().id(`jc-${c.name}`).flex_1().min_w(0).min_h(0).px(8).pt(4).pb(8).gap(4).rounded(10).border_1().border_color(ring).bg(t.surface)
+      return v_flex().id(`jc-${c.name}`).flex_1().min_w(0).min_h(0).px(8).pt(4).pb(8).gap(4).rounded(6).border_1().border_color(ring).bg(t.surface)
         .child(h_flex().id(`jh-${c.name}`).flex_none().h(32).px(6).gap(8).items_center().rounded(6).cursor_pointer()
           .on_click(fold(c)).tooltip(over ? `over the board's max of ${c.max} · z fold` : "z · fold")
           .child(div().min_w(0).truncate().text_size(11).font_semibold().text_color(over ? red : t.muted).child(c.name.toUpperCase()))
@@ -690,7 +734,7 @@ function listBody(view, t, dark) {
     // The owner only when two repos share a name.
     const name = sections.filter((s) => short(s.name) === short(sec.name)).length > 1 ? sec.name : short(sec.name);
     children.push(h_flex().h(28).px(10).pt(8).gap(6).flex_none().items_center().text_size(11)
-      .child(div().text_color(t.muted).child(name))
+      .child(div().font_semibold().text_color(t.muted).child(name.toUpperCase()))
       .child(div().text_color(t.dim).child(String(sec.items.length))));
     for (const it of sec.items) {
       childOf[n] = children.length;
@@ -732,7 +776,7 @@ function pickerPanel(view, t, dark) {
       .w(620)
       .p(14)
       .gap(8)
-      .rounded(10)
+      .rounded(6)
       .border_1()
       .border_color(t.border)
       .bg(t.popover)
@@ -755,7 +799,7 @@ function pickerPanel(view, t, dark) {
 
 export function boardRender(view) {
   const t = theme();
-  const dark = Boolean(settings()?.dark);
+  const dark = darkOf(t);
   const tabs = tabsOf();
   const tab = tabs.find((x) => x.id === memory.tab) ?? tabs[0];
   memory.tab = tab.id;
@@ -773,17 +817,16 @@ export function boardRender(view) {
   const countOf = (x) => x.list()?.filter(shown).length;
   const bots = (tab.list() ?? []).filter(isBot).length;
   // Tabs in a fixed order, the shown one highlighted; the same text either way, so nothing moves.
-  const tabEl = (x, i) => h_flex().id(`tab-${x.id}`).flex_none().gap(6).px(6).py(2).items_center().rounded(5).cursor_pointer()
-    .text_size(13)
-    .when(x.id === tab.id, (el) => el.font_semibold().text_color(t.foreground).bg(t.selected))
-    .when(x.id !== tab.id, (el) => el.text_color(t.muted).hover((s) => s.bg(t.hover)))
+  const tabEl = (x, i) => button(h_flex(), t, x.id === tab.id).id(`tab-${x.id}`).flex_none().px(9).py(3).gap(6).items_center().cursor_pointer()
+    .text_size(11.5).font_semibold()
+    .text_color(x.id === tab.id ? t.foreground : t.muted).hover((s) => s.text_color(t.foreground))
     .on_click((_e, cx) => { showTab(view, x.id, cx); view.note = ""; cx.notify(); })
-    .child(x.name)
+    .child(x.name.toUpperCase())
     .when(countOf(x) != null, (el) => el.child(div().text_size(11).text_color(t.dim).child(String(countOf(x)))))
     .tooltip(i < 9 ? `${i + 1} · tab` : "tab");
   const error = memory.errors[tab.id];
   const status = view.busy[tab.id]
-    ? h_flex().gap(6).items_center().child(div().frames(["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"], 90)).child("refreshing")
+    ? h_flex().gap(6).items_center().child(spinner(11).text_color(t.dim)).child("refreshing")
     : error ? div().max_w(360).truncate().text_color(t.blocked).child(error)
     : memory.at[tab.id] ? div().child(Date.now() - memory.at[tab.id] < 60000 ? "updated now" : `updated ${ago(memory.at[tab.id])} ago`) : div();
   const gh = memory.data[tab.id];
@@ -792,15 +835,15 @@ export function boardRender(view) {
     gh?.missing?.length ? `Not on GitHub, or gh can't see: ${gh.missing.join(", ")}` : "",
     gh?.partial ? "Some repos couldn't be asked." : "",
   ].filter(Boolean);
-  const hint = view.picker ? "" : view.searching
+  const hint = view.picker || view.help ? "" : view.searching
     ? ["↓↑ ^J ^K move", "↵ keep filter", "esc clear"].join(" · ")
-    : ["/ search", ...tab.keys, view.text ? "esc clear search" : "esc close"].join(" · ");
-  const allKeys = ["hjkl move", "^D ^U ^J ^K scroll", "g G first, last", "/ search", ...(tab.github ? ["space preview", "↵ sessions", "⌃↵ open on GitHub", "⌥↵ linked", "b show or hide Dependabot"] : ["z fold or open a column", "s change status", "n new issue", "space preview", "↵ open in Jira"]), "tab next tab", "1-9 a tab", "r refresh", "esc close"].join(" · ");
+    : ["? keys", view.text ? "esc clear search" : "esc close"].join(" · ");
   return v_flex()
     .id("board")
     .relative()
     .track_focus(view.handle)
     .key_context("MhBoard")
+    .map((el) => panelKeys(el, Boolean(view.help)))
     .on_action("mh_board_next_tab", (_e, cx) => stepTab(view, 1, cx))
     .on_action("mh_board_prev_tab", (_e, cx) => stepTab(view, -1, cx))
     .on_key_down((e, cx) => {
@@ -817,16 +860,42 @@ export function boardRender(view) {
     .child(h_flex().flex_none().gap(10).items_center()
       .child(h_flex().flex_none().gap(4).items_center().children(tabs.map(tabEl)))
       .child(div().id("status").flex_none().text_size(11).text_color(t.dim).child(status).tooltip("r · refresh"))
-      .when(bots > 0, (el) => el.child(div().id("bots").flex_none().px(6).py(1).rounded(5).cursor_pointer().text_size(11).text_color(t.muted).hover((s) => s.bg(t.hover))
+      .when(bots > 0, (el) => el.child(button(div(), t, false).id("bots").flex_none().px(7).py(2).cursor_pointer().text_size(11).text_color(t.muted).hover((s) => s.text_color(t.foreground))
         .on_click((_e, cx) => { memory.bots = !memory.bots; view.reveal = true; cx.notify(); })
         .child(memory.bots ? `Dependabot shown ${bots}` : `Dependabot hidden ${bots}`).tooltip("b · show or hide Dependabot PRs")))
-      .child(div().id("keys").flex_1().min_w(0).truncate().text_right().text_size(11).text_color(t.dim).child(hint).when(!view.searching, (el) => el.tooltip(allKeys))))
+      .child(div().flex_1().min_w(0).truncate().text_right().text_size(11).text_color(t.dim).child(hint)))
     .when(view.searching || Boolean(view.text), (el) => el.child(
-      h_flex().h(30).flex_none().px(10).gap(8).items_center().rounded(6).border_1()
-        .border_color(view.searching ? t.accent : t.border).bg(t.background)
+      frame(h_flex(), view.searching ? t.accent : t.input, t.background).h(30).flex_none().px(12).gap(8).items_center()
         .child(svg(ICON("search")).size(13).text_color(t.dim))
         .child(Input.new(view.input).flex_1().h_full().text_size(12.5).text_color(t.foreground))))
     .child(body)
     .when(notes.length > 0, (el) => el.child(div().flex_none().truncate().text_size(11).text_color(view.note ? t.muted : t.dim).child(notes.join(" · "))))
-    .when(Boolean(view.picker), (el) => el.child(pickerPanel(view, t, dark)));
+    .when(Boolean(view.picker), (el) => el.child(pickerPanel(view, t, dark)))
+    .when(Boolean(view.help), (el) => el.child(helpPanel(tab, t, dark)));
+}
+
+// ?: the board's keys, and what its marks mean, for the shown tab.
+function helpPanel(tab, t, dark) {
+  const keys = [
+    ["h j k l", "move; on a stack, l and h open and fold it"], ["^D ^U ^J ^K", "scroll"], ["g G", "first, last"], ["/", "search"],
+    ...(tab.github
+      ? [["space", "preview"], ["↵", "sessions"], ["⌃↵", "open on GitHub"], ["⌥↵", "linked items"], ["z", "fold or open a stack"], ["b", "show or hide Dependabot"]]
+      : [["z", "fold or open a column"], ["s", "change status"], ["n", "new issue"], ["space", "preview"], ["↵", "open in Jira"]]),
+    ["tab, 1-9", "next tab, a tab"], ["r", "refresh"], ["esc", "close"],
+  ];
+  const marks = tab.github
+    ? [
+      [div().size(4).bg(t.ansi3), "new activity since you last opened it"],
+      [div().size(6).rounded_full().bg(t.accent), "you have Claude sessions or links on it"],
+      [chip("2 STACKED", t.muted, div().child("▸")), "PRs stacked on it, folded"],
+      [chip("YOUR REVIEW", t.ansi3), "your review is asked"],
+      [div().text_size(12).font_bold().text_color(t.ansi3).child("↓"), "your checkout is behind the PR"],
+      [svg(ICON("x")).size(12).text_color(pick(RED, dark)), "checks failed (on a folded stack: in a PR it hides)"],
+    ]
+    : [
+      [div().w(3).h(12).rounded(2).bg(pick(RED, dark)), "left edge: priority"],
+      [div().size(8).rounded(2).bg(pick(BLUE, dark)), "issue type"],
+      [chip("blocked", pick(RED, dark)), "an open issue blocks it"],
+    ];
+  return keyPanel(t, [["KEYS", keys], ["MARKS", marks]]);
 }
