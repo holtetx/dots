@@ -11,6 +11,7 @@ import { avatars, loadAvatars } from "./preview-data.js";
 import { BLUE, GREEN, PRIORITY_COLOR, RED, TYPE_COLOR, YELLOW, foldKey, hue, initials } from "./jira.js";
 import { bindPanelKeys, button, chip, darkOf, frame, helpKey, keyPanel, panelKeys, spinner } from "./pixel.js";
 import { track, trackKey } from "./stats.js";
+import { toggleWatch, watchButton } from "./watch.js";
 
 const FRESH = 2 * 60000;
 const ICON = (name) => `mods/workspace-chrome/${name}.svg`;
@@ -422,6 +423,7 @@ function key(view, e, cx) {
       return (view.reveal = true), true;
     }
   }
+  if (e.key === "w" && it?.url?.includes("/pull/")) return toggleWatch(it.url), true;
   if (e.key === "g" || e.key === "G") return edge(view, m.shift || e.key === "G"), true;
   const dir = { h: "left", left: "left", j: "down", down: "down", k: "up", up: "up", l: "right", right: "right" }[e.key];
   if (!dir) return false;
@@ -600,7 +602,8 @@ function prRow(view, p, i, on, t, dark) {
       .when(behind.length > 0, (el) => el.tooltip(`Your checkout is behind in ${nums(behind)}`).child("↓")))
     .child(h_flex().id(`ci-${p.url}`).w(16).flex_none().justify_center().when(Boolean(check), (el) => el.tooltip(checkTip).child(
       check[0] === "check" ? svg("mods/mh-spaces/px-tick.svg").size(11).text_color(pick(check[1], dark))
-      : check[0] ? svg(ICON(check[0])).size(12).text_color(pick(check[1], dark)) : div().size(7).rounded_full().bg(pick(check[1], dark)))));
+      : check[0] ? svg(ICON(check[0])).size(12).text_color(pick(check[1], dark)) : div().size(7).rounded_full().bg(pick(check[1], dark)))))
+    .child(watchButton(p.url, t, `watch-${p.url}`));
 }
 
 function issueRow(view, it, i, on, t, dark, login) {
@@ -883,7 +886,7 @@ function helpPanel(tab, t, dark) {
   const keys = [
     ["h j k l", "move; on a stack, l and h open and fold it"], ["^D ^U ^J ^K", "scroll"], ["g G", "first, last"], ["/", "search"],
     ...(tab.github
-      ? [["space", "preview"], ["↵", "sessions"], ["⌃↵", "open on GitHub"], ["⌥↵", "linked items"], ["z", "fold or open a stack"], ["b", "show or hide Dependabot"]]
+      ? [["space", "preview"], ["↵", "sessions"], ["⌃↵", "open on GitHub"], ["⌥↵", "linked items"], ["z", "fold or open a stack"], ["w", "watch the PR in the sidebar, or stop"], ["b", "show or hide Dependabot"]]
       : [["z", "fold or open a column"], ["s", "change status"], ["n", "new issue"], ["space", "preview"], ["↵", "open in Jira"]]),
     ["tab, 1-9", "next tab, a tab"], ["r", "refresh"], ["esc", "close"],
   ];
@@ -893,6 +896,7 @@ function helpPanel(tab, t, dark) {
       [div().size(6).rounded_full().bg(t.accent), "you have Claude sessions or links on it"],
       [chip("2 STACKED", t.muted, div().child("▸")), "PRs stacked on it, folded"],
       [chip("YOUR REVIEW", t.ansi3), "your review is asked"],
+      [svg("mods/workspace-chrome/pin.svg").size(12).text_color(t.accent), "watched in the sidebar; click the pin, or w, to watch or stop"],
       [div().text_size(12).font_bold().text_color(t.ansi3).child("↓"), "your checkout is behind the PR"],
       [svg(ICON("x")).size(12).text_color(pick(RED, dark)), "checks failed (on a folded stack: in a PR it hides)"],
     ]

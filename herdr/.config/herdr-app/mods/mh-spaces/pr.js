@@ -9,6 +9,7 @@ import { find } from "./find.js";
 import { GREEN, RED } from "./jira.js";
 import { button, chip, darkOf, helpKey } from "./pixel.js";
 import { track, trackKey } from "./stats.js";
+import { toggleWatch, watchButton } from "./watch.js";
 import { pick, verdict } from "./board.js";
 import { MERGE } from "./preview-data.js";
 import { mergeChip } from "./preview.js";
@@ -203,6 +204,7 @@ function key(view, e, cx) {
   if (e.key === "j" || e.key === "down") return select(view, at + 1), true;
   if (e.key === "k" || e.key === "up") return select(view, at - 1), true;
   if (e.key === "r") return view.url && !view.busy && load(view, view.url, cx), true;
+  if (e.key === "w") return toggleWatch(view.url), true;
   if (!r) return false;
   const g = r.group;
   if (e.key === "l" || e.key === "right") return r.check ? true : g.opened ? select(view, at + 1) : fold(g, true), true;
@@ -217,7 +219,7 @@ function key(view, e, cx) {
   return false;
 }
 
-const KEYS = [["j k  ↓ ↑", "next or previous row"], ["l  →", "open a workflow, or go to its first check"], ["h  ←", "fold a workflow, or go up to it"], ["z  space", "fold or open the workflow"], ["↵", "open the check's log"], ["o  ⌃↵", "open the PR on GitHub"], ["f", "FIX: ask the space's Claude to fix a failed check"], ["r", "ask GitHub now"], ["esc", "back to the terminal"], ["alt-hjkl", "leave the panel"]];
+const KEYS = [["j k  ↓ ↑", "next or previous row"], ["l  →", "open a workflow, or go to its first check"], ["h  ←", "fold a workflow, or go up to it"], ["z  space", "fold or open the workflow"], ["↵", "open the check's log"], ["o  ⌃↵", "open the PR on GitHub"], ["f", "FIX: ask the space's Claude to fix a failed check"], ["w", "watch the PR in the sidebar, or stop"], ["r", "ask GitHub now"], ["esc", "back to the terminal"], ["alt-hjkl", "leave the panel"]];
 
 // keyPanel() is for dialogs: too wide here.
 function helpList(t, dark) {
@@ -262,7 +264,8 @@ export function prRender(view) {
     .when(Boolean(url), (el) => el
       .child(h_flex().flex_none().px(16).pb(6).gap(8).items_center()
         .child(badge(url, gh.items ?? {}, t, "pr-badge"))
-        .child(div().min_w(0).truncate().text_color(t.foreground).child(gh.items?.[url]?.title ?? "")))
+        .child(div().flex_1().min_w(0).truncate().text_color(t.foreground).child(gh.items?.[url]?.title ?? ""))
+        .child(watchButton(url, t, "pr-watch")))
       .when(Boolean(d?.status), (el) => el.child(statusLines(d.status, t, dark)))
       .when(Boolean(d?.error), (el) => el.child(note(d.error, pick(RED, dark))))
       .when(!d, (el) => el.child(note("Loading…")))

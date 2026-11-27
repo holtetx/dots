@@ -110,7 +110,7 @@ export default class Tabs extends View {
         const command = await nextCommand();
         track(`mh-tabs.${command}`, "key");
         // The sidebar (mh-spaces) runs these; see shared("spaces.command") there.
-        if (["tasks", "board", "link", "link-space", "new-session"].includes(command)) {
+        if (["tasks", "board", "link", "link-space", "new-session", "watch"].includes(command)) {
           setShared("spaces.command", { command, at: Date.now() });
           continue;
         }

@@ -13,6 +13,7 @@
   { "f": "mh-sessions.tasks", "key": "^A T", "text": "tasks: the PRs and issues of your sessions" },
   { "f": "mh-sessions.tasks.ctrl-space", "key": "⌃space in tasks", "text": "preview the task's PR or issue" },
   { "f": "mh-spaces.board", "key": "^A ⇧T", "text": "board: open PRs and issues of your repos" },
+  { "f": "mh-spaces.watch", "key": "w on the board, ^A W", "text": "watch a PR: the sidebar's WATCHING list says when it is your move" },
   { "f": "mh-spaces.board.prs.space", "key": "space on the board", "text": "preview a PR without leaving Herdr" },
   { "f": "mh-spaces.board.prs.alt-enter", "key": "⌥↵ on the board", "text": "the PR's linked items" },
   { "f": "mh-spaces.board.prs./", "key": "/ on the board", "text": "search by ref, title, repo, author, branch or label" },
