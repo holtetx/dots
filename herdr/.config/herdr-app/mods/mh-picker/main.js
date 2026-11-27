@@ -5,6 +5,12 @@ import { v_flex, h_flex, InputState, Input } from "gpui-base";
 import { action, bindPanelKeys, frame, helpKey, ink, keyPanel, mark, panelKeys, statusMarks, WORDS } from "./pixel.js";
 import { agents, spaces, terminals, run, hc, theme, settings, props, closeOverlay, shared, setShared } from "herdr";
 
+// As the tab bar shows it: a name someone gave, else its agent's session title, else Herdr's tab number.
+const titleOf = (ctx, mine) => (ctx.named ? ctx.name : null)
+  || mine.map((a) => terminals().find((x) => x.address === a.address)?.labels?.["mh.description"]).find(Boolean)
+  || mine.map((a) => [(a.title ?? "").replace(/^[^\p{L}\p{N}]+/u, "").trim(), a.program?.name]).find(([x, prog]) => x && x !== prog)?.[0]
+  || ctx.name;
+
 const MARK = { ansi6: "#6fc7bd", ansi3: "#8fa3f0", ansi4: "#7aa7e8", ansi5: "#b394f0", ansi2: "#8fcf94", ansi1: "#e49ac8" };
 
 // Space colors, kept by space id in shared "space.colors": a theme
@@ -77,9 +83,9 @@ export default class Picker extends View {
       const ctxs = w.tabs
         .map((ctx) => {
           const mine = all.filter((a) => a.tab === ctx.id);
-          return { w, ctx, mine, team: teamOf(mine.map((a) => a.address)) };
+          return { w, ctx, mine, title: titleOf(ctx, mine), team: teamOf(mine.map((a) => a.address)) };
         })
-        .filter((c) => !f || [w.name, c.ctx.name, ...c.mine.map((a) => a.program?.name ?? "")].join(" ").toLowerCase().includes(f));
+        .filter((c) => !f || [w.name, c.title, ...c.mine.map((a) => a.program?.name ?? "")].join(" ").toLowerCase().includes(f));
       return { w, ctxs };
     });
     const busy = groups.filter((p) => p.w.status && p.ctxs.length);
@@ -215,7 +221,7 @@ export default class Picker extends View {
         .hover((s) => s.bg(t.hover))
         .on_click(() => this.go(r))
         .child(div().w(12).flex_none().flex().justify_center().text_color(t.dim).child(mark(r.ctx.status, t) ?? (r.ctx.status === "idle" ? "○" : "·")))
-        .child(div().flex_1().truncate().text_color(t.foreground).when(here, (d) => d.font_semibold()).child(r.ctx.name))
+        .child(div().flex_1().truncate().text_color(t.foreground).when(here, (d) => d.font_semibold()).child(r.title))
         .when(r.ctx.status === "blocked" || r.ctx.status === "done", (el) => el.child(div().text_size(11).text_color(t[r.ctx.status]).child(WORDS[r.ctx.status])))
         .child(div().text_size(11).text_color(t.dim).child(who + (r.team ? `  +${r.team}` : "")));
     };
