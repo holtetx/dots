@@ -5,11 +5,13 @@ import { spaces, panes, agents, run, openOverlay, theme, window, shared, setShar
 
 const CI = { failed: ["circle-x", "ansi1"], running: ["circle-dot", "ansi3"], passed: ["circle-check", "ansi2"] };
 
-// Shows that side panel, or hides the panel when it already shows it.
+// Shows that side panel, or hides the panel when it already shows it. True when it shows it.
 function togglePanel(id) {
   const root = layout(), panel = find(root, "panel"), body = find(root, "panel-body");
-  if (panel && !panel.hidden && body?.active === id) run("layout.hide", { id: "panel" });
-  else { run("layout.select", { stack: "panel-body", child: id }); run("layout.show", { id: "panel" }); }
+  if (panel && !panel.hidden && body?.active === id) return run("layout.hide", { id: "panel" }), false;
+  run("layout.select", { stack: "panel-body", child: id });
+  run("layout.show", { id: "panel" });
+  return true;
 }
 
 function find(node, id) {
@@ -123,7 +125,8 @@ export default class Tabs extends View {
           continue;
         }
         if (command === "checks") {
-          togglePanel("checks");
+          // Opening it from the keyboard gives it the keyboard (checks.js).
+          if (togglePanel("checks")) setShared("checks.focus", Date.now());
           continue;
         }
         if (command === "test-toast") {

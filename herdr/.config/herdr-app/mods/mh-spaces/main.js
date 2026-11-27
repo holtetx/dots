@@ -181,6 +181,8 @@ export default class Spaces extends View {
       for (;;) {
         // "link": the focused agent's, else the space's; "link-space": the space's.
         const command = await nextCommand();
+        // focusable (mod.json) is for the checks panel: alt-h onto the sidebar goes straight back.
+        if (command === "focus") { run("pane.go", { direction: "right" }); continue; }
         // Shared, as the tasks list's: the board is another copy of this mod, and Esc closes it there.
         if (command === "board") setShared("board.overlay", shared("board.overlay") ? closeOverlay(shared("board.overlay")) : openOverlay({ mod: "mh-spaces", kind: "dialog", width: 0.8, height: 0.8, props: { board: true } }));
         // The tasks list (mh-sessions) clears shared("tasks.overlay") when it closes.

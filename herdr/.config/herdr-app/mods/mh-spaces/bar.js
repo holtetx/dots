@@ -2,7 +2,7 @@
 
 import { div, svg } from "gpui-kit";
 import { h_flex } from "gpui-base";
-import { agents, exec, focused, run, setShared, shared, theme, window as appWindow } from "herdr";
+import { agents, exec, focused, nextCommand, run, setShared, shared, theme, window as appWindow } from "herdr";
 import { WORDS } from "./pixel.js";
 import { badge, branchPr, prsOf, spacePr } from "./github.js";
 
@@ -32,6 +32,10 @@ export function barInit(view, cx) {
   view.diffAt = {};
   view.diffBusy = new Set();
   cx.timer.every(1000, (cx) => tick(view, cx));
+  // focusable (mod.json) is for the checks panel: alt-j onto the bar goes straight back.
+  cx.spawn(async () => {
+    for (;;) if ((await nextCommand()) === "focus") run("pane.go", { direction: "up" });
+  });
 }
 
 function tick(view, cx) {
