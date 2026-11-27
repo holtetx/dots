@@ -62,6 +62,7 @@ const DESCRIBE = {
 
   "mh-spaces.tasks": [BOARD, "Tasks: the PRs and issues of my sessions"],
   "mh-spaces.board": [BOARD, "Board: open PRs and issues of my repos"],
+  "mh-tabs.pr": [BOARD, "The space's PR: status and CI checks, in the side panel"],
   "mh-spaces.link": [BOARD, "Link a PR or issue to the focused agent"],
   "mh-spaces.link-space": [BOARD, "Link a PR or issue to the space"],
 

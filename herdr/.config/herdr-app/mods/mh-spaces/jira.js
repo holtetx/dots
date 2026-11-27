@@ -71,6 +71,8 @@ export function issueOf(n, site) {
     statusId: String(f.status?.id ?? ""),
     statusCategory: f.status?.statusCategory?.key ?? "",
     type: f.issuetype?.name ?? "",
+    // 1 and up: an epic or above, in any language ("Epos").
+    level: f.issuetype?.hierarchyLevel ?? 0,
     priority: f.priority?.name ?? "",
     assignee: f.assignee?.displayName ?? "",
     assigneeAvatar: avatarOf(f.assignee),
@@ -81,9 +83,9 @@ export function issueOf(n, site) {
 }
 
 // [{ name, max, statuses, items }] per column, empty ones too, in board order, issues in the order Jira gave (its rank).
-// Issues in no column are left out, as the board leaves them out.
+// Issues in no column and epics are left out, as the web board leaves them out.
 export function byColumn(columns, issues) {
-  return columns.map((c) => ({ name: c.name, max: c.max, statuses: [...c.statuses], items: issues.filter((i) => c.statuses.has(i.statusId)) }));
+  return columns.map((c) => ({ name: c.name, max: c.max, statuses: [...c.statuses], items: issues.filter((i) => c.statuses.has(i.statusId) && i.level < 1) }));
 }
 
 // Plain text as Jira's rich text (ADF): a blank line starts a paragraph, a line break stays one.

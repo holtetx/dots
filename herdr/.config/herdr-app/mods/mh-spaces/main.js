@@ -17,17 +17,11 @@ import { previewInit, previewRender } from "./preview.js";
 import { statusInit, statusRender } from "./status.js";
 import { createInit, createRender } from "./create.js";
 import { barInit, barRender } from "./bar.js";
+import { prInit, prRender } from "./pr.js";
+import { find } from "./find.js";
 import { telling } from "./title.js";
 import { discoverRepos } from "./board-data.js";
 
-function find(node, id) {
-  if (node?.id === id) return node;
-  for (const child of node?.children ?? []) {
-    const found = find(child, id);
-    if (found) return found;
-  }
-  return null;
-}
 
 // The sidebar's rail goes by its width, not a flag: dragging its edge narrows it too.
 const narrow = () => (find(layout(), "sidebar")?.size?.px ?? Infinity) < 160;
@@ -133,6 +127,7 @@ export default class Spaces extends View {
     if (props()?.status) return statusInit(this, cx);
     if (props()?.create) return createInit(this, cx);
     if (props()?.bar) return barInit(this, cx);
+    if (props()?.pr) return prInit(this, cx);
     this.git = {}; // where() -> { name, branch, ahead, behind, repo, linked, gh: "owner/repo" }, null: not a repo
     this.checked = {}; // where() -> when it was last looked at
     this.unsure = new Set(); // where()s git couldn't answer for (a machine away)
@@ -186,6 +181,8 @@ export default class Spaces extends View {
       for (;;) {
         // "link": the focused agent's, else the space's; "link-space": the space's.
         const command = await nextCommand();
+        // focusable (mod.json) is for the PR panel: alt-h onto the sidebar goes straight back.
+        if (command === "focus") { run("pane.go", { direction: "right" }); continue; }
         // Shared, as the tasks list's: the board is another copy of this mod, and Esc closes it there.
         if (command === "board") setShared("board.overlay", shared("board.overlay") ? closeOverlay(shared("board.overlay")) : openOverlay({ mod: "mh-spaces", kind: "dialog", width: 0.8, height: 0.8, props: { board: true } }));
         // The tasks list (mh-sessions) clears shared("tasks.overlay") when it closes.
@@ -1193,6 +1190,8 @@ export default class Spaces extends View {
       .pr(8)
       .h(height)
       .flex_none()
+      // Two highlights (shown, hover) would merge into one block; the track overlaps the gap.
+      .mb(2)
       .pt(6)
       .gap(4)
       .rounded(8)
@@ -1348,6 +1347,7 @@ export default class Spaces extends View {
     if (props()?.status) return statusRender(this);
     if (props()?.create) return createRender(this);
     if (props()?.bar) return barRender(this);
+    if (props()?.pr) return prRender(this);
     const t = theme();
     const collapsed = narrow();
     const palette = ["ansi6", "ansi3", "ansi4", "ansi5", "ansi2", "ansi1"];
