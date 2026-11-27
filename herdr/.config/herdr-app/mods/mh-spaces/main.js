@@ -181,7 +181,7 @@ export default class Spaces extends View {
       for (;;) {
         // "link": the focused agent's, else the space's; "link-space": the space's.
         const command = await nextCommand();
-        // focusable (mod.json) is for the checks panel: alt-h onto the sidebar goes straight back.
+        // focusable (mod.json) is for the PR panel: alt-h onto the sidebar goes straight back.
         if (command === "focus") { run("pane.go", { direction: "right" }); continue; }
         // Shared, as the tasks list's: the board is another copy of this mod, and Esc closes it there.
         if (command === "board") setShared("board.overlay", shared("board.overlay") ? closeOverlay(shared("board.overlay")) : openOverlay({ mod: "mh-spaces", kind: "dialog", width: 0.8, height: 0.8, props: { board: true } }));
@@ -1190,6 +1190,8 @@ export default class Spaces extends View {
       .pr(8)
       .h(height)
       .flex_none()
+      // Two highlights (shown, hover) would merge into one block; the track overlaps the gap.
+      .mb(2)
       .pt(6)
       .gap(4)
       .rounded(8)

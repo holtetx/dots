@@ -269,8 +269,8 @@ export default class Tabs extends View {
         .on_click(() => togglePanel(id))
         .child(svg(icon).size(13).when(Boolean(color), el => el.text_color(color))).child(label);
     };
-    // The shown space's PR CI, from mh-spaces' git bar.
-    const ci = CI[shared("checks.state")];
+    // Set by mh-spaces' git bar.
+    const ci = CI[shared("pr.ci")];
     return h_flex().size_full().min_w(0).px(10).pl(lightsPadding).gap(6).items_center().bg(t.chrome)
       .on_mouse_up("left", () => { this.pressed = null; })
       .on_scroll_wheel(e => this.wheel(e))

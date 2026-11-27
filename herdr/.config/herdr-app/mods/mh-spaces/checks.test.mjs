@@ -1,6 +1,6 @@
 // Run: node mods/mh-spaces/checks.test.mjs
 import assert from "node:assert";
-import { checksOf, countLine, groupsOf, rollupState, splitName, took } from "./checks-data.js";
+import { checksOf, countLine, fixPrompt, groupsOf, rollupState, splitName, took } from "./checks-data.js";
 
 const run = (name, workflow, status, conclusion, startedAt, completedAt = null) =>
   ({ __typename: "CheckRun", name, status, conclusion, detailsUrl: `u/${name}/${startedAt}`, startedAt, completedAt, checkSuite: { workflowRun: { workflow: { name: workflow } } } });
@@ -28,4 +28,8 @@ assert.equal(countLine(list.filter((c) => c.workflow === "CI"), " · "), "1 runn
 assert.deepEqual(splitName("Code Scan / codeql-analysis"), ["Code Scan / ", "codeql-analysis"]);
 assert.deepEqual(splitName("build"), ["", "build"]);
 assert.deepEqual(["FAILURE", "ERROR", "PENDING", "SUCCESS", undefined].map(rollupState), ["failed", "failed", "running", "passed", null]);
+// A cancelled run is no failure to fix.
+assert.equal(checksOf(pr([run("x", "CI", "COMPLETED", "CANCELLED", "2026-01-01T10:00:00Z")]))[0].state, "skipped");
+// A status context with no link gets no "(null)".
+assert.equal(fixPrompt({ workflow: "", name: "ci/x", url: null }, "https://example.test/pull/1"), 'The CI check "ci/x" failed on https://example.test/pull/1. Read its log, find the cause and fix it.');
 console.log("ok");

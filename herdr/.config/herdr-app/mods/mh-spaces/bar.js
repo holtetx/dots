@@ -4,7 +4,7 @@ import { div, svg } from "gpui-kit";
 import { h_flex } from "gpui-base";
 import { agents, exec, focused, nextCommand, run, setShared, shared, theme, window as appWindow } from "herdr";
 import { WORDS } from "./pixel.js";
-import { badge, branchPr, prsOf, spacePr } from "./github.js";
+import { FINAL, badge, branchPr, prsOf, spacePr } from "./github.js";
 
 // shortcut: polls the shown repo every 5 s instead of watching its files; switch to watchFolder if it lags.
 const EVERY = 5000;
@@ -19,7 +19,6 @@ const stat = (rows, untracked = 0) => {
 };
 const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
-
 // The branch's PR says what it was made from, so a stacked branch compares with its parent.
 function prBase(id, g) {
   if (g.base) return `origin/${g.base}`;
@@ -32,7 +31,7 @@ export function barInit(view, cx) {
   view.diffAt = {};
   view.diffBusy = new Set();
   cx.timer.every(1000, (cx) => tick(view, cx));
-  // focusable (mod.json) is for the checks panel: alt-j onto the bar goes straight back.
+  // focusable (mod.json) is for the PR panel: alt-j onto the bar goes straight back.
   cx.spawn(async () => {
     for (;;) if ((await nextCommand()) === "focus") run("pane.go", { direction: "up" });
   });
@@ -95,11 +94,12 @@ function team(t) {
         .child(`${n} ${word}`)));
 }
 
-// The shown space's CI state for mh-tabs' CHECKS button: the checks panel's answer when it's newer than the sidebar's poll.
+// For mh-tabs' PR button: the panel's answer when newer than the sidebar's poll. Badges show no CI after a merge either.
 function publishCi(id) {
-  const url = spacePr(id), it = shared("github")?.items?.[url], fresh = shared("checks.fresh");
-  const state = !url ? null : fresh?.url === url && fresh.at > (it?.at ?? 0) ? fresh.state : it?.ci ?? null;
-  if ((shared("checks.state") ?? null) !== state) setShared("checks.state", state);
+  const url = spacePr(id), it = shared("github")?.items?.[url], fresh = shared("pr.fresh");
+  const ci = !url || FINAL.has(it?.state) ? null : fresh?.url === url && fresh.at > (it?.at ?? 0) ? fresh.state : it?.ci ?? null;
+  const state = ci === "skipped" ? "passed" : ci;
+  if ((shared("pr.ci") ?? null) !== state) setShared("pr.ci", state);
 }
 
 export function barRender(view) {

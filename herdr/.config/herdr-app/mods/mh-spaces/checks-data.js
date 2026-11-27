@@ -4,12 +4,12 @@ export const CHECKS = `commits(last: 1) { nodes { commit { statusCheckRollup { c
   ... on CheckRun { name status conclusion detailsUrl startedAt completedAt checkSuite { workflowRun { workflow { name } } } }
   ... on StatusContext { context state targetUrl createdAt } } } } } } }`;
 
-const RUN = { SUCCESS: "passed", NEUTRAL: "skipped", SKIPPED: "skipped", STALE: "skipped" };
+// Cancelled is no failure to fix.
+const RUN = { SUCCESS: "passed", NEUTRAL: "skipped", SKIPPED: "skipped", STALE: "skipped", CANCELLED: "skipped" };
 const STATUS = { SUCCESS: "passed", PENDING: "running", EXPECTED: "running" };
-export const CHECK_STATES = ["failed", "running", "passed", "skipped"];
+const CHECK_STATES = ["failed", "running", "passed", "skipped"];
 
-// The newest run of each check (the rollup keeps re-runs), worst first:
-// [{ name, workflow, url, state, started, ended }], times in ms or null.
+// The rollup keeps re-runs: only the newest of each counts.
 export function checksOf(n) {
   const list = n.commits?.nodes?.[0]?.commit?.statusCheckRollup?.contexts?.nodes ?? [];
   const newest = {};
@@ -26,16 +26,14 @@ export function checksOf(n) {
     .sort((a, b) => CHECK_STATES.indexOf(a.state) - CHECK_STATES.indexOf(b.state) || a.name.localeCompare(b.name));
 }
 
-// "1 failed, 2 running, 12 passed", or "" with no checks.
 export const countLine = (checks, sep = ", ") => CHECK_STATES.map((s) => [s, checks.filter((c) => c.state === s).length]).filter(([, n]) => n).map(([s, n]) => `${n} ${s}`).join(sep);
 
 export const worst = (checks) => CHECK_STATES.find((s) => checks.some((c) => c.state === s)) ?? null;
 
-// GitHub's statusCheckRollup.state as a check state, or null.
 const ROLLUP = { SUCCESS: "passed", FAILURE: "failed", ERROR: "failed", PENDING: "running", EXPECTED: "running" };
 export const rollupState = (state) => ROLLUP[state] ?? null;
 
-// The checks by workflow: [{ name, state, checks }], the worst first. Status contexts have no workflow: Other, last of its state.
+// Status contexts have no workflow: Other.
 export function groupsOf(checks) {
   const by = new Map();
   for (const c of checks) by.set(c.workflow || "Other", [...(by.get(c.workflow || "Other") ?? []), c]);
@@ -49,7 +47,6 @@ export function splitName(name) {
   return i < 0 ? ["", name] : [name.slice(0, i + 3), name.slice(i + 3)];
 }
 
-// 42s, 3m 5s, 1h 2m.
 export function took(ms) {
   const s = Math.max(0, Math.round(ms / 1000));
   if (s < 60) return `${s}s`;
@@ -58,4 +55,4 @@ export function took(ms) {
 }
 
 export const fixPrompt = (check, prUrl) =>
-  `The CI check "${[check.workflow, check.name].filter(Boolean).join(" / ")}" failed on ${prUrl} (${check.url}). Read its log, find the cause and fix it.`;
+  `The CI check "${[check.workflow, check.name].filter(Boolean).join(" / ")}" failed on ${prUrl}${check.url ? ` (${check.url})` : ""}. Read its log, find the cause and fix it.`;

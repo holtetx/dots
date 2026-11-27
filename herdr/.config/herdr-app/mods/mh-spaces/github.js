@@ -32,7 +32,6 @@ export const stateMarks = (t) => [
   [["open", "draft", "queued", "merged", "closed"], "PR: open, draft, merge queued, merged, closed"],
   [["issue-open", "issue-done", "issue-skip"], "issue: open, closed, not planned"],
 ].map(([states, text]) => [h_flex().gap(6).children(states.map((s) => svg(GH[s].icon).size(12).text_color(colorOf(GH[s], t)))), text]);
-// A check state's icon and color, for the CI mark and the checks panel.
 export const CHECK_LOOK = {
   failed: { icon: "mods/pr/circle-x.svg", color: RED, label: "CI failed" },
   running: { icon: "mods/pr/circle-dot.svg", color: YELLOW, label: "CI running" },
@@ -89,16 +88,15 @@ function tipOf(it, s) {
   return [`${it.repo}#${it.number ?? "?"}`, s?.label, reviewOf(it)?.label, ciOf(it)?.label, unreadOf(it) && "New activity", it.title].filter(Boolean).join(" · ");
 }
 
-// The PR URLs a space's sidebar row shows.
 export const prsOf = (id, gh) => (gh.shown?.spaces?.[id] ?? []).filter((u) => (gh.items?.[u] ?? unknown(u, 0)).kind === "pr");
 
-// The PR of a space's branch (`g` from shared("git.spaces")), an open one first, or null.
+// `g`: shared("git.spaces")[id].
 export function branchPr(id, g, gh) {
   const mine = prsOf(id, gh).map((u) => gh.items?.[u]).filter((it) => it?.branch === g.branch && it.base && it.repo?.toLowerCase() === g.gh?.toLowerCase());
   return mine.find((it) => it.state === "open") ?? mine[0] ?? null;
 }
 
-// What a PR's review word needs (board.js verdict()): each reviewer's latest review and the last comments.
+// For board.js verdict().
 export const REVIEW_FIELDS = "author { login } latestReviews(first: 30) { nodes { state author { login __typename } } } comments(last: 30) { nodes { author { login __typename } } }";
 export function reviewsOf(n) {
   const latest = n.latestReviews?.nodes ?? [];
@@ -110,7 +108,6 @@ export function reviewsOf(n) {
   };
 }
 
-// The PR the PR panel and its tab bar button show for a space: its branch's, else its first open one.
 export function spacePr(id) {
   const gh = shared("github") ?? {};
   const g = shared("git.spaces")?.[id];
