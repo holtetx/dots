@@ -1,7 +1,7 @@
-// The Jira tab's data: one board, the previewed issue and status moves (AGENTS.local.md, "Jira tab on the board").
+// The Jira tab's data: one board, the previewed issue, status moves and new issues (AGENTS.local.md, "Jira tab on the board").
 
 import { exec, shared } from "herdr";
-import { adfBlocks, adfToMd, avatarOf, byColumn, columnsOf, issueOf, linksOf, validBoard, validKey, validSite } from "./jira.js";
+import { adfBlocks, adfToMd, avatarOf, byColumn, columnsOf, issueOf, linksOf, textToAdf, validBoard, validKey, validProject, validSite } from "./jira.js";
 
 export const jiraSettings = () => {
   const s = shared("mh-jira");
@@ -43,7 +43,7 @@ async function call(a, method, path, params = {}, body) {
     auth = null; // r reads the item again, after the token is replaced in 1Password
     throw new Error("Jira refused the token (401). It may have expired.");
   }
-  if (r.status === 403) throw new Error(method === "GET" ? `Jira says this account has no access to board ${a.board} (403).` : "Jira says this account may not change this issue (403).");
+  if (r.status === 403) throw new Error(method === "GET" ? `Jira says this account has no access to board ${a.board} (403).` : path === "/rest/api/3/issue" ? "Jira says this account may not create issues in this project (403)." : "Jira says this account may not change this issue (403).");
   if (r.status === 429) throw new Error("Jira says too many requests: press r in a minute.");
   if (!r.ok) {
     const j = await r.json().catch(() => null);
@@ -69,12 +69,13 @@ async function boardIssues(a) {
   return out;
 }
 
-// { name, sections: [{ name: column, items }] }.
+// { name, project, sections: [{ name: column, max, statuses, items }] }. project: where n creates issues.
 export async function fetchJira(cfg) {
   const a = await credentials(cfg);
   const [config, raw] = await Promise.all([get(a, `/rest/agile/1.0/board/${a.board}/configuration`), boardIssues(a)]);
   const issues = raw.map((n) => issueOf(n, a.site));
-  return { name: config.name ?? "", sections: byColumn(columnsOf(config), issues) };
+  const project = config.location?.key;
+  return { name: config.name ?? "", project: validProject(project) ? project : null, sections: byColumn(columnsOf(config), issues) };
 }
 
 async function issueAuth(key) {
@@ -107,7 +108,36 @@ export async function jiraTransitions(key) {
   return (r.transitions ?? []).map((x) => ({ id: x.id, name: x.name ?? "", to: x.to?.name ?? "", toId: String(x.to?.id ?? ""), category: x.to?.statusCategory?.key ?? "" }));
 }
 
-// The tab's only write: one of those moves.
+// A move: on ↵ in the s list, and after a new issue.
 export async function jiraTransition(key, id) {
   await call(await issueAuth(key), "POST", `/rest/api/3/issue/${key}/transitions`, {}, { transition: { id } });
+}
+
+// n on the Jira tab: a Task in the board's project, then a move to the chosen column.
+// column: { name, statuses: [id] }. Returns { key, url, note }: note says what went wrong after the create.
+export async function createJiraIssue({ project, title, description, me, column }) {
+  const cfg = jiraSettings();
+  if (!cfg) throw new Error("There is no mh-jira in mh-state.json.");
+  if (!validProject(project)) throw new Error(`${project} is not a Jira project key.`);
+  const a = await credentials(cfg);
+  // Once per Herdr run: a is the cached credentials.
+  if (me) a.me ??= (await get(a, "/rest/api/3/myself")).accountId;
+  const fields = {
+    project: { key: project }, issuetype: { name: "Task" }, summary: title,
+    assignee: me ? { accountId: a.me } : null,
+    ...(description.trim() && { description: textToAdf(description) }),
+  };
+  const { key } = await call(a, "POST", "/rest/api/3/issue", {}, { fields });
+  const url = `https://${a.site}/browse/${key}`;
+  // The issue exists now: an error from here on is a note, so a retry makes no second issue.
+  try {
+    const now = (await get(a, `/rest/api/3/issue/${key}`, { fields: "status" })).fields?.status;
+    if (column.statuses.includes(String(now?.id))) return { key, url };
+    const move = (await jiraTransitions(key)).find((t) => column.statuses.includes(t.toId));
+    if (!move) return { key, url, note: `Created ${key} in ${now?.name ?? "its first status"}. Jira allows no move to ${column.name} from there.` };
+    await jiraTransition(key, move.id);
+    return { key, url };
+  } catch (e) {
+    return { key, url, note: `Created ${key}, but couldn't move it to ${column.name}: ${e?.message ?? e}` };
+  }
 }
