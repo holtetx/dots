@@ -80,7 +80,8 @@ function team(t) {
   const all = agents();
   if (!all.length) return null;
   const next = (status) => {
-    const list = all.filter((a) => a.status === status);
+    const list = agents().filter((a) => a.status === status);
+    if (!list.length) return;
     const at = list.findIndex((a) => a.address === focused()?.terminal);
     run("agent.focus", { terminal: list[(at + 1) % list.length].address });
   };

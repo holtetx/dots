@@ -26,6 +26,9 @@ assert.equal(show(stacked([P(1, "a", "a", 1)])), "1:0");
   assert.equal(rows[2].root, "u1");
   assert.equal(show(foldStacks(rows, new Set(["u1"]), false)), "1:0 2:1 3:2 9:0");
   assert.equal(show(foldStacks(rows, new Set(), true)), "1:0 2:1 3:2 9:0");
+  assert.equal(rows[0].folded, false);
+  foldStacks(rows, new Set(), false);
+  assert.equal(rows[0].folded, true);
 }
 // Checkouts of a PR that are not at its newest commit: its branch, or a review-<number> folder.
 const wts = worktreesOf("worktree /r\nHEAD aaa\nbranch refs/heads/feat\n\nworktree /r/.claude/worktrees/review-7\nHEAD bbb\ndetached\n\nworktree /r/.claude/worktrees/other\nHEAD ccc\nbranch refs/heads/other\n");

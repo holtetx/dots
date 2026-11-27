@@ -4,22 +4,11 @@ import { div, svg } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input } from "gpui-base";
 import { props, closeOverlay, theme, spaces, panes, exec, shared, setShared, pickFolder } from "herdr";
 import { MARK, base, expand, tilde, trim } from "./folders.js";
-import { button, frame, keyPanel } from "./pixel.js";
+import { action, bindPanelKeys, button, frame, keyPanel, panelKeys } from "./pixel.js";
 
 const COLORS = [null, ...Object.keys(MARK)];
 const info = () => shared("space-folders") ?? {};
 const label = (key) => key || "This computer";
-// A dialog's action button, also in create.js.
-export const action = (t, id, text, primary, click) => button(div(), t, false).id(id).flex_none().px(13).py(5).cursor_pointer()
-  .when(primary, (el) => el.border_color(t.accent).bg(t.solid)).text_color(primary ? t.solid_foreground : t.muted)
-  .text_size(11.5).font_semibold().when(!primary, (el) => el.hover((s) => s.text_color(t.foreground))).on_click(click).child(text.toUpperCase());
-// Tab and shift-tab would move the keyboard to a field under the ? panel; the panel's context takes them.
-export function bindPanelKeys(cx) {
-  try {
-    cx.bind_keys(["tab", "shift-tab"].map((keystroke) => ({ keystroke, action: "mh_key_panel", context: "MhKeyPanel" })));
-  } catch {}
-}
-export const panelKeys = (el, on) => el.when(on, (el) => el.key_context("MhKeyPanel").on_action("mh_key_panel", () => {}));
 const ask = (op) => setShared("space-folders.ask", [...(shared("space-folders.ask") ?? []), op]);
 
 export function folderInit(view, cx) {

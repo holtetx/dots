@@ -1,12 +1,12 @@
 import { div, svg, image } from "gpui-kit";
 import { v_flex, h_flex, ScrollHandle, TextView } from "gpui-base";
-import { props, closeOverlay, theme, settings, shared } from "herdr";
+import { props, closeOverlay, theme, shared } from "herdr";
 import { GH, FINAL, open } from "./github.js";
 import { ago, avatar, colorOf, epic, openStatus, pick, statusChip } from "./board.js";
 import { REVIEW_WORD, canCache, cacheImage, fetchPreview, loadAvatars, pruneCache } from "./preview-data.js";
 import { fetchJiraPreview } from "./jira-data.js";
 import { GREEN, PRIORITY_COLOR, RED, TYPE_COLOR, YELLOW, hue } from "./jira.js";
-import { chip, keyPanel } from "./pixel.js";
+import { chip, darkOf, keyPanel } from "./pixel.js";
 import { stateMarks } from "./links.js";
 
 const CHECK_COLOR = { failed: RED, running: YELLOW, passed: GREEN };
@@ -248,7 +248,7 @@ function post(p, i, view, t) {
 
 export function previewRender(view) {
   const t = theme();
-  const dark = Boolean(settings()?.dark);
+  const dark = darkOf(t);
   const d = memory[view.url];
   if (d?.jira) jiraBlocks(view, d, t, dark);
   else view.blocks = d

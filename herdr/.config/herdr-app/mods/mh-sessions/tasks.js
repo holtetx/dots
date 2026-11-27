@@ -11,9 +11,9 @@
 
 import { div, svg } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, ScrollHandle } from "gpui-base";
-import { agents, terminals, settings, shared, setShared, props, run, exec, closeOverlay, openOverlay } from "herdr";
+import { agents, terminals, shared, setShared, props, run, exec, closeOverlay, openOverlay } from "herdr";
 import { ago, base, bring, label, missing, resume, startNew, worktree } from "./sessions.js";
-import { frame, keyPanel, mark } from "./pixel.js";
+import { darkOf, frame, keyPanel, mark } from "./pixel.js";
 
 const ICON = (name) => `mods/workspace-chrome/${name}.svg`;
 // mh-spaces/github.js's: GitHub's colors, [light, dark].
@@ -247,7 +247,7 @@ function helpPanel(t, dark, only) {
 
 export function taskRender(view, t) {
   const only = props()?.url;
-  const dark = Boolean(settings()?.dark);
+  const dark = darkOf(t);
   const secs = sections(view);
   view.rows = secs.flatMap((sec) => sec.rows);
   view.at = Math.min(view.at, Math.max(0, view.rows.length - 1));

@@ -2,12 +2,11 @@
 
 import { div, svg } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, ScrollHandle } from "gpui-base";
-import { props, closeOverlay, theme, settings, spaces, panes, agents, terminals, exec, shared, setShared } from "herdr";
+import { props, closeOverlay, theme, spaces, panes, agents, terminals, exec, shared, setShared } from "herdr";
 import { GH, badge, expand, githubRepo, open, openPrs, resolve } from "./github.js";
 import { editLinks, forgetHistory, linksOf, split } from "./docs.js";
-import { frame, keyPanel, spinner } from "./pixel.js";
+import { bindPanelKeys, darkOf, frame, keyPanel, panelKeys, spinner } from "./pixel.js";
 import { GREEN, RED } from "./jira.js";
-import { bindPanelKeys, panelKeys } from "./folder-dialog.js";
 
 const spaceOf = () => spaces().find((s) => s.id === props()?.link);
 const agentOf = () => agents().find((a) => a.address === props()?.agent);
@@ -157,7 +156,7 @@ function filter(text) {
 
 export function linkRender(view) {
   const t = theme();
-  const dark = Boolean(settings()?.dark);
+  const dark = darkOf(t);
   const s = spaceOf();
   const id = props()?.link;
   const agent = props()?.agent ? agentOf() ?? { address: props().agent } : null;

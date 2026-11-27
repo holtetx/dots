@@ -24,6 +24,9 @@ export const mark = (status, t, size = 12) =>
   : status === "done" ? svg("mods/mh-spaces/px-tick.svg").size(Math.round(size * 0.9)).flex_none().text_color(t.done)
   : null;
 
+// The three busy marks side by side, for a ? panel's legend.
+export const statusMarks = (t) => h_flex().gap(6).items_center().children(["working", "blocked", "done"].map((s) => mark(s, t)));
+
 // The words for a status, the same everywhere.
 export const WORDS = { blocked: "needs you", working: "working", done: "done", idle: "idle" };
 
@@ -44,3 +47,33 @@ export const keyPanel = (t, sections) => {
       .children(sections.flatMap(([title, rows]) => [div().pt(6).text_size(11).font_semibold().text_color(t.dim).child(title), ...rows.map(([l, x]) => row(l, x))]))
       .child(div().pt(8).text_size(11).text_color(t.dim).child("? or esc closes")));
 };
+
+// ? or ⇧/, without ⌃ or ⌘.
+export const isHelpKey = (e) => (e.key === "?" || (e.key === "/" && e.modifiers.shift)) && !e.modifiers.control && !e.modifiers.platform;
+
+// The ? panel's keys. It opens on ? (on a search field only while `empty`) and takes every key while open;
+// ? or esc closes it and gives the keyboard back to `field`. True when the key was the panel's.
+export function helpKey(view, e, field, empty = true) {
+  if (!view.help && !(isHelpKey(e) && empty)) return false;
+  if (!view.help || e.key === "escape" || isHelpKey(e)) {
+    view.help = !view.help;
+    (view.help || !field ? view.handle : field).focus();
+  }
+  return true;
+}
+
+// Tab and shift-tab would move the keyboard to a field under the ? panel: its key context takes them while it shows.
+export function bindPanelKeys(cx) {
+  try {
+    cx.bind_keys(["tab", "shift-tab"].map((keystroke) => ({ keystroke, action: "mh_key_panel", context: "MhKeyPanel" })));
+  } catch {}
+}
+export const panelKeys = (el, on) => el.when(on, (el) => el.key_context("MhKeyPanel").on_action("mh_key_panel", () => {}));
+
+export const action = (t, id, text, primary, click) => button(div(), t, false).id(id).flex_none().px(13).py(5).cursor_pointer()
+  .when(primary, (el) => el.border_color(t.accent).bg(t.solid)).text_color(primary ? t.solid_foreground : t.muted)
+  .text_size(11.5).font_semibold().when(!primary, (el) => el.hover((s) => s.text_color(t.foreground))).on_click(click).child(text.toUpperCase());
+
+// By the theme, not the Mac's mode: this layout's theme is dark in both.
+export const darkOf = (t) => ink(t.background) === "#ffffff";
+

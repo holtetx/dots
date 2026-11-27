@@ -5,10 +5,10 @@
 
 import { div } from "gpui-kit";
 import { v_flex, h_flex, ScrollHandle } from "gpui-base";
-import { props, closeOverlay, setShared, settings, theme } from "herdr";
+import { props, closeOverlay, setShared, theme } from "herdr";
 import { jiraTransition, jiraTransitions } from "./jira-data.js";
 import { statusChip } from "./board.js";
-import { keyPanel } from "./pixel.js";
+import { darkOf, keyPanel } from "./pixel.js";
 
 export function statusInit(view, cx) {
   const { status: issue, from } = props();
@@ -75,7 +75,7 @@ function key(view, e, cx) {
 
 export function statusRender(view) {
   const t = theme();
-  const dark = Boolean(settings()?.dark);
+  const dark = darkOf(t);
   const { status: issue, title, from } = props();
   return v_flex()
     .id("status")

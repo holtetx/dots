@@ -4,8 +4,7 @@ import { div } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, TextareaState, Textarea } from "gpui-base";
 import { props, closeOverlay, setShared, theme } from "herdr";
 import { createJiraIssue } from "./jira-data.js";
-import { button, frame, keyPanel } from "./pixel.js";
-import { action } from "./folder-dialog.js";
+import { action, button, frame, keyPanel } from "./pixel.js";
 
 const ASSIGNEES = ["No one", "Me"];
 // Tab stops: the two text fields, then the two chip rows on the dialog's own focus.

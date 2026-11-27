@@ -61,7 +61,11 @@ function linksOf(text) {
         if (b.type !== "tool_use") continue;
         const input = JSON.stringify(b.input ?? {});
         // Only the link herdr-link.mjs was given: other links in the same command (a grep over its tests) are not the session's.
-        if (input.includes("herdr-link.mjs")) [...input.matchAll(/herdr-link\.mjs\s+(\S+)/g)].flatMap((m) => urlsIn(m[1])).forEach((u) => links.add(u));
+        if (input.includes("herdr-link.mjs")) {
+          const given = [...input.matchAll(/herdr-link\.mjs\s+(\S+)/g)].map((m) => m[1]);
+          // A variable ("$u") holds a link set earlier in the same command.
+          (given.some((g) => g.includes("$")) ? urlsIn(input) : given.flatMap(urlsIn)).forEach((u) => links.add(u));
+        }
         else if (CREATE.test(input)) creating.add(b.id);
       }
     }

@@ -3,13 +3,13 @@
 import { asks, foldStacks, stacked } from "./stack.js";
 import { div, svg, image } from "gpui-kit";
 import { v_flex, h_flex, ScrollHandle, InputState, Input } from "gpui-base";
-import { props, closeOverlay, openOverlay, theme, settings, shared, terminals } from "herdr";
+import { props, closeOverlay, openOverlay, theme, shared, terminals } from "herdr";
 import { GH, FINAL, markRead, open, prKey, unknown } from "./github.js";
 import { boardRepos, fetchIssues, fetchPrs } from "./board-data.js";
 import { fetchJira, jiraSettings } from "./jira-data.js";
 import { avatars, loadAvatars } from "./preview-data.js";
 import { BLUE, GREEN, PRIORITY_COLOR, RED, TYPE_COLOR, YELLOW, foldKey, hue, initials } from "./jira.js";
-import { button, chip, frame, keyPanel, spinner } from "./pixel.js";
+import { button, chip, darkOf, frame, keyPanel, spinner } from "./pixel.js";
 
 const FRESH = 2 * 60000;
 const ICON = (name) => `mods/workspace-chrome/${name}.svg`;
@@ -213,6 +213,17 @@ function toggleStack(url) {
   } catch {}
 }
 
+// Opened stacks whose root is no longer an open stack.
+function forgetStacks(rows) {
+  const roots = new Set(rows.filter((p) => p.kids?.length).map((p) => p.url));
+  const gone = [...openSet()].filter((u) => !roots.has(u));
+  if (!gone.length || !memory.data.prs) return;
+  gone.forEach((u) => openSet().delete(u));
+  try {
+    localStorage.setItem("prs.open", JSON.stringify([...openSet()]));
+  } catch {}
+}
+
 function sectionsOf(tab, text) {
   const words = text.trim().toLowerCase().split(/\s+/).filter(Boolean);
   // Jira comes grouped by the board's columns.
@@ -222,8 +233,9 @@ function sectionsOf(tab, text) {
   }
   const by = new Map();
   for (const i of tab.list() ?? []) if (shown(i) && matches(i, words)) by.set(i.repo, [...(by.get(i.repo) ?? []), i]);
-  return [...by]
-    .map(([name, items]) => ({ name, items: tab.id === "prs" ? foldStacks(stacked(items), openSet(), words.length > 0) : items.sort((a, b) => b.updated - a.updated) }))
+  const secs = [...by].map(([name, items]) => ({ name, items: tab.id === "prs" ? foldStacks(stacked(items), openSet(), words.length > 0) : items.sort((a, b) => b.updated - a.updated) }));
+  if (tab.id === "prs" && !words.length) forgetStacks(secs.flatMap((s) => s.items));
+  return secs
     .sort((a, b) => Math.max(...b.items.map((i) => i.updated)) - Math.max(...a.items.map((i) => i.updated)));
 }
 
@@ -553,9 +565,8 @@ const branchMark = (last, t) =>
 
 function prRow(view, p, i, on, t, dark) {
   const unread = shared("github")?.unread?.[prKey(p)];
-  const open = openSet().has(p.url);
   // A folded stack's root speaks for the PRs it hides, in its own columns.
-  const hid = p.kids?.length && !open ? p.kids : [];
+  const hid = p.folded ? p.kids : [];
   const failing = [p, ...hid].filter((k) => CHECKS[k.checks]?.[1] === RED);
   const check = failing.length && !failing.includes(p) ? CHECKS.FAILURE : CHECKS[p.checks];
   const checkTip = failing.length && !failing.includes(p) ? `Checks failed in ${failing.map((k) => `#${k.number}`).join(", ")}` : check?.[2];
@@ -571,10 +582,16 @@ function prRow(view, p, i, on, t, dark) {
     .child(h_flex().flex_1().min_w(0).gap(4).items_center()
       .when(p.depth > 0, (el) => el.child(div().w((p.depth - 1) * 14).flex_none()).child(branchMark(p.last, t)))
       .child(div().flex_1().min_w(0).truncate().text_color(t.foreground).when(p.state === "draft", (el) => el.text_color(t.muted)).child(p.title)))
-    .child(h_flex().w(118).flex_none().when(p.kids?.length > 0, (el) => el.child(div().id(`fold-${p.url}`).cursor_pointer().tooltip(`${open ? "Fold" : "Open"} the stack · l h z`)
+    .child(h_flex().w(118).flex_none().when(p.kids?.length > 0, (el) => el.child(div().id(`fold-${p.url}`).cursor_pointer().tooltip(`${p.folded ? "Open" : "Fold"} the stack · l h z`)
       .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
-      .on_click((_e, cx) => { cx.stop_propagation(); toggleStack(p.url); cx.notify(); })
-      .child(chip(`${p.kids.length} STACKED`, t.muted, div().child(open ? "▾" : "▸"))))))
+      .on_click((_e, cx) => {
+        cx.stop_propagation();
+        toggleStack(p.url);
+        // A selected PR the fold hides hands the selection to the root, as h and z do.
+        if (view.model.item?.root === p.url) memory.sel.prs = { url: p.url };
+        cx.notify();
+      })
+      .child(chip(`${p.kids.length} STACKED`, t.muted, div().child(p.folded ? "▸" : "▾"))))))
     .child(counts(p.url, view, t, p.comments ?? 0))
     .child(div().w(140).flex_none().truncate().text_size(11.5).text_color(t.dim).child(p.mine ? "you" : p.author))
     .child(h_flex().w(84).flex_none().justify_end().gap(4).text_size(11)
@@ -787,7 +804,7 @@ function pickerPanel(view, t, dark) {
 
 export function boardRender(view) {
   const t = theme();
-  const dark = Boolean(settings()?.dark);
+  const dark = darkOf(t);
   const tabs = tabsOf();
   const tab = tabs.find((x) => x.id === memory.tab) ?? tabs[0];
   memory.tab = tab.id;
