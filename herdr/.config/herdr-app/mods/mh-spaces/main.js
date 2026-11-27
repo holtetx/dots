@@ -100,6 +100,14 @@ const rootOf = (g) => {
 // When an agent in the space last changed state (0: not since Herdr started).
 const activity = (w) => Math.max(0, ...w.tabs.map((t) => t.changed_at ?? 0));
 const URGENT = { blocked: 3, done: 2, working: 1 };
+const parsedRunning = (text) => {
+  try {
+    const list = JSON.parse(text);
+    return Array.isArray(list) ? list : [];
+  } catch {
+    return [];
+  }
+};
 // A section's fold mark; folded, it takes the most urgent status's color.
 const chevron = (folded, top, t) => svg(`mods/workspace-chrome/chevron-${folded ? "right" : "down"}.svg`).size(11).flex_none().when(Boolean(folded && top), (el) => el.text_color(t[top]));
 const urgent = (rows) => rows.map((r) => r.w.status).reduce((m, st) => ((URGENT[st] ?? 0) > (URGENT[m] ?? 0) ? st : m), null);
@@ -919,6 +927,8 @@ export default class Spaces extends View {
     this.agentsOf = new Map();
     // A title a skill gave the session (hc label <terminal> mh.description=<title>).
     this.titles = new Map(ts.filter((k) => k.labels?.["mh.description"]?.trim()).map((k) => [k.address, k.labels["mh.description"].trim()]));
+    // Claude Code's subagents and background shells, which have no terminal of their own (hooks/herdr-activity.sh sets claude.running).
+    this.running = new Map(ts.filter((k) => k.labels?.["claude.running"]).map((k) => [k.address, parsedRunning(k.labels["claude.running"])]));
     for (const a of agents()) this.agentsOf.set(a.space, [...(this.agentsOf.get(a.space) ?? []), a]);
     const folded = new Set(shared("space-folders.folded") ?? []);
     const out = [];
@@ -938,6 +948,7 @@ export default class Spaces extends View {
         r.n = order.push(r.w.id);
         if (r.w.active) this.activeAt = out.length;
         out.push(draw(r));
+        if (!collapsed) out.push(...this.runningRows(r, t));
       }
     };
     for (const f of tree.list) {
@@ -1249,6 +1260,29 @@ export default class Spaces extends View {
           .when(w.tabs.length > 1, (el) => el.child(this.tabDots(w, t)))
           .when(Boolean(mark), (el) => el.child(mark)),
       );
+  }
+
+  // One line per subagent (↳) and background shell ($) of the space's agents, under its row.
+  runningRows(r, t) {
+    const { w } = r;
+    const items = (this.agentsOf.get(w.id) ?? []).flatMap((a) => this.running.get(a.address) ?? []);
+    return items.map((it, i) => h_flex()
+      .id(`space-running-${w.id}-${i}`)
+      // The title's left edge: the row's padding, plus the icon and its gap when shown.
+      .pl((this.filed || r.ssh || r.waiting ? 27 : 8) + (pref("icon") !== "hidden" ? 27 : 0))
+      .pr(8)
+      .h(22)
+      .flex_none()
+      .gap(6)
+      .items_center()
+      .rounded(6)
+      .text_size(11.5)
+      .hover((s) => s.bg(t.hover))
+      .tooltip(it.kind === "shell" ? `Background shell: ${it.detail}` : `Subagent (${it.detail})`)
+      .on_click(() => run("space.select", { id: w.id }))
+      .child(div().flex_none().w(10).text_color(t.dim).child(it.kind === "shell" ? "$" : "↳"))
+      .child(div().flex_1().min_w(0).truncate().text_color(t.muted).child(it.name))
+      .child(svg("mods/workspace-chrome/spinner.svg").size(10).flex_none().text_color(t.dim).spin(1400)));
   }
 
   compact({ w, n }, t) {

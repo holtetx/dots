@@ -37,7 +37,7 @@ stow claude --target ~
 ```
 Then add to `~/.claude/settings.json` (not in this repo):
 - `statusLine`, type `command`: `f="$HOME/.claude/hooks/statusline.sh"; [ -f "$f" ] && bash "$f"; true`
-- A `SessionEnd` hook with command `f="$HOME/.claude/hooks/herdr-activity.sh"; [ -f "$f" ] && bash "$f"; true`.
+- `SessionEnd`, `SubagentStart`, `SubagentStop`, `PreToolUse` (matcher `Agent|Task`) and `PostToolUse` (matcher `Bash`) hooks with command `f="$HOME/.claude/hooks/herdr-activity.sh"; [ -f "$f" ] && bash "$f"; true`.
 
 ### Herdr: this Mac's settings (`mh-state.json`)
 Settings that differ per Mac, or that must not be public, are in `~/.config/herdr-app/mh-state.json`. Git ignores it, so make it on each Mac. Without the file, nothing is read or kept. Each key is optional. A missing `mh-ssh`, `mh-jira` or `mh-lunch` turns that feature off.
