@@ -9,12 +9,12 @@
   "palette": [
     {
       "title": "Pull request board",
-      "command": "mh-spaces.board",
+      "command": "mh-tabs.board",
       "words": "prs github review"
     },
     {
       "title": "Tasks",
-      "command": "mh-spaces.tasks",
+      "command": "mh-tabs.tasks",
       "words": "sessions links prs"
     }
   ]

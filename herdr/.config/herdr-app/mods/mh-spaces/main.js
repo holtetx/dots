@@ -178,25 +178,36 @@ export default class Spaces extends View {
     this.reposOf = null; // shared("space-folders") they were looked for in
     this.refreshMachines(cx);
     cx.timer.every(15000, cx => window()?.visible !== false && this.refreshMachines(cx));
+    // Since mh-spaces is focusable, Herdr gives its commands only to a copy with the keyboard: keys go to mh-tabs, which hands them on.
+    this.commandAt = shared("spaces.command")?.at; // a reload must not run the last one again
     // Refresh only when the refs could have changed (see `due`).
-    cx.timer.every(250, (cx) => this.checkNew(cx));
-    cx.spawn(async () => {
-      for (;;) {
-        // "link": the focused agent's, else the space's; "link-space": the space's.
-        const command = await nextCommand();
-        // focusable (mod.json) is for the PR panel: alt-h onto the sidebar goes straight back.
-        if (command === "focus") { run("pane.go", { direction: "right" }); continue; }
-        track(`mh-spaces.${command}`, "key");
-        // Shared, as the tasks list's: the board is another copy of this mod, and Esc closes it there.
-        if (command === "board") setShared("board.overlay", shared("board.overlay") ? closeOverlay(shared("board.overlay")) : openOverlay({ mod: "mh-spaces", kind: "dialog", width: 0.8, height: 0.8, props: { board: true } }));
-        // The tasks list (mh-sessions) clears shared("tasks.overlay") when it closes.
-        if (command === "tasks") setShared("tasks.overlay", shared("tasks.overlay") ? closeOverlay(shared("tasks.overlay")) : openOverlay({ mod: "mh-sessions", kind: "dialog", width: 680, height: 0.7, props: { tasks: true } }));
-        if (command === "new-session") this.newSession();
-        if (command !== "link" && command !== "link-space") continue;
-        const space = focused()?.space ?? spaces().find((s) => s.active)?.id;
-        openLinks(space, command === "link" ? agents().find((a) => a.focused && a.space === space)?.address : null);
+    cx.timer.every(250, (cx) => {
+      this.checkNew(cx);
+      const c = shared("spaces.command");
+      if (c && c.at !== this.commandAt) {
+        this.commandAt = c.at;
+        this.command(c.command);
       }
     });
+    cx.spawn(async () => {
+      for (;;) {
+        const command = await nextCommand();
+        // focusable (mod.json) is for the PR panel: alt-h onto the sidebar goes straight back.
+        if (command === "focus") run("pane.go", { direction: "right" });
+      }
+    });
+  }
+
+  // "link": the focused agent's, else the space's; "link-space": the space's.
+  command(command) {
+    // Shared, as the tasks list's: the board is another copy of this mod, and Esc closes it there.
+    if (command === "board") setShared("board.overlay", shared("board.overlay") ? closeOverlay(shared("board.overlay")) : openOverlay({ mod: "mh-spaces", kind: "dialog", width: 0.8, height: 0.8, props: { board: true } }));
+    // The tasks list (mh-sessions) clears shared("tasks.overlay") when it closes.
+    if (command === "tasks") setShared("tasks.overlay", shared("tasks.overlay") ? closeOverlay(shared("tasks.overlay")) : openOverlay({ mod: "mh-sessions", kind: "dialog", width: 680, height: 0.7, props: { tasks: true } }));
+    if (command === "new-session") this.newSession();
+    if (command !== "link" && command !== "link-space") return;
+    const space = focused()?.space ?? spaces().find((s) => s.active)?.id;
+    openLinks(space, command === "link" ? agents().find((a) => a.focused && a.space === space)?.address : null);
   }
 
   checkNew(cx) {
