@@ -60,7 +60,8 @@ function linksOf(text) {
       for (const b of blocks(r)) {
         if (b.type !== "tool_use") continue;
         const input = JSON.stringify(b.input ?? {});
-        if (input.includes("herdr-link.mjs")) urlsIn(input).forEach((u) => links.add(u));
+        // Only the link herdr-link.mjs was given: other links in the same command (a grep over its tests) are not the session's.
+        if (input.includes("herdr-link.mjs")) [...input.matchAll(/herdr-link\.mjs\s+(\S+)/g)].flatMap((m) => urlsIn(m[1])).forEach((u) => links.add(u));
         else if (CREATE.test(input)) creating.add(b.id);
       }
     }

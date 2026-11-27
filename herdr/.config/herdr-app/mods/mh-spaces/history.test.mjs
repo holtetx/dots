@@ -20,6 +20,7 @@ try {
     { type: "user", message: { content: [{ type: "tool_result", tool_use_id: "t1", content: `${pr(5)}\n${pr(6)}` }] } },
     { type: "assistant", message: { content: [{ type: "tool_use", id: "t2", input: { command: `node herdr-link.mjs https://www.github.com/o/r/issues/7` } }] } },
     { type: "assistant", message: { content: [{ type: "text", text: `Only said: ${pr(8)}` }] } },
+    { type: "assistant", message: { content: [{ type: "tool_use", id: "t3", input: { command: `grep -n "herdr-link.mjs" history.test.mjs # ${pr(10)}` } }] } },
     { type: "pr-link", prUrl: pr(9) },
     { type: "ai-title", aiTitle: "A title" },
   ];
