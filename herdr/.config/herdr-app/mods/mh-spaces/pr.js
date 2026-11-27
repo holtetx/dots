@@ -31,7 +31,8 @@ function statusLines(st, t, dark) {
       .child(chip(word.toUpperCase(), color))
       .when(live && Boolean(st.merge), (el) => el.child(mergeChip(st.merge.toUpperCase(), t, dark))))
     .child(h_flex().min_w(0).gap(8).text_size(11).text_color(t.dim)
-      .child(div().min_w(0).truncate().child(`${st.branch} → ${st.base}`))
+      .child(div().min_w(0).truncate().child(st.branch))
+      .child(div().flex_none().child(`→ ${st.base}`))
       .child(div().flex_none().text_color(pick(GREEN, dark)).child(`+${st.added}`))
       .child(div().flex_none().text_color(pick(RED, dark)).child(`-${st.deleted}`)));
 }
