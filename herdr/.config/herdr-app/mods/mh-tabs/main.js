@@ -2,7 +2,6 @@ import { View, div, svg, image } from "gpui-kit";
 import { h_flex, ScrollHandle } from "gpui-base";
 import { spaces, panes, agents, run, openOverlay, theme, window, shared, setShared, layout, settings, focused, nextCommand, exec, home, notify } from "herdr";
 
-// Claude Code's own working glyphs, there and back.
 const SPARKLE = ["·", "✢", "✳", "✶", "✻", "✽", "✻", "✶", "✳", "✢"];
 
 function find(node, id) {

@@ -35,7 +35,6 @@ import { barInit, barRender } from "./bar.js";
 import { telling } from "./title.js";
 import { discoverRepos } from "./board-data.js";
 
-// Claude Code's own working glyphs, there and back.
 const SPARKLE = ["·", "✢", "✳", "✶", "✻", "✽", "✻", "✶", "✳", "✢"];
 
 function find(node, id) {
@@ -1181,7 +1180,7 @@ export default class Spaces extends View {
       .when(w.tabs.length > 5, (el) => el.child(div().pl(2).child(`+${w.tabs.length - 5}`)));
   }
 
-  // Working spins, blocked asks, done waits to be seen; idle shows nothing.
+  // Working sparkles, blocked asks, done waits to be seen; idle shows nothing.
   mark(status, t) {
     if (status === "working") return div().w(12).flex_none().flex().justify_center().text_size(13).text_color(t.working).child("·").frames(SPARKLE, 120);
     if (status === "blocked") return div().size(14).flex_none().rounded(4).bg(t.blocked + "26").text_size(10.5).font_bold().text_color(t.blocked).flex().items_center().justify_center().child("!");
