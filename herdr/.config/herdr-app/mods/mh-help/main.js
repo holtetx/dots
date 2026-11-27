@@ -1,10 +1,12 @@
 // Keys come from keys() so the list follows keys.json; see "Key list" in the herdr CLAUDE.md.
+// With props { usage: true } (ctrl-a u) each key also shows its uses in the last 7 days, from the usage log.
 
 import { View, div } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input } from "gpui-base";
-import { keys, commands, props, closeOverlay, theme, window, shared } from "herdr";
+import { keys, commands, props, closeOverlay, theme, window, shared, appHome, readTextFile } from "herdr";
 import { action, frame } from "./pixel.js";
-import { track, trackKey } from "./stats.js";
+import { LOG_DIR, track, trackKey } from "./stats.js";
+import { STATE, WINDOW, covers, featureOf, logFiles, parseLog, summarize } from "./usage-data.js";
 
 const SESSIONS = "Sessions";
 const SPACES = "Spaces and tabs";
@@ -27,6 +29,7 @@ const DESCRIBE = {
   "mh-tabs.wait": [SESSIONS, "Put the space in Waiting, or take it out"],
   "mh-tabs.waiting": [SESSIONS, "Show or hide the Waiting section"],
   "mod.open:mh-picker": [SESSIONS, "Go to a tab"],
+  "mh-tabs.usage": [APP, "Usage: what I use in Herdr, live, last 7 days"],
   "mh-tabs.test-toast": [APP, "Show a sample toast; again for the next kind"],
   "mod.open:mh-open": [SESSIONS, "Open a recent folder as a space, tab or pane"],
   "mod.open:mh-ssh": [SESSIONS, "SSH to a host: a space with ssh and a Claude session beside it"],
@@ -164,19 +167,66 @@ function rows() {
     if (k.action === "mod.open:mh-lunch" && !shared("mh-lunch")) continue; // no canteen on this Mac
     const [action, part] = fold(norm(k.action));
     const id = k.section === "global" ? action : `${k.section}|${action}`;
-    const row = byRow.get(id) ?? byRow.set(id, { id, section: k.section, action, bindings: [] }).get(id);
+    const row = byRow.get(id) ?? byRow.set(id, { id, section: k.section, action, bindings: [], actions: [] }).get(id);
     row.bindings.push({ keys: k.keys, part });
+    row.actions.push(norm(k.action));
   }
   return [...byRow.values()].map((r) => {
     const known = DESCRIBE[r.id];
     const group = known?.[0] ?? (r.section === "terminal" ? TERMINAL : r.section === "global" ? OTHER : `In ${r.section.replace(/^mod:/, "")}`);
-    return { group, words: known?.[1] ?? herdrWords(r.action, about), unknown: !known, keys: keyText(r.bindings), raw: r.bindings.map((b) => b.keys).join(" "), rank: RANK[r.id] ?? Infinity };
+    return { group, words: known?.[1] ?? herdrWords(r.action, about), unknown: !known, keys: keyText(r.bindings), raw: r.bindings.map((b) => b.keys).join(" "), rank: RANK[r.id] ?? Infinity, actions: r.actions };
   });
+}
+
+// The usage view leaves out macOS and terminal defaults: they say nothing about how Herdr and the mh-* mods are used.
+const OBVIOUS = new Set(["app.quit", "app.hide", "app.hide_others", "window.minimize", "app.zoom_in", "app.zoom_out", "app.zoom_reset", "app.settings", "send:\u0001"]);
+const obvious = (r) => r.group === TERMINAL || r.actions.every((a) => OBVIOUS.has(a));
+
+// The dialog a key opens, where that dialog logs its own keys.
+const AREA = { "mh-tabs.board": "mh-spaces.board", "mh-tabs.tasks": "mh-sessions.tasks", "mh-tabs.link": "mh-spaces.link", "mh-tabs.copy-mode": "mh-copy.copy", "mod.open:mh-sessions": "mh-sessions.search", "mod.open:mh-help": "mh-help.open" };
+const areaOf = (a) => AREA[a] ?? (a.startsWith("mod.open:") ? a.slice(9) : null);
+
+const featureOfText = (a) => featureOf(a.startsWith("{") ? JSON.parse(a) : a);
+
+// A row's key presses (an opened dialog for mod.open), or null when no mod sees them.
+function usesOf(actions, log) {
+  const seen = actions.filter(featureOfText);
+  if (!seen.length) return null;
+  return log.filter((l) => seen.some((a) => (a.startsWith("mod.open:") ? l.via === "open" && covers(areaOf(a), l.f) : l.f === featureOfText(a) && l.via !== "open"))).length;
+}
+
+// Herdr's own commands are counted from what changed, so other keys and clicks count too.
+const fromState = (actions) => actions.some((a) => STATE.includes(featureOfText(a)));
+
+// Keys pressed inside the row's dialog, as sub-rows.
+function inside(area, log, tips) {
+  const n = new Map();
+  for (const l of log) if (l.via === "key" && l.f.startsWith(`${area}.`) && !l.f.endsWith(".escape")) n.set(l.f, (n.get(l.f) ?? 0) + 1);
+  return [...n].sort((a, b) => b[1] - a[1]).map(([f, uses]) => {
+    const parts = f.slice(area.length + 1).split(".");
+    const key = parts.pop();
+    return { keys: keyText([{ keys: key }]), words: tips.find((x) => x.f === f)?.text ?? (parts.length ? `on the ${parts.join(" ")} tab` : ""), uses };
+  });
+}
+
+// Clicks, drags and finished actions: no key, so they get a row of their own.
+function others(log) {
+  const n = new Map();
+  for (const l of log) if (!["key", "open", "state"].includes(l.via)) n.set(l.f, (n.get(l.f) ?? 0) + 1);
+  return [...n].sort((a, b) => b[1] - a[1]).map(([f, uses]) => ({ keys: "", words: f.replace(/^mh-[a-z-]+\./, "").split(".").join(" · ").replace(/-/g, " "), uses, rank: 0 }));
 }
 
 export default class Help extends View {
   init(_props, cx) {
-    track("mh-help.open", "open");
+    this.usage = Boolean(props()?.usage);
+    track(this.usage ? "mh-help.usage.open" : "mh-help.open", "open");
+    if (this.usage) {
+      this.log = [];
+      this.tips = [];
+      this.quick = {};
+      cx.spawn((cx) => this.load(cx));
+      cx.timer.every(2000, (cx) => cx.spawn((cx) => this.load(cx)));
+    }
     this.filter = "";
     this.input = InputState.new({ placeholder: "Type to filter…" });
     this.input.on("change", (_e, cx) => { this.filter = this.input.value(); cx.notify(); });
@@ -185,12 +235,54 @@ export default class Help extends View {
     this.handle = cx.focus_handle();
   }
 
+  async load(cx) {
+    const now = Date.now();
+    const [tips, ...days] = await Promise.all([
+      readTextFile(`${appHome()}/mods/mh-tabs/tips.json`).catch(() => null),
+      ...logFiles(now).map((f) => readTextFile(`${LOG_DIR()}/${f}`).catch(() => null)),
+    ]);
+    const log = parseLog(days.filter(Boolean).join("\n"));
+    try { this.tips = JSON.parse(tips ?? "[]"); } catch { this.tips = []; }
+    this.log = log.filter((l) => l.via !== "tip" && now - Date.parse(l.t) < WINDOW);
+    this.quick = summarize(log, {}, [], now).quick;
+    cx.notify();
+  }
+
   render(cx) {
     const t = theme();
     const f = this.filter.toLowerCase();
-    const all = rows().filter((r) => !f || r.keys.toLowerCase().includes(f) || rawHit(r.raw, f) || r.words.toLowerCase().includes(f) || r.group.toLowerCase().includes(f));
+    const hit = (r) => !f || r.keys.toLowerCase().includes(f) || (r.raw && rawHit(r.raw, f)) || r.words.toLowerCase().includes(f) || r.group.toLowerCase().includes(f);
+    let all = rows();
+    if (this.usage) {
+      all = all.filter((r) => !obvious(r)).map((r) => {
+        const area = r.actions.map(areaOf).find(Boolean);
+        return { ...r, uses: usesOf(r.actions, this.log), state: fromState(r.actions), area, quick: area && this.quick[area], sub: area ? inside(area, this.log, this.tips) : [] };
+      });
+      all.push(...others(this.log).map((r) => ({ ...r, group: "Clicks and more", sub: [] })));
+    }
+    all = all.filter(hit);
     const names = [...ORDER, ...new Set(all.map((r) => r.group).filter((g) => !ORDER.includes(g)))];
-    const groups = names.map((g) => [g, all.filter((r) => r.group === g).sort((a, b) => a.rank - b.rank)]).filter(([, list]) => list.length);
+    const order = this.usage ? (a, b) => (b.uses ?? -1) - (a.uses ?? -1) || a.rank - b.rank : (a, b) => a.rank - b.rank;
+    const groups = names.map((g) => [g, all.filter((r) => r.group === g).sort(order)]).filter(([, list]) => list.length);
+    const max = Math.max(1, ...all.map((r) => r.uses ?? 0));
+    const count = (r) => h_flex().flex_none().gap(8).items_center()
+      .when(Boolean(r.quick?.esc), (el) => el.child(div().text_size(11).text_color(t.dim).child(`${r.quick.esc} of ${r.quick.opens} closed at once`)))
+      .child(div().id(`n-${r.keys}-${r.words}`).w(40).text_size(12).text_color(r.uses ? t.foreground : t.dim)
+        .child(r.uses === null ? "–" : r.state && r.uses ? `~${r.uses}` : String(r.uses))
+        .when(r.uses === null, (el) => el.tooltip("Not logged: no mod sees this key"))
+        .when(Boolean(r.state && r.uses), (el) => el.tooltip("Counted from what changed in Herdr, not from this key: other keys and clicks that do the same count too")))
+      .child(div().w(80).h(6).rounded(3).bg(t.raised).child(div().h_full().rounded(3).bg(t.accent).w(Math.round((80 * (r.uses ?? 0)) / max))));
+    const line = (r, sub) => h_flex()
+      .min_h(sub ? 24 : 30)
+      .px(8)
+      .gap(12)
+      .rounded(6)
+      .items_center()
+      .when(this.usage && !r.uses, (el) => el.opacity(0.45))
+      .child(div().w(230).flex_none().text_color(t.accent).child(sub ? `   └ ${r.keys}` : r.keys))
+      .child(div().flex_1().min_w(0).text_color(sub ? t.muted : t.foreground).child(r.words))
+      .when(Boolean(r.unknown) && !this.usage, (el) => el.child(div().flex_none().text_size(11).text_color(t.dim).child("no description")))
+      .when(this.usage, (el) => el.child(count(r)));
     return v_flex()
       .id("mh-help")
       .track_focus(this.handle)
@@ -209,7 +301,9 @@ export default class Help extends View {
           .h(22)
           .items_center()
           .justify_between()
-          .child(div().text_size(15).font_semibold().text_color(t.foreground).child("MY KEYS"))
+          .child(h_flex().gap(8).items_center()
+            .child(div().text_size(15).font_semibold().text_color(t.foreground).child(this.usage ? "USAGE" : "MY KEYS"))
+            .when(this.usage, (el) => el.child(div().text_size(12).text_color(t.dim).child(`last 7 days · ${this.log.length} uses · live`))))
           .child(action(t, "mh-help-esc", "Esc", false, () => closeOverlay(props().overlay))),
       )
       .child(frame(Input.new(this.input), t.accent, t.background).flex_none().h(36).px(10).text_size(12.8).text_color(t.foreground))
@@ -226,19 +320,7 @@ export default class Help extends View {
               v_flex()
                 .gap(2)
                 .child(div().text_size(11.5).font_semibold().text_color(t.dim).child(name.toUpperCase()))
-                .children(
-                  list.map((r) =>
-                    h_flex()
-                      .min_h(30)
-                      .px(8)
-                      .gap(12)
-                      .rounded(6)
-                      .items_center()
-                      .child(div().w(230).flex_none().text_color(t.accent).child(r.keys))
-                      .child(div().flex_1().min_w(0).text_color(t.foreground).child(r.words))
-                      .when(r.unknown, (el) => el.child(div().flex_none().text_size(11).text_color(t.dim).child("no description"))),
-                  ),
-                ),
+                .children(list.flatMap((r) => [line(r, false), ...(r.sub ?? []).map((s) => line(s, true))])),
             ),
           ),
       );

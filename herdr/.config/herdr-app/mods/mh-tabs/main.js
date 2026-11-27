@@ -130,6 +130,10 @@ export default class Tabs extends View {
           if (togglePanel("pr")) setShared("pr.focus", Date.now());
           continue;
         }
+        if (command === "usage") {
+          openOverlay({ mod: "mh-help", kind: "dialog", width: 0.7, height: 0.85, props: { usage: true } });
+          continue;
+        }
         if (command === "test-toast") {
           testToast();
           continue;
