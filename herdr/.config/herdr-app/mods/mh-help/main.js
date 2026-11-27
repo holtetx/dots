@@ -183,7 +183,7 @@ const OBVIOUS = new Set(["app.quit", "app.hide", "app.hide_others", "window.mini
 const obvious = (r) => r.group === TERMINAL || r.actions.every((a) => OBVIOUS.has(a));
 
 // The dialog a key opens, where that dialog logs its own keys: the key's command and the dialog log under different names.
-const AREA = { "mh-tabs.board": "mh-spaces.board", "mh-tabs.tasks": "mh-sessions.tasks", "mh-tabs.link": "mh-spaces.link", "mh-tabs.copy-mode": "mh-copy.copy", "mod.open:mh-sessions": "mh-sessions.search", "mod.open:mh-help": "mh-help.open" };
+const AREA = { "mh-tabs.board": "mh-spaces.board", "mh-tabs.tasks": "mh-sessions.tasks", "mh-tabs.link": "mh-spaces.link", "mh-tabs.copy-mode": "mh-copy.copy", "mod.open:mh-sessions": "mh-sessions.search", "mh-tabs.usage": "mh-usage" };
 const areaOf = (a) => AREA[a] ?? (a.startsWith("mod.open:") ? a.slice(9) : null);
 
 // Uses per feature, by how they were seen; made once per log read, so render does no work per log line.
@@ -196,15 +196,14 @@ function countLog(log) {
   return by;
 }
 
-// A row's key presses (an opened dialog for mod.open), or null when no mod sees them.
+// A row's key presses (an opened dialog for mod.open), or null when no mod sees them. A row has an action once per key bound to it.
 function usesOf(actions, by) {
   let n = null;
-  for (const a of actions) {
+  for (const a of new Set(actions)) {
     const f = featureOf(a);
     if (!f) continue;
-    n ??= 0;
-    if (a.startsWith("mod.open:")) for (const [g, c] of by.open) n += covers(areaOf(a), g) ? c : 0;
-    else n += (by.key.get(f) ?? 0) + (by.state.get(f) ?? 0);
+    const area = areaOf(a);
+    n = (n ?? 0) + (a.startsWith("mod.open:") ? (by.open.get(area) ?? 0) + (by.open.get(`${area}.open`) ?? 0) : (by.key.get(f) ?? 0) + (by.state.get(f) ?? 0));
   }
   return n;
 }
@@ -215,19 +214,21 @@ const fromState = (actions) => actions.some((a) => STATE.includes(featureOf(a)))
 const byUses = (m) => [...m].sort((a, b) => b[1] - a[1]);
 
 // Keys pressed inside the row's dialog, as sub-rows.
-const inside = (area, by, tips) => byUses(by.key).filter(([f]) => f !== area && covers(area, f) && !f.endsWith(".escape")).map(([f, uses]) => {
+const inside = (area, by, tips) => byUses(by.key).filter(([f]) => f !== area && covers(area, f)).map(([f, uses]) => {
   const parts = f.slice(area.length + 1).split(".");
   const key = parts.pop();
-  return { keys: keyText([{ keys: key }]), words: tips.get(f) ?? (parts.length ? `on the ${parts.join(" ")} tab` : ""), uses };
+  return { keys: keyText([{ keys: key }]), words: tips.get(f) ?? ((key === "escape" ? "close" : "") + (parts.length ? ` on the ${parts.join(" ")} tab` : "")).trim(), uses };
 });
 
-// Clicks, drags and finished actions: no key, so they get a row of their own.
-const others = (by) => byUses(by.other).map(([f, uses]) => ({ group: "Clicks and more", keys: "", words: f.replace(/^mh-[a-z-]+\./, "").split(".").join(" · ").replace(/-/g, " "), uses, rank: 0, sub: [] }));
+// Clicks, drags, finished actions and dialogs no key opens: no row of their own, so they get one here. shown(f): a key row has it.
+const others = (by, shown) => byUses(new Map([...by.other, ...[...by.open, ...by.key, ...by.state].filter(([f]) => !shown(f))]))
+  .map(([f, uses]) => ({ group: "Without a key", keys: "", words: f.replace(/^mh-[a-z-]+\./, "").split(".").join(" · ").replace(/-/g, " "), uses, rank: 0, sub: [] }));
 
 export default class Help extends View {
   init(_props, cx) {
     this.usage = Boolean(props()?.usage);
-    track(this.usage ? "mh-help.usage.open" : "mh-help.open", "open");
+    this.area = this.usage ? "mh-usage" : "mh-help";
+    track(`${this.area}.open`, "open");
     this.by = countLog([]);
     this.quick = {};
     this.total = 0;
@@ -250,9 +251,10 @@ export default class Help extends View {
     }
     const now = Date.now();
     const text = (await Promise.all(logFiles(now).map((f) => readTextFile(`${LOG_DIR()}/${f}`).catch(() => null)))).filter(Boolean).join("\n");
-    if (text === this.text) return;
+    if (text !== this.text) this.all = parseLog(text).filter((l) => l.via !== "tip").sort((a, b) => Date.parse(a.t) - Date.parse(b.t));
+    const uses = this.all.filter((l) => now - Date.parse(l.t) < WINDOW);
+    if (text === this.text && uses.length === this.total) return;
     this.text = text;
-    const uses = parseLog(text).filter((l) => l.via !== "tip" && now - Date.parse(l.t) < WINDOW).sort((a, b) => Date.parse(a.t) - Date.parse(b.t));
     this.total = uses.length;
     this.by = countLog(uses);
     this.quick = quickOf(uses);
@@ -267,17 +269,18 @@ export default class Help extends View {
     if (this.usage) {
       all = all.filter((r) => !obvious(r)).map((r) => {
         const area = r.actions.map(areaOf).find(Boolean);
-        return { ...r, uses: usesOf(r.actions, this.by), state: fromState(r.actions), area, quick: area && this.quick[area], sub: area ? inside(area, this.by, this.tips) : [] };
+        return { ...r, uses: usesOf(r.actions, this.by), state: fromState(r.actions), area, features: r.actions.map(featureOf), quick: area && this.quick[area], sub: area ? inside(area, this.by, this.tips) : [] };
       });
-      all.push(...others(this.by));
+      const keyed = all;
+      all.push(...others(this.by, (f) => keyed.some((r) => r.features.includes(f) || (r.area && covers(r.area, f)))));
     }
     all = all.filter(hit);
     const names = [...ORDER, ...new Set(all.map((r) => r.group).filter((g) => !ORDER.includes(g)))];
     const order = (a, b) => (b.uses ?? -1) - (a.uses ?? -1) || a.rank - b.rank;
     const groups = names.map((g) => [g, all.filter((r) => r.group === g).sort(order)]).filter(([, list]) => list.length);
     const max = Math.max(1, ...all.map((r) => r.uses ?? 0));
-    const shown = (r) => (r.uses === null ? ["–", "Not logged: no mod sees this key"]
-      : r.state && r.uses ? [`~${r.uses}`, "Counted from what changed in Herdr, not from this key: other keys and clicks that do the same count too"]
+    const shown = (r) => (r.uses === null ? ["n/a", "Not logged: no mod sees this key"]
+      : r.state && r.uses ? [`~${r.uses}`, "Counted from what changed in Herdr, not from this key: other keys, clicks and the command's other forms (split right and down, move left and right) count too"]
       : [String(r.uses), null]);
     const count = (r, [n, tip] = shown(r)) => h_flex().flex_none().gap(8).items_center()
       .when(Boolean(r.quick?.esc), (el) => el.child(div().text_size(11).text_color(t.dim).child(`${r.quick.esc} of ${r.quick.opens} closed at once`)))
@@ -298,7 +301,7 @@ export default class Help extends View {
       .id("mh-help")
       .track_focus(this.handle)
       .on_key_down((e) => {
-        trackKey("mh-help", e, true);
+        trackKey(this.area, e, true);
         if (e.key === "escape") return closeOverlay(props().overlay);
       })
       .size_full()
