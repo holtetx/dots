@@ -51,6 +51,10 @@ A badge on a space comes from a `pr-link` line in the session's transcript (Clau
 
 A space takes its git info from the folder of its first tab, or from that terminal's `claude.cwd` label when it has one (`claude --worktree` works there). Its tooltip adds `(worktree)` after a branch in a worktree. A space made in the wrong folder shows the wrong badges. A branch's PR shows only on a space that is alone on that repo and branch: spaces that share a checkout get it only through a transcript or herdr-link.
 
+## Toasts
+
+`mods/mh-toast` (layout `"toast"`) draws every notification. Herdr's agent toasts carry only "<program> needs you|finished" and "<space> / <tab>". The mod finds the agent from the click action (`agent.focus {terminal}`), else from that text when only one agent fits, and shows its `mh.description` or title, status, space and branch. Other toasts look like Herdr's, with a status bar on the left.
+
 ## Git bar
 
 The `git` block under the terminal is `mh-spaces` with props `{ bar: true }` (`mods/mh-spaces/bar.js`). It shows the shown space's branch, ahead/behind, uncommitted changes and PR badges. Branch and ahead/behind come from the sidebar copy through `shared("git.spaces")`. The bar polls the changes itself every 5 s. The branch diff compares with the base of the branch's PR (stacked branches), else with `origin/HEAD`. A mod can not import from another mod's folder, so the bar lives in `mh-spaces` to reuse `badge()` from `github.js`.

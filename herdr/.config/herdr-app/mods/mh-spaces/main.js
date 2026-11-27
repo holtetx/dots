@@ -35,6 +35,8 @@ import { barInit, barRender } from "./bar.js";
 import { telling } from "./title.js";
 import { discoverRepos } from "./board-data.js";
 
+const SPARKLE = ["·", "✢", "✳", "✶", "✻", "✽", "✻", "✶", "✳", "✢"];
+
 function find(node, id) {
   if (node?.id === id) return node;
   for (const child of node?.children ?? []) {
@@ -1178,9 +1180,9 @@ export default class Spaces extends View {
       .when(w.tabs.length > 5, (el) => el.child(div().pl(2).child(`+${w.tabs.length - 5}`)));
   }
 
-  // Working spins, blocked asks, done waits to be seen; idle shows nothing.
+  // Working sparkles, blocked asks, done waits to be seen; idle shows nothing.
   mark(status, t) {
-    if (status === "working") return svg("mods/workspace-chrome/spinner.svg").size(12).flex_none().text_color(t.working).spin(900);
+    if (status === "working") return div().w(12).flex_none().flex().justify_center().text_size(13).text_color(t.working).child("·").frames(SPARKLE, 120);
     if (status === "blocked") return div().size(14).flex_none().rounded(4).bg(t.blocked + "26").text_size(10.5).font_bold().text_color(t.blocked).flex().items_center().justify_center().child("!");
     if (status === "done") return div().flex_none().text_size(10).text_color(t.done).child("●");
     return null;
@@ -1283,7 +1285,7 @@ export default class Spaces extends View {
       .on_click((_e, cx) => this.follow(w, it, cx))
       .child(div().flex_none().w(10).text_color(t.dim).child(it.kind === "shell" ? "$" : "↳"))
       .child(div().flex_1().min_w(0).truncate().text_color(t.muted).child(it.name))
-      .child(svg("mods/workspace-chrome/spinner.svg").size(10).flex_none().text_color(t.dim).spin(1400)));
+      .child(div().w(10).flex_none().flex().justify_center().text_size(11).text_color(t.dim).child("·").frames(SPARKLE, 160)));
   }
 
   // A subagent's transcript or a shell's output, live, as a peek over the space (follow.sh).
