@@ -1,6 +1,6 @@
 import { View, div, svg, image } from "gpui-kit";
 import { h_flex, ScrollHandle } from "gpui-base";
-import { button, mark } from "./pixel.js";
+import { button } from "./pixel.js";
 import { spaces, panes, agents, run, openOverlay, theme, window, shared, setShared, layout, settings, focused, nextCommand, exec, home, notify, setBadge } from "herdr";
 
 function find(node, id) {
@@ -87,6 +87,8 @@ function navigate(command) {
     if (held.last) run("agent.focus", { terminal: held.last });
   }
 }
+
+const LAVENDER = "#b4befe";
 
 export default class Tabs extends View {
   init(_props, cx) {
@@ -213,11 +215,13 @@ export default class Tabs extends View {
       const lead = panes().find(p => p.tab === c.id && p.program?.agent) ?? panes().find(p => p.tab === c.id);
       const program = lead?.program;
       const name = label(c, lead);
-      return button(h_flex(), t, c.active).id(`tab-${c.id}`).h(24).px(9).gap(6).items_center().flex_none().text_size(12.5)
+      // As in Pixel HQ's preview: a soft lavender pill for the shown tab, a status dot, and its close mark.
+      return h_flex().id(`tab-${c.id}`).h(26).px(10).gap(7).items_center().flex_none().rounded(10).border_1().text_size(12.5)
+        .border_color(c.active ? LAVENDER + "4d" : "#00000000").when(c.active, el => el.bg(LAVENDER + "29").font_medium())
         // A rename or status dot on this or an earlier tab can push the active one out.
         .when(i <= active, el => el.on_size_change((_size, cx) => { this.scroll.scroll_to_item(active); cx.notify(); }))
         .text_color(c.active ? t.foreground : t.muted)
-        .hover(s => s.text_color(t.foreground))
+        .hover(s => s.text_color(t.foreground).bg(c.active ? LAVENDER + "29" : "#ffffff0d"))
         .on_hover((on, cx) => { if (on) this.hovered = c.id; else if (this.hovered === c.id) this.hovered = null; cx.notify(); })
         .on_mouse_down("left", (e, cx) => { cx.stop_propagation(); this.pressed = i; if (e.click_count === 2) run("tab.rename", { id: c.id }); })
         .on_mouse_up("left", () => {
@@ -228,8 +232,10 @@ export default class Tabs extends View {
         .on_mouse_down("right", (_e, cx) => { cx.stop_propagation(); openOverlay({ mod: "menu", kind: "popup", width: 200, props: { tab: "tab", target: { id: c.id, space: space.id } } }); })
         .when(Boolean(program?.icon), el => el.child(program.tint ? svg(program.icon).size(12).text_color(t.muted) : image(program.icon).size(12)))
         .child(div().max_w(170).truncate().child(c.zoomed ? `${name} Z` : name))
-        .children([mark(c.status, t)].filter(Boolean))
-        .when(this.hovered === c.id, el => el.child(div().id(`close-${c.id}`).text_color(t.dim).on_mouse_down("left", stop).on_click((_e, cx) => { cx.stop_propagation(); run("tab.close", { id: c.id }); }).child(svg("mods/pane/close.svg").size(10))));
+        .when(Boolean(t[c.status]) && c.status !== "idle", el => el.child(div().size(7).flex_none().rounded_full().bg(t[c.status])
+          .when(c.status === "working", d => d.loop("opacity", { from: 0.35, to: 1, period: 1400 }))
+          .when(c.status === "blocked", d => d.loop("opacity", { from: 0.3, to: 1, period: 700 }))))
+        .when(c.active || this.hovered === c.id, el => el.child(div().id(`close-${c.id}`).text_color(LAVENDER + "b3").hover(s => s.text_color(LAVENDER)).on_mouse_down("left", stop).on_click((_e, cx) => { cx.stop_propagation(); run("tab.close", { id: c.id }); }).child(svg("mods/pane/close.svg").size(10))));
     };
     const root = layout(), sidebar = find(root, "sidebar"), w = window();
     // Old saved rails and a dragged-narrow sidebar can be smaller than the window buttons.
