@@ -176,7 +176,7 @@ export default class Menu extends View {
   choose(i, cx) {
     const it = items(props(), this.git)[i];
     if (!it) return;
-    track(`mh-menu.${props()?.tab}.${it[0].toLowerCase().replace(/\W+/g, "-")}`, "menu");
+    track(`mh-menu.${props()?.tab}.${[it[1], it[2]?.action].filter(Boolean).join(".")}`, "menu");
     closeOverlay(props()?.overlay);
     if (it[1] === "worktree") openOverlay({ mod: "mh-worktree", kind: "dialog", ...(it[2].action === "open" ? { width: 560, height: 480 } : { width: 440, height: 260 }), props: it[2] });
     else if (it[1] === "waiting") askWaiting(it[2].space, it[2].waiting);

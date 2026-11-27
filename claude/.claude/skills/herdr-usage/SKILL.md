@@ -14,8 +14,8 @@ description: Review how the owner uses their Herdr setup (the mh-* mods and Herd
 
 ## The log
 
-- `~/.config/herdr-app/mh-stats/YYYY-MM.jsonl`, one line per use: `{"t", "src": "mh" | "herdr", "f", "via"}`. Each Mac has its own log.
+- `~/.config/herdr-app/mh-stats/YYYY-MM-DD.jsonl` (UTC days), one line per use: `{"t", "f", "via"}`. Each Mac has its own log.
 - `f`: `<mod>.<area>.<what>` for mh-* features (`mh-spaces.board.jira.n` is the `n` key on the board's Jira tab), a Herdr command name for Herdr's own.
 - `via`: `open` (a dialog opened), `key`, `click`, `menu`, `drag`, `wheel`, `do` (a dialog's action finished), `state` (Herdr's own, seen as a change in spaces, tabs, panes or layout), `tip` (a "did you know" toast, not a use).
-- Not logged: Herdr keys no mod sees (copy, paste, search, app keys), and plain typing and moves (arrows, `j`, `k`) in dialogs. Say so; do not guess their use.
+- Not logged: Herdr keys no mod sees (copy, paste, search, app keys), focus moves (`tab.select`, `space.select`, `pane.go`), and typing, moves (arrows, `j`, `k`) and key repeat in dialogs. Say so; do not guess their use.
 - A log shorter than 7 days can not show "never used". Say so.

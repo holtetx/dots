@@ -1,5 +1,4 @@
-// Herdr's own commands, counted from state changes, and one "did you know" a day. The review: /herdr-usage.
-import { spaces, focused, shared, layout, notify, window, home, appHome, readTextFile } from "herdr";
+import { spaces, shared, layout, notify, window, home, appHome, readTextFile } from "herdr";
 import { track, LOG_DIR } from "./stats.js";
 import { changes, find, logFiles, nextTip, parseLog, snapshot } from "./usage-data.js";
 
@@ -8,7 +7,7 @@ export function watchUsage(cx) {
   if (appHome() !== `${home()}/.config/herdr-app`) return;
   let last = null;
   cx.timer.every(2000, () => {
-    const now = snapshot(spaces(), focused(), shared("layout"), !find(layout(), "sidebar")?.hidden);
+    const now = snapshot(spaces(), shared("layout"), !find(layout(), "sidebar")?.hidden);
     if (last) for (const f of changes(last, now)) track(f, "state");
     last = now;
   });

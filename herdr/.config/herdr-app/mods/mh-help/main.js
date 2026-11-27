@@ -4,7 +4,7 @@ import { View, div } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input } from "gpui-base";
 import { keys, commands, props, closeOverlay, theme, window, shared } from "herdr";
 import { action, frame } from "./pixel.js";
-import { track } from "./stats.js";
+import { track, trackKey } from "./stats.js";
 
 const SESSIONS = "Sessions";
 const SPACES = "Spaces and tabs";
@@ -195,6 +195,7 @@ export default class Help extends View {
       .id("mh-help")
       .track_focus(this.handle)
       .on_key_down((e) => {
+        trackKey("mh-help", e, true);
         if (e.key === "escape") return closeOverlay(props().overlay);
       })
       .size_full()
