@@ -190,6 +190,8 @@ function key(view, e, cx) {
   if (helpKey(view, e, null)) return true;
   const m = e.modifiers;
   if (m.alt && PANE[e.key]) return run("pane.go", { direction: PANE[e.key] }), true;
+  // ⌃↵ as on the board.
+  if ((e.key === "o" && !m.control && !m.platform && !m.alt) || (e.key === "enter" && m.control)) return open(view.url, cx), true;
   if (m.control || m.platform || m.alt) return false;
   const at = Math.max(0, view.rows.findIndex((r) => r.key === view.sel));
   const r = view.rows[at];
@@ -212,7 +214,7 @@ function key(view, e, cx) {
   return false;
 }
 
-const KEYS = [["j k  ↓ ↑", "next or previous row"], ["l  →", "open a workflow, or go to its first check"], ["h  ←", "fold a workflow, or go up to it"], ["z  space", "fold or open the workflow"], ["↵", "open the check's log"], ["f", "FIX: ask the space's Claude to fix a failed check"], ["r", "ask GitHub now"], ["esc", "back to the terminal"], ["alt-hjkl", "leave the panel"]];
+const KEYS = [["j k  ↓ ↑", "next or previous row"], ["l  →", "open a workflow, or go to its first check"], ["h  ←", "fold a workflow, or go up to it"], ["z  space", "fold or open the workflow"], ["↵", "open the check's log"], ["o  ⌃↵", "open the PR on GitHub"], ["f", "FIX: ask the space's Claude to fix a failed check"], ["r", "ask GitHub now"], ["esc", "back to the terminal"], ["alt-hjkl", "leave the panel"]];
 
 // keyPanel() is for dialogs: too wide here.
 function helpList(t, dark) {
