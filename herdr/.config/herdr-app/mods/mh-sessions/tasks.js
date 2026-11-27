@@ -13,7 +13,7 @@ import { div, svg } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, ScrollHandle } from "gpui-base";
 import { agents, terminals, settings, shared, setShared, props, run, exec, closeOverlay, openOverlay } from "herdr";
 import { ago, base, bring, label, missing, resume, startNew, worktree } from "./sessions.js";
-import { frame, mark } from "./pixel.js";
+import { frame, keyPanel, mark } from "./pixel.js";
 
 const ICON = (name) => `mods/workspace-chrome/${name}.svg`;
 // mh-spaces/github.js's: GitHub's colors, [light, dark].
@@ -30,6 +30,10 @@ const GH = {
 };
 const FINAL = new Set(["merged", "closed", "issue-done", "issue-skip"]);
 const FALLBACK = { pr: GH.open.icon, issue: GH["issue-open"].icon };
+
+export const statusMarks = (t) => h_flex().gap(6).items_center().children(["working", "blocked", "done"].map((s) => mark(s, t)));
+const idleDot = (t) => div().size(6).rounded_full().bg(t.dim);
+const stateIcons = (dark, ...states) => h_flex().gap(6).items_center().children(states.map((k) => svg(GH[k].icon).size(13).text_color(GH[k].color[dark ? 1 : 0])));
 
 const machineOf = (id) => (id.includes("/") ? id.split("/")[0] : null);
 const keyOf = (s) => (s.machine ? `${s.machine}/${s.id}` : s.id);
@@ -211,16 +215,34 @@ function preview(row) {
   if (previewUrl(row)) openOverlay({ mod: "mh-spaces", kind: "dialog", width: 0.8, height: 0.86, props: { preview: previewUrl(row), back: "tasks.focus" } });
 }
 
+// What ↵ does on a session whose folder is gone; the ? panel has the rest.
 function hintOf(view, row) {
   if (view.busy) return view.busy.startsWith("new:") ? "starting…" : "resuming…";
-  if (!row) return "";
-  if (row.kind === "task") return "↵ open";
-  if (row.kind === "new") return `↵ start${row.branch ? ` on ${row.branch}` : ""}`;
-  const s = row.s;
-  if (s.running) return "↵ go to";
-  const w = goneOf(view, s) && worktree(s.cwd);
-  const resuming = goneOf(view, s) ? (w ? `↵ recreate workspace · ⇧↵ resume in ${base(w.repo)}` : "↵ resume in a parent folder") : `↵ resume${s.machine ? ` on ${s.machine}` : ""}`;
-  return [resuming, s.machine && "⌘↵ bring here", "^D forget"].filter(Boolean).join(" · ");
+  const s = row?.s;
+  if (!s || s.running || !goneOf(view, s)) return "";
+  const w = worktree(s.cwd);
+  return w ? `↵ recreate workspace · ⇧↵ resume in ${base(w.repo)}` : "↵ resume in a parent folder";
+}
+
+function helpPanel(t, dark, only) {
+  const keys = [
+    ["type", only ? "search its sessions" : "search tasks and their sessions"], ["↓↑ ^J ^K ^N ^P", "move"],
+    ["↵", only ? "go to or resume a session, start a new one" : "open a task; go to or resume a session"],
+    ["⇧↵", "resume in its repo when its folder is gone"], ["⌘↵", "bring a session from another machine here"],
+    ["⌃space", "preview the task"], ["^D", "forget an ended session's link"], ["esc", "close"],
+  ];
+  const marks = [
+    ...(only ? [] : [
+      [stateIcons(dark, "open", "draft", "queued"), "PR: open, draft, in the merge queue"],
+      [stateIcons(dark, "merged", "closed"), "PR: merged, closed"],
+      [stateIcons(dark, "issue-open", "issue-done", "issue-skip"), "issue: open, closed, not planned"],
+    ]),
+    [statusMarks(t).child(idleDot(t)), "running session: working, needs you, done, idle"],
+    [svg(ICON("clock")).size(12).text_color(t.dim), "ended session"],
+    [div().text_size(11.5).text_color(t.dim).child("gone"), "its folder is gone"],
+    ...(only ? [[svg(ICON("plus")).size(12).text_color(t.dim), "a new session, in the checkout or a new worktree"]] : []),
+  ];
+  return keyPanel(t, [["KEYS", keys], ["MARKS", marks]]);
 }
 
 export function taskRender(view, t) {
@@ -266,7 +288,7 @@ export function taskRender(view, t) {
     const where = view.busy === keyOf(s) ? "resuming…" : [s.machine, gone && "gone"].filter(Boolean).join(" · ");
     return line(`tk-${task.url}-${keyOf(s)}`, i, row)
       .when(!props()?.url, (el) => el.pl(33))
-      .child(h_flex().w(14).flex_none().justify_center().child(s.running ? (mark(s.running.status, t) ?? div().size(6).rounded_full().bg(t.dim)) : svg(ICON("clock")).size(12).text_color(t.dim)))
+      .child(h_flex().w(14).flex_none().justify_center().child(s.running ? (mark(s.running.status, t) ?? idleDot(t)) : svg(ICON("clock")).size(12).text_color(t.dim)))
       .child(div().id(`tk-title-${keyOf(s)}`).flex_1().min_w(0).truncate().text_color(gone ? t.dim : t.foreground).child(s.title).tooltip(label(s.cwd)))
       .when(Boolean(where), (el) => el.child(div().flex_none().max_w(220).truncate().text_size(11.5).text_color(t.dim).child(where)))
       .when(!s.running, (el) => el.child(h_flex().flex_none().w(52).justify_end().text_size(11).text_color(t.dim).child(ago(s.at))));
@@ -294,8 +316,10 @@ export function taskRender(view, t) {
   const none = !Object.keys(shared("tasks.sessions") ?? {}).length && !view.text.trim();
   return v_flex()
     .id("tasks")
+    .relative()
     .track_focus(view.handle)
     .on_key_down((e, cx) => {
+      if (view.helpKey(e, cx)) return;
       const count = view.rows.length;
       const ctrl = e.modifiers.control && !e.modifiers.platform && !e.modifiers.alt && !e.modifiers.shift;
       const down = e.key === "down" || (ctrl && (e.key === "j" || e.key === "n"));
@@ -340,5 +364,6 @@ export function taskRender(view, t) {
         .when(empty, (el) => el.child(div().p(10).text_color(t.dim).child(none ? "No linked tasks yet. Link a PR or issue to an agent with ctrl-a g, or to its space with ctrl-a G." : "No matching tasks."))),
     )
     .when(Boolean(view.error), (el) => el.child(div().text_color(t.blocked).child(view.error)))
-    .child(h_flex().justify_end().text_size(11).text_color(t.dim).child([hintOf(view, selected), previewUrl(selected) && "⌃space preview", "esc close"].filter(Boolean).join(" · ")));
+    .child(h_flex().justify_end().text_size(11).text_color(t.dim).child([hintOf(view, selected), "? keys", "esc close"].filter(Boolean).join(" · ")))
+    .when(Boolean(view.help), (el) => el.child(helpPanel(t, dark, only)));
 }

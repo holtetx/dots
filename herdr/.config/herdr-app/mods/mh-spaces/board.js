@@ -9,7 +9,7 @@ import { boardRepos, fetchIssues, fetchPrs } from "./board-data.js";
 import { fetchJira, jiraSettings } from "./jira-data.js";
 import { avatars, loadAvatars } from "./preview-data.js";
 import { BLUE, GREEN, PRIORITY_COLOR, RED, TYPE_COLOR, YELLOW, foldKey, hue, initials } from "./jira.js";
-import { button, chip, frame, spinner } from "./pixel.js";
+import { button, chip, frame, keyPanel, spinner } from "./pixel.js";
 
 const FRESH = 2 * 60000;
 const ICON = (name) => `mods/workspace-chrome/${name}.svg`;
@@ -884,15 +884,5 @@ function helpPanel(tab, t, dark) {
       [div().size(8).rounded(2).bg(pick(BLUE, dark)), "issue type"],
       [chip("blocked", pick(RED, dark)), "an open issue blocks it"],
     ];
-  const row = (left, text) => h_flex().h(24).gap(12).items_center()
-    .child(h_flex().w(112).flex_none().child(left))
-    .child(div().text_size(12).text_color(t.muted).child(text));
-  const head = (text) => div().pt(6).text_size(11).font_semibold().text_color(t.dim).child(text);
-  return div().absolute().top(0).left(0).right(0).bottom(0).flex().items_center().justify_center().bg("#00000055")
-    .child(frame(v_flex(), t.input, t.popover).id("board-help").w(560).p(16).gap(2)
-      .child(head("KEYS"))
-      .children(keys.map(([k, text]) => row(div().text_size(12).font_semibold().text_color(t.foreground).child(k), text)))
-      .child(head("MARKS"))
-      .children(marks.map(([mark, text]) => row(mark, text)))
-      .child(div().pt(8).text_size(11).text_color(t.dim).child("? or esc closes")));
+  return keyPanel(t, [["KEYS", keys], ["MARKS", marks]]);
 }

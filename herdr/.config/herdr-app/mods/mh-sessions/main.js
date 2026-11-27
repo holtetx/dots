@@ -6,13 +6,19 @@ import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, ScrollHandle } from "gpui-base";
 import { agents, spaces, panes, theme, shared, setShared, props, run, exec, hc, home, appHome, readTextFile, closeOverlay } from "herdr";
 import { base, ago, worktree, label, place, missing, resume } from "./sessions.js";
-import { frame, ink, mark, WORDS } from "./pixel.js";
-import { taskInit, taskRender } from "./tasks.js";
+import { frame, ink, keyPanel, mark, WORDS } from "./pixel.js";
+import { statusMarks, taskInit, taskRender } from "./tasks.js";
 
 const LIST = 440;
 const ICON = (name) => `mods/workspace-chrome/${name}.svg`;
 // Space avatar colors, as the mh-spaces sidebar draws them.
 const MARK = { ansi6: "#6fc7bd", ansi3: "#8fa3f0", ansi4: "#7aa7e8", ansi5: "#b394f0", ansi2: "#8fcf94", ansi1: "#e49ac8" };
+
+const avatar = (color, title, t) => {
+  const fill = color.startsWith("#") ? color : (MARK[color] ?? t[color]);
+  return h_flex().size(14).rounded(4).bg(fill).items_center().justify_center().text_size(8.5).font_bold().text_color(ink(fill)).child([...title][0]?.toUpperCase() ?? "?");
+};
+const isHelpKey = (e) => (e.key === "?" || (e.key === "/" && e.modifiers.shift)) && !e.modifiers.control && !e.modifiers.platform;
 
 // When an agent in the space last changed state (0: not since Herdr started).
 const activity = (w) => Math.max(0, ...w.tabs.map((t) => t.changed_at ?? 0));
@@ -65,6 +71,21 @@ export default class Sessions extends View {
 
   hide() {
     closeOverlay(props().overlay);
+  }
+
+  // The ? panel takes the keyboard from the search field, so nothing is typed under it.
+  setHelp(on) {
+    this.help = on;
+    (on ? this.handle : this.input).focus();
+  }
+
+  // The ? panel takes every key; ? or esc closes it. ? opens it only with the search field empty.
+  helpKey(e, cx) {
+    if (!this.help && !(isHelpKey(e) && !this.text)) return false;
+    if (!this.help || e.key === "escape" || isHelpKey(e)) this.setHelp(!this.help);
+    cx.stop_propagation();
+    cx.notify();
+    return true;
   }
 
   close() {
@@ -189,7 +210,7 @@ export default class Sessions extends View {
         kind === "open"
           ? (mark(s.status, t) ?? "")
           : kind === "space"
-            ? h_flex().size(14).rounded(4).bg(s.color.startsWith("#") ? s.color : (MARK[s.color] ?? t[s.color])).items_center().justify_center().text_size(8.5).font_bold().text_color(ink(s.color.startsWith("#") ? s.color : (MARK[s.color] ?? t[s.color]))).child([...s.title][0]?.toUpperCase() ?? "?")
+            ? avatar(s.color, s.title, t)
             : svg(ICON("clock")).size(13).text_color(t.dim);
       return h_flex()
         .id(`ss-${kind}-${s.id}`)
@@ -221,12 +242,13 @@ export default class Sessions extends View {
     }
     const empty = items.length === 0 && !sections.some((s) => s.loading);
     const height = Math.min(LIST, empty ? 40 : sections.filter((s) => s.list.length || s.loading).length * 26 + items.length * 32);
-    const resuming = selected && this.gone[selected.s.cwd] ? this.goneHint(selected.s, "↵", "⇧↵") : "↵ resume";
-    const hint = this.busy ? "resuming…" : ({ open: "↵ go to", space: "↵ go to", history: resuming }[selected?.kind] ?? "");
+    const hint = this.busy ? "resuming…" : selected?.kind === "history" && this.gone[selected.s.cwd] ? this.goneHint(selected.s, "↵", "⇧↵") : "";
     return v_flex()
       .id("sessions")
+      .relative()
       .track_focus(this.handle)
       .on_key_down((e, cx) => {
+        if (this.helpKey(e, cx)) return;
         const count = items.length;
         const ctrl = e.modifiers.control && !e.modifiers.platform && !e.modifiers.alt && !e.modifiers.shift;
         const down = e.key === "down" || (ctrl && (e.key === "j" || e.key === "n"));
@@ -241,6 +263,7 @@ export default class Sessions extends View {
       })
       .w_full()
       .min_h(0)
+      .when(Boolean(this.help), (el) => el.min_h(390))
       .p(18)
       .gap(10)
       .bg(t.popover)
@@ -267,6 +290,21 @@ export default class Sessions extends View {
           .when(empty, (el) => el.child(div().p(10).text_color(t.dim).child("No matching sessions."))),
       )
       .when(Boolean(this.error), (el) => el.child(div().text_color(t.blocked).child(this.error)))
-      .child(h_flex().justify_end().text_size(11).text_color(t.dim).child([hint, "esc close"].filter(Boolean).join(" · ")));
+      .child(h_flex().justify_end().text_size(11).text_color(t.dim).child([hint, "? keys", "esc close"].filter(Boolean).join(" · ")))
+      .when(Boolean(this.help), (el) => el.child(this.helpPanel(t)));
+  }
+
+  helpPanel(t) {
+    const keys = [
+      ["type", "search titles, folders, machines and prompts"], ["↓↑ ^J ^K ^N ^P", "move"],
+      ["↵", "go to an open session or space, resume a past one"], ["⇧↵", "resume in its repo when its folder is gone"], ["esc", "close"],
+    ];
+    const marks = [
+      [statusMarks(t), "open session: working, needs you, done; idle has none"],
+      [avatar("ansi6", "Space", t), "a space, in its sidebar color"],
+      [svg(ICON("clock")).size(13).text_color(t.dim), "a past session"],
+      [div().text_size(11.5).text_color(t.dim).child("· gone"), "its folder is gone"],
+    ];
+    return keyPanel(t, [["KEYS", keys], ["MARKS", marks]]);
   }
 }

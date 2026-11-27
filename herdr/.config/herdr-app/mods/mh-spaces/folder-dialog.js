@@ -4,7 +4,7 @@ import { div, svg } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input } from "gpui-base";
 import { props, closeOverlay, theme, spaces, panes, exec, shared, setShared, pickFolder } from "herdr";
 import { MARK, base, expand, tilde, trim } from "./folders.js";
-import { button, frame } from "./pixel.js";
+import { button, frame, keyPanel } from "./pixel.js";
 
 const COLORS = [null, ...Object.keys(MARK)];
 const info = () => shared("space-folders") ?? {};
@@ -13,6 +13,13 @@ const label = (key) => key || "This computer";
 export const action = (t, id, text, primary, click) => button(div(), t, false).id(id).flex_none().px(13).py(5).cursor_pointer()
   .when(primary, (el) => el.border_color(t.accent).bg(t.solid)).text_color(primary ? t.solid_foreground : t.muted)
   .text_size(11.5).font_semibold().when(!primary, (el) => el.hover((s) => s.text_color(t.foreground))).on_click(click).child(text.toUpperCase());
+// Tab and shift-tab would move the keyboard to a field under the ? panel; the panel's context takes them.
+export function bindPanelKeys(cx) {
+  try {
+    cx.bind_keys(["tab", "shift-tab"].map((keystroke) => ({ keystroke, action: "mh_key_panel", context: "MhKeyPanel" })));
+  } catch {}
+}
+export const panelKeys = (el, on) => el.when(on, (el) => el.key_context("MhKeyPanel").on_action("mh_key_panel", () => {}));
 const ask = (op) => setShared("space-folders.ask", [...(shared("space-folders.ask") ?? []), op]);
 
 export function folderInit(view, cx) {
@@ -24,7 +31,10 @@ export function folderInit(view, cx) {
   view.color = f?.color ?? null;
   view.error = "";
   view.busy = false;
-  view.name = InputState.new({ placeholder: "Name", value: f?.name ?? "" });
+  view.handle = cx.focus_handle();
+  view.help = null; // the field or handle to give the keyboard back to when the ? panel closes
+  bindPanelKeys(cx);
+  view.name = track(view, InputState.new({ placeholder: "Name", value: f?.name ?? "" }));
   view.name.on("submit", (_e, cx) => save(view, cx));
   view.rows = ["", ...(sf.machines ?? []).map((m) => m.name)].map((key) => {
     const at = f?.paths?.[key];
@@ -38,9 +48,33 @@ export function folderInit(view, cx) {
   if (p.from) prefill(view, p.from, cx);
 }
 
+// view.typing: the field with the keyboard, so ? types in it when it has text.
+function track(view, input) {
+  input.on("focus", () => { view.typing = input; });
+  input.on("blur", () => { if (view.typing === input) view.typing = null; });
+  return input;
+}
+
+// The ? panel takes every key; ? or esc closes it.
+function key(view, e) {
+  const m = e.modifiers;
+  const ask = (e.key === "?" || (e.key === "/" && m.shift)) && !m.control && !m.platform;
+  if (view.help) {
+    if (e.key === "escape" || ask) {
+      view.help.focus();
+      view.help = null;
+    }
+    return true;
+  }
+  if (!ask || view.typing?.value()) return false;
+  view.help = view.typing ?? view.handle;
+  view.handle.focus();
+  return true;
+}
+
 // One more path field for a machine's row.
 function add(view, row, value = "", placeholder = "Another path") {
-  const input = InputState.new({ placeholder, value });
+  const input = track(view, InputState.new({ placeholder, value }));
   input.on("submit", (_e, cx) => save(view, cx));
   row.inputs.push(input);
   return input;
@@ -150,7 +184,15 @@ export function folderRender(view) {
 
   return v_flex()
     .id("folder-dialog")
+    .track_focus(view.handle)
+    .map((el) => panelKeys(el, Boolean(view.help)))
+    .on_key_down((e, cx) => {
+      if (!key(view, e)) return;
+      cx.stop_propagation();
+      cx.notify();
+    })
     .size_full()
+    .relative()
     .p(16)
     .gap(12)
     .bg(t.popover)
@@ -167,7 +209,10 @@ export function folderRender(view) {
         ask({ op: "delete", id: view.id });
         closeOverlay(props().overlay);
       })))
-      .child(div().flex_1())
+      .child(div().flex_1().min_w(0).truncate().text_right().text_size(11).text_color(t.dim).child("? keys · esc close"))
       .child(action(t, "folder-cancel", "Cancel", false, () => closeOverlay(props().overlay)))
-      .child(action(t, "folder-save", view.busy ? "Saving…" : "Save", true, (_e, cx) => save(view, cx))));
+      .child(action(t, "folder-save", view.busy ? "Saving…" : "Save", true, (_e, cx) => save(view, cx))))
+    .when(Boolean(view.help), (el) => el.child(keyPanel(t, [["KEYS", [
+      ["tab ⇧tab", "next, previous field"], ["↵", "save, from a field"], ["?", "this list, in an empty field"], ["esc", "close"],
+    ]]])));
 }

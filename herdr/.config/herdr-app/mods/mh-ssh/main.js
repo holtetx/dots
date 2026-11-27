@@ -9,12 +9,13 @@ import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, ScrollHandle } from "gpui-base";
 import { spaces, terminals, theme, props, run, exec, home, appHome, readTextFile, shared, closeOverlay, notify } from "herdr";
 import { covers, readHosts } from "./hosts.js";
-import { frame } from "./pixel.js";
+import { frame, keyPanel } from "./pixel.js";
 
 const LIST = 440;
 const FEW = 10; // at most this many hosts: list them all before typing
 const ICON = (name) => `mods/workspace-chrome/${name}.svg`;
 
+const isHelpKey = (e) => (e.key === "?" || (e.key === "/" && e.modifiers.shift)) && !e.modifiers.control && !e.modifiers.platform;
 const expand = (path) => path.replace(/^~(?=\/|$)/, home());
 
 // ~/.ssh/config's hosts (hosts.js). IFS= keeps a path with spaces whole; the glob still expands.
@@ -91,6 +92,12 @@ export default class Ssh extends View {
     if (id) closeOverlay(id);
   }
 
+  // The ? panel takes the keyboard from the search field, so nothing is typed under it.
+  setHelp(on) {
+    this.help = on;
+    (on ? this.handle : this.input).focus();
+  }
+
   items() {
     const tokens = this.text.toLowerCase().split(/\s+/).filter(Boolean);
     if (!tokens.length) {
@@ -137,8 +144,15 @@ export default class Ssh extends View {
     const height = typed || items.length ? Math.min(LIST, Math.max(40, items.length * 32)) : 0;
     return v_flex()
       .id("ssh")
+      .relative()
       .track_focus(this.handle)
       .on_key_down((e, cx) => {
+        // The ? panel takes every key; ? or esc closes it. ? opens it only with the search field empty.
+        if (this.help || (isHelpKey(e) && !this.text)) {
+          if (!this.help || e.key === "escape" || isHelpKey(e)) this.setHelp(!this.help);
+          cx.stop_propagation();
+          return cx.notify();
+        }
         const count = items.length;
         const ctrl = e.modifiers.control && !e.modifiers.platform && !e.modifiers.alt && !e.modifiers.shift;
         if (e.key === "escape") return this.hide();
@@ -151,6 +165,7 @@ export default class Ssh extends View {
       })
       .w_full()
       .min_h(0)
+      .when(Boolean(this.help), (el) => el.min_h(240))
       .p(18)
       .gap(10)
       .bg(t.popover)
@@ -176,6 +191,10 @@ export default class Ssh extends View {
           .children(items.map(row))
           .when(typed && items.length === 0, (el) => el.child(div().p(10).text_color(t.dim).child(this.hosts ? "No matching hosts in ~/.ssh/config." : "Reading ~/.ssh/config…"))),
       )
-      .child(h_flex().justify_end().text_size(11).text_color(t.dim).child("↵ ssh · ⌘↵ ssh and Claude · esc close"));
+      .child(h_flex().justify_end().text_size(11).text_color(t.dim).child("? keys · esc close"))
+      .when(Boolean(this.help), (el) => el.child(keyPanel(t, [["KEYS", [
+        ["type", "filter by host, note or address"], ["↓↑ ^J ^K ^N ^P", "move"],
+        ["↵", "ssh in a new space, or go to its space"], ["⌘↵", "ssh and Claude; on an open host, add Claude"], ["esc", "close"],
+      ]]])));
   }
 }

@@ -8,6 +8,7 @@ import { v_flex, h_flex, ScrollHandle } from "gpui-base";
 import { props, closeOverlay, setShared, settings, theme } from "herdr";
 import { jiraTransition, jiraTransitions } from "./jira-data.js";
 import { statusChip } from "./board.js";
+import { keyPanel } from "./pixel.js";
 
 export function statusInit(view, cx) {
   const { status: issue, from } = props();
@@ -55,7 +56,13 @@ function move(view, cx) {
 
 function key(view, e, cx) {
   const m = e.modifiers;
+  // The ? panel takes every key; ? or esc closes it.
+  if (view.help) {
+    if (e.key === "escape" || e.key === "?" || (e.key === "/" && m.shift)) view.help = false;
+    return true;
+  }
   if (m.control || m.alt || m.platform) return false;
+  if (e.key === "?" || (e.key === "/" && m.shift)) return (view.help = true), true;
   if (e.key === "escape") return closeOverlay(props().overlay), true;
   if (e.key === "enter") return move(view, cx), true;
   if (/^[1-9]$/.test(e.key) && view.rows[Number(e.key) - 1]) return (view.at = Number(e.key) - 1), move(view, cx), true;
@@ -79,6 +86,7 @@ export function statusRender(view) {
       cx.notify();
     })
     .size_full()
+    .relative()
     .min_h(0)
     .p(16)
     .gap(12)
@@ -103,5 +111,9 @@ export function statusRender(view) {
         .child(div().w(10).flex_none().text_size(11).text_color(t.dim).child(i < 9 ? String(i + 1) : ""))
         .child(statusChip(r.to, r.category, t, dark))
         .when(r.name !== r.to, (el) => el.child(div().flex_1().min_w(0).truncate().text_size(11.5).text_color(t.dim).child(r.name))))))
-    .child(h_flex().flex_none().justify_end().text_size(11).text_color(t.dim).child("1-9 or j k ↵ move · esc back"));
+    .child(h_flex().flex_none().justify_end().text_size(11).text_color(t.dim).child("? keys · esc close"))
+    .when(Boolean(view.help), (el) => el.child(keyPanel(t, [
+      ["KEYS", [["j k ↓ ↑", "choose"], ["↵", "move to it"], ["1-9", "move to that status"], ["esc", "close"]]],
+      ["MARKS", [[statusChip("To Do", "new", t, dark), "not started"], [statusChip("In Progress", "indeterminate", t, dark), "in progress"], [statusChip("Done", "done", t, dark), "done"]]],
+    ])));
 }

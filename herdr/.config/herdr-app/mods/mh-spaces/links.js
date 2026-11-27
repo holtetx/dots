@@ -2,17 +2,26 @@
 
 import { div, svg } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, ScrollHandle } from "gpui-base";
-import { props, closeOverlay, theme, spaces, panes, agents, terminals, exec, shared, setShared } from "herdr";
-import { badge, expand, githubRepo, open, openPrs, resolve } from "./github.js";
+import { props, closeOverlay, theme, settings, spaces, panes, agents, terminals, exec, shared, setShared } from "herdr";
+import { GH, badge, expand, githubRepo, open, openPrs, resolve } from "./github.js";
 import { editLinks, forgetHistory, linksOf, split } from "./docs.js";
-import { frame, spinner } from "./pixel.js";
+import { frame, keyPanel, spinner } from "./pixel.js";
+import { GREEN, RED } from "./jira.js";
+import { bindPanelKeys, panelKeys } from "./folder-dialog.js";
 
 const spaceOf = () => spaces().find((s) => s.id === props()?.link);
 const agentOf = () => agents().find((a) => a.address === props()?.agent);
 const nameOf = (a) => a.tab_name || a.title || a.address;
 const targetOf = () => (props()?.agent ? { agent: props().agent } : { space: props()?.link });
 
+// The PR and issue state icons, for the ? panels here and in the preview.
+export const stateMarks = (t, dark) => [
+  [["open", "draft", "queued", "merged", "closed"], "PR: open, draft, merge queued, merged, closed"],
+  [["issue-open", "issue-done", "issue-skip"], "issue: open, closed, not planned"],
+].map(([states, text]) => [h_flex().gap(6).children(states.map((s) => svg(GH[s].icon).size(12).text_color(GH[s].color[dark ? 1 : 0]))), text]);
+
 export function linkInit(view, cx) {
+  bindPanelKeys(cx);
   view.resolved = {}; // url -> item, until the sidebar has asked GitHub itself
   view.error = "";
   view.busy = false;
@@ -148,6 +157,7 @@ function filter(text) {
 
 export function linkRender(view) {
   const t = theme();
+  const dark = Boolean(settings()?.dark);
   const s = spaceOf();
   const id = props()?.link;
   const agent = props()?.agent ? agentOf() ?? { address: props().agent } : null;
@@ -184,7 +194,6 @@ export function linkRender(view) {
   view.rows = [...mine, ...others];
   view.at = Math.min(view.at, Math.max(0, view.rows.length - 1));
   const selected = view.rows[view.at];
-  const verb = (r) => (r.owner ? "unlink" : r.hidden ? "show" : "hide");
 
   const base = (r, i) => h_flex()
     .id(`${r.pr ? "open" : "link"}-${r.url}`)
@@ -234,19 +243,24 @@ export function linkRender(view) {
     : /^#?\d+$/.test(text) ? `${text.replace(/^#?/, "#")} isn't here: ↵ looks it up on GitHub.`
     : "Nothing matches.";
 
-  const hint = view.busy ? "looking it up…" : [
-    view.rows.length > 1 ? "↑↓ choose" : "",
-    selected?.pr ? "↵ link" : selected ? "↵ open" : text ? "↵ look up" : "",
-    selected && !selected.pr ? `^D ${verb(selected)}` : "",
-    "esc close",
-  ].filter(Boolean).join(" · ");
+  const hint = view.busy ? "looking it up…" : "? keys · esc close";
 
   return v_flex()
     .id("links")
     .track_focus(view.handle)
+    .map((el) => panelKeys(el, Boolean(view.help)))
     .on_key_down((e, cx) => {
-      const ctrl = e.modifiers.control && !e.modifiers.platform && !e.modifiers.alt && !e.modifiers.shift;
+      const m = e.modifiers;
+      const ctrl = m.control && !m.platform && !m.alt && !m.shift;
       const count = view.rows.length;
+      const ask = (e.key === "?" || (e.key === "/" && m.shift)) && !m.control && !m.platform;
+      // The ? panel takes every key; ? or esc closes it. ? types in a field with text.
+      if (view.help || (ask && !view.input.value())) {
+        if (!view.help) (view.help = true), view.handle.focus();
+        else if (e.key === "escape" || ask) (view.help = false), view.input.focus();
+        cx.stop_propagation();
+        return cx.notify();
+      }
       if (e.key === "escape") return closeOverlay(props().overlay);
       if ((e.key === "down" || (ctrl && (e.key === "j" || e.key === "n"))) && count) view.at = (view.at + 1) % count;
       else if ((e.key === "up" || (ctrl && (e.key === "k" || e.key === "p"))) && count) view.at = (view.at + count - 1) % count;
@@ -257,6 +271,7 @@ export function linkRender(view) {
       cx.notify();
     })
     .size_full()
+    .relative()
     .p(16)
     .gap(10)
     .bg(t.popover)
@@ -270,5 +285,18 @@ export function linkRender(view) {
       .when(empty, (el) => el.child(div().p(8).text_color(t.dim).child(why))))
     .child(h_flex().flex_none().justify_end().gap(6).text_size(11).text_color(t.dim)
       .when(view.busy, (el) => el.child(spinner(11).text_color(t.dim)))
-      .child(hint));
+      .child(hint))
+    .when(Boolean(view.help), (el) => el.child(keyPanel(t, [
+      ["KEYS", [
+        ["↑↓ ^J ^K", "choose (^N ^P too)"], ["↵", "link an open PR, open a linked one, look up #12"],
+        ["^D", "unlink, or hide or show a found one"], ["type", "filter the open PRs"], ["?", "this list, in an empty field"], ["esc", "close"],
+      ]],
+      ["MARKS", [
+        ...stateMarks(t, dark),
+        [svg("mods/workspace-chrome/check.svg").size(10).text_color(GREEN[dark ? 1 : 0]), "after the icon: approved"],
+        [svg("mods/mh-spaces/file-diff.svg").size(10).text_color(RED[dark ? 1 : 0]), "after the icon: changes requested"],
+        [div().relative().child(svg(GH.open.icon).size(11).text_color(t.dim)).child(div().absolute().top(-2).right(-3).size(4).bg(t.ansi3)), "new activity since you last opened it"],
+        [div().opacity(0.5).text_size(11).text_color(t.dim).child("hidden · branch"), "hidden from the sidebar"],
+      ]],
+    ])));
 }

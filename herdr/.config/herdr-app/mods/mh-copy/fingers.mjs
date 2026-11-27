@@ -78,6 +78,20 @@ function draw(lines, found, labels, typed) {
   process.stdout.write(out + RESET);
 }
 
+// The ? panel: the keys and colors, as the lines of a box.
+export function helpBox() {
+  const row = (left, color, text) => `  ${color}${left}${RESET}${" ".repeat(10 - left.length)}${text}  `;
+  const head = (text) => `  ${DIM}${text}${RESET}`;
+  const lines = [
+    head("KEYS"), row("a hint", "", "copy it"), row("⇧ hint", "", "copy and paste it"),
+    row("⌃ hint", "", "open it: a link, commit or issue; a file in Finder"), row("⌫", "", "erase a letter"), row("esc ^C", "", "quit"),
+    head("MARKS"), row("text", MATCH, "a match"), row("sd", HINT, "its hint"), row("s", TYPED, "the letters you typed"), head("? or esc closes"),
+  ];
+  const width = (l) => [...l.replace(/\x1b\[[0-9;]*m/g, "")].length;
+  const w = Math.max(...lines.map(width));
+  return [`╭${"─".repeat(w)}╮`, ...lines.map((l) => `│${l}${" ".repeat(w - width(l))}${RESET}│`), `╰${"─".repeat(w)}╯`];
+}
+
 function main() {
   const [screen, result, ids, cols, rows] = process.argv.slice(2);
   const text = JSON.parse(readFileSync(screen, "utf8")).text ?? "";
@@ -98,10 +112,23 @@ function main() {
   };
   let typed = "";
   let mods = new Set();
-  const redraw = () => draw(lines, found, labels, typed);
+  let help = false;
+  const redraw = () => {
+    draw(lines, found, labels, typed);
+    if (!help) return;
+    const box = helpBox();
+    const top = Math.max(0, Math.floor((stdout.rows - box.length) / 2));
+    const left = Math.max(0, Math.floor((stdout.columns - [...box[0]].length) / 2));
+    stdout.write(box.map((l, i) => `\x1b[${top + i + 1};${left + 1}H${l}`).join(""));
+  };
   stdout.on("resize", redraw);
   stdin.on("data", (data) => {
     const s = data.toString("latin1");
+    // The ? panel takes every key; ? or esc closes it.
+    if (help || s === "?") {
+      if (!help || s === "?" || s === "\x1b") (help = !help), redraw();
+      return;
+    }
     if (s === "\x1b" || s[0] === "\x03") return finish(null);
     if (s[0] === "\x1b") return;
     for (const ch of s) {

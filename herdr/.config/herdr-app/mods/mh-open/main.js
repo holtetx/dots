@@ -5,7 +5,7 @@
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, ScrollHandle } from "gpui-base";
 import { spaces, panes, machines, theme, props, run, exec, closeOverlay, nextCommand } from "herdr";
-import { frame } from "./pixel.js";
+import { frame, keyPanel } from "./pixel.js";
 
 const LIST = 440;
 const CAP = 100;
@@ -29,6 +29,7 @@ function label(cwd) {
 }
 
 const shown = () => spaces().find((s) => s.active);
+const isHelpKey = (e) => (e.key === "?" || (e.key === "/" && e.modifiers.shift)) && !e.modifiers.control && !e.modifiers.platform;
 
 export default class Open extends View {
   init(_props, cx) {
@@ -67,6 +68,12 @@ export default class Open extends View {
   hide() {
     const id = props()?.overlay;
     if (id) closeOverlay(id);
+  }
+
+  // The ? panel takes the keyboard from the search field, so nothing is typed under it.
+  setHelp(on) {
+    this.help = on;
+    (on ? this.handle : this.input).focus();
   }
 
   opened() {
@@ -141,7 +148,6 @@ export default class Open extends View {
     const items = sections.flatMap((s) => s.list);
     this.at = Math.min(this.at, Math.max(0, items.length - 1));
     const selected = items[this.at];
-    const cur = shown();
     const row = (r, i) => {
       const on = i === this.at;
       return h_flex()
@@ -178,12 +184,17 @@ export default class Open extends View {
     }
     const empty = items.length === 0 && !sections.some((s) => s.loading);
     const height = Math.min(LIST, empty ? 40 : headers * 26 + items.length * 32);
-    const here = selected && (!cur || (cur.machine ?? null) === selected.machine);
-    const hint = !selected ? "" : [here ? "↵ space · ⌘↵ tab · ⇧↵ pane" : "↵ space", "⌘⇧C claude · ⌥⇧C worktree", selected.typed ? "" : "^D forget"].filter(Boolean).join(" · ");
     return v_flex()
       .id("open")
+      .relative()
       .track_focus(this.handle)
       .on_key_down((e, cx) => {
+        // The ? panel takes every key; ? or esc closes it. ? opens it only with the search field empty.
+        if (this.help || (isHelpKey(e) && !this.text)) {
+          if (!this.help || e.key === "escape" || isHelpKey(e)) this.setHelp(!this.help);
+          cx.stop_propagation();
+          return cx.notify();
+        }
         const count = items.length;
         const ctrl = e.modifiers.control && !e.modifiers.platform && !e.modifiers.alt && !e.modifiers.shift;
         const down = e.key === "down" || (ctrl && (e.key === "j" || e.key === "n"));
@@ -199,6 +210,7 @@ export default class Open extends View {
       })
       .w_full()
       .min_h(0)
+      .when(Boolean(this.help), (el) => el.min_h(450))
       .p(18)
       .gap(10)
       .bg(t.popover)
@@ -225,6 +237,22 @@ export default class Open extends View {
           .when(empty, (el) => el.child(div().p(10).text_color(t.dim).child("No matching folders."))),
       )
       .when(Boolean(this.error), (el) => el.child(div().text_color(t.blocked).child(this.error)))
-      .child(h_flex().justify_end().text_size(11).text_color(t.dim).child([hint, "esc close"].filter(Boolean).join(" · ")));
+      .child(h_flex().justify_end().text_size(11).text_color(t.dim).child("? keys · esc close"))
+      .when(Boolean(this.help), (el) => el.child(this.helpPanel(t)));
+  }
+
+  helpPanel(t) {
+    const keys = [
+      ["type", "filter; a path from ~ or / opens that folder"], ["↓↑ ^J ^K ^N ^P", "move"],
+      ["↵", "open as a new space"], ["⌘↵", "open as a tab in this space"], ["⇧↵", "open as a pane beside this one"],
+      ["⌘⇧C", "Claude Code there, in a new space"], ["⌥⇧C", "the same, in a new worktree"],
+      ["^D", "forget the folder"], ["esc", "close"],
+    ];
+    const marks = [
+      [svg(ICON("folder")).size(13).text_color(t.dim), "a recent folder, or one a pane is in"],
+      [svg(ICON("folder-plus")).size(13).text_color(t.dim), "the path you typed"],
+      [div().text_size(11).text_color(t.dim).child("open"), "a pane is in it now"],
+    ];
+    return keyPanel(t, [["KEYS", keys], ["MARKS", marks]]);
   }
 }

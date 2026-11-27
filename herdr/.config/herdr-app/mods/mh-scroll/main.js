@@ -7,7 +7,7 @@
 import { View, div } from "gpui-kit";
 import { h_flex } from "gpui-base";
 import { props, focused, terminals, theme, run, hc, closeOverlay } from "herdr";
-import { chip, frame } from "./pixel.js";
+import { chip, frame, keyPanel } from "./pixel.js";
 
 // Each move: [the keys Claude gets, terminal.scroll's args for the rest].
 const MOVES = {
@@ -27,6 +27,8 @@ function moveOf(key, ctrl, shift) {
   if (shift) return null;
   return { j: "down", down: "down", k: "up", up: "up", space: "pageDown", b: "pageUp", pagedown: "halfDown", pageup: "halfUp", g: "top", home: "top", end: "bottom" }[key];
 }
+
+const isHelpKey = (e) => (e.key === "?" || (e.key === "/" && e.modifiers.shift)) && !e.modifiers.control && !e.modifiers.platform;
 
 export default class Scroll extends View {
   init(_props, cx) {
@@ -60,23 +62,36 @@ export default class Scroll extends View {
     const t = theme();
     return frame(h_flex(), t.accent, t.popover)
       .id("scroll")
+      .relative()
+      .w_full()
+      .h(this.help ? 300 : 30)
+      .when(Boolean(this.help), (el) => el.items_start().pt(5))
       .track_focus(this.handle)
       .on_key_down((e, cx) => {
         const m = e.modifiers;
         if (m.platform || m.alt) return;
+        // The ? panel takes every key; ? or esc closes it.
+        if (this.help || isHelpKey(e)) {
+          if (!this.help || e.key === "escape" || isHelpKey(e)) this.help = !this.help;
+          cx.stop_propagation();
+          return cx.notify();
+        }
         if (e.key === "escape" || (e.key === "q" && !m.control)) return closeOverlay(props().overlay);
         const name = moveOf(e.key, m.control && !m.shift, m.shift);
         if (!name) return;
         this.go(name, cx);
         cx.stop_propagation();
       })
-      .size_full()
       .px(10)
       .gap(10)
-      .items_center()
+      .when(!this.help, (el) => el.items_center())
       .text_size(12)
       .child(chip("SCROLL", t.accent))
       .child(div().flex_1().min_w(0).truncate().text_color(t.muted)
-        .child(this.terminal ? "j/k line · ^U/^D half page · ^B/^F page · g/G top/bottom · q quit" : "No terminal in focus · q quit"));
+        .child(this.terminal ? "? keys · q quit" : "No terminal in focus · q quit"))
+      .when(Boolean(this.help), (el) => el.child(keyPanel(t, [["KEYS", [
+        ["j k ↓↑", "a line down, up; ^E ^Y ^N ^P too"], ["^D ^U", "half a page down, up; pgdn pgup too"],
+        ["^F ^B", "a page down, up; space b too"], ["g G", "top, bottom; home end too"], ["q esc", "back to the bottom and quit"],
+      ]]])));
   }
 }

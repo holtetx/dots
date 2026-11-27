@@ -5,7 +5,7 @@ import { View, div } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { props, closeOverlay, theme, shared, checking } from "herdr";
 import { emojis } from "./emoji.js";
-import { button, frame } from "./pixel.js";
+import { button, frame, keyPanel } from "./pixel.js";
 
 const canteen = () => {
   const c = shared("mh-lunch");
@@ -15,6 +15,7 @@ const pad = (n) => String(n).padStart(2, "0");
 const today = (d = new Date()) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const tidy = (name) => name.replace(/\s*,\s*/g, ", ").replace(/\s+/g, " ").trim();
 const hide = () => closeOverlay(props().overlay);
+const isHelpKey = (e) => (e.key === "?" || (e.key === "/" && e.modifiers.shift)) && !e.modifiers.control && !e.modifiers.platform;
 
 export default class Lunch extends View {
   init(_props, cx) {
@@ -98,10 +99,18 @@ export default class Lunch extends View {
     const sub = [this.place, this.week && `week ${this.week}`].filter(Boolean).join(" · ");
     return v_flex()
       .id("mh-lunch")
+      .relative()
       .track_focus(this.handle)
-      .on_key_down((e) => {
+      .on_key_down((e, cx) => {
+        // The ? panel takes every key; ? or esc closes it.
+        if (this.help || isHelpKey(e)) {
+          if (!this.help || e.key === "escape" || isHelpKey(e)) this.help = !this.help;
+          cx.stop_propagation();
+          return cx.notify();
+        }
         if (e.key === "escape" || e.key === "enter") hide();
       })
+      .when(Boolean(this.help), (el) => el.min_h(270))
       .px(14)
       .pt(14)
       .pb(12)
@@ -114,9 +123,18 @@ export default class Lunch extends View {
           .gap(8)
           .child(div().text_size(16).font_semibold().text_color(t.foreground).child("LUNCH"))
           .child(div().flex_1().text_size(12).text_color(t.dim).child(sub))
+          .child(div().text_size(11).text_color(t.dim).child("? keys"))
           .child(button(div(), t, false).id("mh-lunch-esc").px(7).py(2).text_size(11).text_color(t.dim).cursor_pointer().hover((s) => s.text_color(t.foreground)).on_click(hide).child("Esc")),
       )
       .when(!!text, (el) => el.child(div().px(4).pb(4).text_size(13).text_color(t.dim).child(text)))
-      .when(!text, (el) => el.children(this.days.map((day) => (day.date === now ? this.today(t, day) : this.row(t, day, day.date < now)))));
+      .when(!text, (el) => el.children(this.days.map((day) => (day.date === now ? this.today(t, day) : this.row(t, day, day.date < now)))))
+      .when(Boolean(this.help), (el) => el.child(keyPanel(t, [
+        ["KEYS", [["esc ↵", "close"]]],
+        ["MARKS", [
+          [frame(div(), t.accent, t.raised).px(6).text_size(11).font_semibold().text_color(t.accent).child("TODAY"), "today's dishes"],
+          [div().opacity(0.45).text_size(11.5).font_medium().text_color(t.dim).child("Mon"), "a day that has passed"],
+          [div().text_size(17).child("🍽️"), "no known food word in its name"],
+        ]],
+      ])));
   }
 }

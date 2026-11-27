@@ -4,7 +4,7 @@ import { div } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, TextareaState, Textarea } from "gpui-base";
 import { props, closeOverlay, setShared, theme } from "herdr";
 import { createJiraIssue } from "./jira-data.js";
-import { button, frame } from "./pixel.js";
+import { button, frame, keyPanel } from "./pixel.js";
 import { action } from "./folder-dialog.js";
 
 const ASSIGNEES = ["No one", "Me"];
@@ -35,9 +35,11 @@ export function createInit(view, cx) {
   view.title.focus();
 }
 
+const focusOf = (view) => [view.title, view.text, view.handle, view.handle][view.stop];
+
 function go(view, stop) {
   view.stop = (stop + STOPS) % STOPS;
-  [view.title, view.text, view.handle, view.handle][view.stop].focus();
+  focusOf(view).focus();
 }
 
 function create(view, cx) {
@@ -74,6 +76,13 @@ function create(view, cx) {
 
 function key(view, e, cx) {
   const m = e.modifiers;
+  // The ? panel takes every key; ? or esc closes it.
+  if (view.help) {
+    if (e.key === "escape" || e.key === "?" || (e.key === "/" && m.shift)) (view.help = false), go(view, view.stop);
+    return true;
+  }
+  // ? types in a field with text.
+  if ((e.key === "?" || (e.key === "/" && m.shift)) && !m.control && !m.platform && !(view.stop < 2 && focusOf(view).value())) return (view.help = true), view.handle.focus(), true;
   if (e.key === "escape") return closeOverlay(props().overlay), true;
   if (e.key === "enter" && m.platform) return create(view, cx), true;
   if (view.stop < 2 || m.control || m.alt || m.platform) return false;
@@ -99,14 +108,15 @@ export function createRender(view) {
     .id("create")
     .track_focus(view.handle)
     .key_context("MhCreate")
-    .on_action("mh_create_next", (_e, cx) => (go(view, view.stop + 1), cx.notify()))
-    .on_action("mh_create_prev", (_e, cx) => (go(view, view.stop - 1), cx.notify()))
+    .on_action("mh_create_next", (_e, cx) => view.help || (go(view, view.stop + 1), cx.notify()))
+    .on_action("mh_create_prev", (_e, cx) => view.help || (go(view, view.stop - 1), cx.notify()))
     .on_key_down((e, cx) => {
       if (!key(view, e, cx)) return;
       cx.stop_propagation();
       cx.notify();
     })
     .size_full()
+    .relative()
     .min_h(0)
     .p(16)
     .gap(12)
@@ -119,7 +129,11 @@ export function createRender(view) {
     .child(row(3, "Column", columns.map((c, i) => chip(`create-col-${i}`, c.name, view.col === i, (_e, cx) => { view.col = i; go(view, 3); cx.notify(); }))))
     .when(Boolean(view.note), (el) => el.child(div().flex_none().text_color(view.failed ? t.blocked : t.muted).child(view.note)))
     .child(h_flex().flex_none().gap(8).items_center()
-      .child(div().flex_1().min_w(0).truncate().text_size(11).text_color(t.dim).child("tab next field · h l choose · ⌘↵ create · esc close"))
+      .child(div().flex_1().min_w(0).truncate().text_size(11).text_color(t.dim).child("⌘↵ create · ? keys · esc close"))
       .child(action(t, "create-cancel", "Cancel", false, () => closeOverlay(props().overlay)))
-      .child(action(t, "create-ok", view.created ? "Close" : view.busy ? "Creating…" : "Create", true, (_e, cx) => create(view, cx))));
+      .child(action(t, "create-ok", view.created ? "Close" : view.busy ? "Creating…" : "Create", true, (_e, cx) => create(view, cx))))
+    .when(Boolean(view.help), (el) => el.child(keyPanel(t, [["KEYS", [
+      ["tab ⇧tab", "next, previous field"], ["h l ← →", "choose an assignee or column"], ["↵", "create, from the title or the choices"],
+      ["⌘↵", "create, from anywhere"], ["?", "this list, in an empty field"], ["esc", "close"],
+    ]]])));
 }

@@ -8,10 +8,11 @@
 import { View, div } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input } from "gpui-base";
 import { spaces, panes, shared, props, run, hc, theme, notify, closeOverlay } from "herdr";
-import { frame, ink } from "./pixel.js";
+import { frame, ink, keyPanel } from "./pixel.js";
 
 const MARK = { ansi6: "#6fc7bd", ansi3: "#8fa3f0", ansi4: "#7aa7e8", ansi5: "#b394f0", ansi2: "#8fcf94", ansi1: "#e49ac8" };
 
+const isHelpKey = (e) => (e.key === "?" || (e.key === "/" && e.modifiers.shift)) && !e.modifiers.control && !e.modifiers.platform;
 const hex = () => Array.from({ length: 32 }, () => ((Math.random() * 16) | 0).toString(16)).join("");
 const machineOf = (id) => (id.includes("/") ? id.split("/")[0] : null);
 const local = (id) => id.split("/").pop();
@@ -145,8 +146,18 @@ export default class Panes extends View {
         .child(div().flex_1().min_w(0).truncate().text_color(choice.space ? t.foreground : t.muted).child(choice.space ? choice.space.name : choice.name ? `New space “${choice.name}”` : "New space"));
     return v_flex()
       .id("move-pane")
+      .relative()
       .track_focus(this.handle)
       .on_key_down((e, cx) => {
+        // The ? panel takes every key and the keyboard from the field; ? or esc closes it.
+        if (this.help || (isHelpKey(e) && !this.text)) {
+          if (!this.help || e.key === "escape" || isHelpKey(e)) {
+            this.help = !this.help;
+            (this.help ? this.handle : this.input).focus();
+          }
+          cx.stop_propagation();
+          return cx.notify();
+        }
         const n = choices.length;
         const ctrl = e.modifiers.control && !e.modifiers.platform && !e.modifiers.alt;
         if (e.key === "escape") return closeOverlay(props().overlay);
@@ -164,6 +175,10 @@ export default class Panes extends View {
       .child(div().font_semibold().text_color(t.foreground).child("MOVE PANE TO SPACE"))
       .child(frame(Input.new(this.input), t.accent, t.background).flex_none().h(32).px(10).items_center().text_color(t.foreground))
       .child(v_flex().flex_1().min_h(0).overflow_y_scrollbar().children(choices.map(row)))
-      .child(h_flex().justify_end().text_size(11).text_color(t.dim).child(this.busy ? "moving…" : "↵ move · esc cancel"));
+      .child(h_flex().justify_end().text_size(11).text_color(t.dim).child(this.busy ? "moving…" : "? keys · esc cancel"))
+      .when(Boolean(this.help), (el) => el.child(keyPanel(t, [
+        ["KEYS", [["type", "filter, or name a new space"], ["↓↑ ^J ^K ^N ^P", "move"], ["↵", "move the pane there"], ["esc", "cancel"]]],
+        ["MARKS", [[avatar({ id: "", name: "Space" }), "a space on the pane's machine"], [div().w(16).text_color(t.dim).child("+"), "a new space"]]],
+      ])));
   }
 }

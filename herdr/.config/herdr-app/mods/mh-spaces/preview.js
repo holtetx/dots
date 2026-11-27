@@ -6,11 +6,13 @@ import { ago, avatar, colorOf, epic, openStatus, pick, statusChip } from "./boar
 import { REVIEW_WORD, canCache, cacheImage, fetchPreview, loadAvatars, pruneCache } from "./preview-data.js";
 import { fetchJiraPreview } from "./jira-data.js";
 import { GREEN, PRIORITY_COLOR, RED, TYPE_COLOR, YELLOW, hue } from "./jira.js";
-import { chip } from "./pixel.js";
+import { chip, keyPanel } from "./pixel.js";
+import { stateMarks } from "./links.js";
 
 const CHECK_COLOR = { failed: RED, running: YELLOW, passed: GREEN };
 const REVIEW_COLOR = { APPROVED: GREEN, CHANGES_REQUESTED: RED };
 const MERGE_COLOR = { conflicts: RED, "checks failing": RED, "ready to merge": GREEN };
+const mergeChip = (word, t, dark) => chip(word, MERGE_COLOR[word] ? pick(MERGE_COLOR[word], dark) : t.ansi3);
 // The last answer per URL: shown at once on the next opening while it asks again.
 const memory = {};
 
@@ -76,6 +78,12 @@ function go(view, i) {
 
 function key(view, e, cx) {
   const m = e.modifiers;
+  // The ? panel takes every key; ? or esc closes it.
+  if (view.help) {
+    if (e.key === "escape" || e.key === "?" || (e.key === "/" && m.shift)) view.help = false;
+    return true;
+  }
+  if ((e.key === "?" || (e.key === "/" && m.shift)) && !m.control && !m.platform) return (view.help = true), true;
   const linked = view.blocks?.[view.at]?.preview;
   // ↵ previews a linked Jira issue, ^O goes back, as vim's jump list does.
   if (e.key === "enter" && !m.control && !m.alt && !m.platform && linked) return view.trail.push({ url: view.url, at: view.at }), (view.url = linked), load(view, cx), true;
@@ -194,7 +202,7 @@ function header(d, view, t, dark) {
   const s = GH[d.state];
   const live = !FINAL.has(d.state);
   const tags = [
-    ...(live && d.merge ? [chip(d.merge, MERGE_COLOR[d.merge] ? pick(MERGE_COLOR[d.merge], dark) : t.ansi3)] : []),
+    ...(live && d.merge ? [mergeChip(d.merge, t, dark)] : []),
     ...(props().behind && view.url === props().preview ? [chip("behind", t.ansi3)] : []),
     ...d.labels.map((l) => chip(l, t.dim)),
   ];
@@ -252,14 +260,9 @@ export function previewRender(view) {
       ]
     : [];
   const note = view.busy ? "loading" : view.error;
-  // Only the keys that do something here: ↵ on a linked issue, ^O after one.
-  const hint = ["j k move", "^D ^U 3 blocks", "g G top, end",
-    ...(view.blocks[view.at]?.preview ? ["↵ preview it"] : []),
-    ...(view.trail?.length ? ["^O back"] : []),
-    ...(d?.jira ? ["s status", "⌃↵ open in Jira"] : ["⌃↵ open on GitHub"]), "r refresh", "space close"].join(" · ");
   const footer = h_flex().flex_none().gap(12).items_center().text_size(11).text_color(t.dim)
     .child(div().flex_1().min_w(0).truncate().text_color(view.error ? t.blocked : t.dim).child(d ? note : ""))
-    .child(div().flex_none().child(hint));
+    .child(div().flex_none().child("? keys · esc close"));
   const root = v_flex()
     .id("preview")
     .track_focus(view.handle)
@@ -269,18 +272,57 @@ export function previewRender(view) {
       cx.notify();
     })
     .size_full()
+    .relative()
     .min_h(0)
     .p(16)
     .gap(10)
     .bg(t.popover)
     .text_size(13);
-  if (d?.jira) return root.p(22).child(jiraRender(view, d, t, dark, footer));
-  return root
+  const help = (el) => el.when(Boolean(view.help), (el) => el.child(helpPanel(d, t, dark)));
+  if (d?.jira) return help(root.p(22).child(jiraRender(view, d, t, dark, footer)));
+  return help(root
     .child(v_flex().id("pv-list").flex_1().min_h(0).overflow_y_scrollbar().track_scroll(view.scroll).gap(4)
       .children(view.blocks.map((b, i) => v_flex().id(`pv-block-${i}`).p(10).rounded(6).border_1()
         .border_color(i === view.at ? t.accent : t.popover)
         .on_click((_e, cx) => { view.at = i; cx.notify(); })
         .child(b.el)))
       .when(!d, (el) => el.child(div().p(10).text_color(view.error ? t.blocked : t.dim).child(note || "Nothing to show."))))
-    .child(footer);
+    .child(footer));
+}
+
+// ?: the preview's keys, and what its marks mean, for a Jira issue or a GitHub PR or issue.
+function helpPanel(d, t, dark) {
+  const keys = [
+    ["j k ↓ ↑", "move between blocks"], ["^D ^U", "3 blocks down, up"], ["g G", "top, end"],
+    ...(d?.jira
+      ? [["↵", "preview a linked issue"], ["^O", "back"], ["s", "change status"], ["⌃↵", "open the block in Jira"]]
+      : [["⌃↵", "open the block on GitHub"]]),
+    ["r", "refresh"], ["esc space", "close"],
+  ];
+  const text = (word, color) => div().text_size(12).text_color(color).child(word);
+  const marks = d?.jira
+    ? [
+      [h_flex().gap(4).children(["Bug", "Story", "Task", "Epic"].map((k) => div().size(10).rounded(2).bg(colorOf(TYPE_COLOR, k, dark, t)))), "type: bug, story, task, epic"],
+      [h_flex().gap(4).children(["High", "Medium", "Low", "Lowest"].map((p) => div().size(8).rounded(2).bg(colorOf(PRIORITY_COLOR, p, dark, t)))), "priority: high, medium, low, lowest"],
+      [statusChip("To Do", "new", t, dark), "status: not started"],
+      [statusChip("In Progress", "indeterminate", t, dark), "status: in progress"],
+      [statusChip("Done", "done", t, dark), "status: done"],
+      [text("is blocked by", pick(RED, dark)), "an open issue blocks it"],
+      [div().text_size(12).text_color(t.dim).line_through().child("ABC-12"), "the linked issue is done"],
+      [epic("Epic", hue("ABC-1", t), t), "parent"],
+      [chip("label", t.muted), "label"],
+    ]
+    : [
+      ...stateMarks(t, dark),
+      [text("approved", pick(REVIEW_COLOR.APPROVED, dark)), "a review approved it"],
+      [text("changes", pick(REVIEW_COLOR.CHANGES_REQUESTED, dark)), "a review asks for changes"],
+      [text("failed", pick(CHECK_COLOR.failed, dark)), "a check failed; a click opens it"],
+      [text("running", pick(CHECK_COLOR.running, dark)), "a check is running"],
+      ...[["ready to merge", "GitHub can merge it"], ["conflicts", "conflicts with the base branch"], ["checks failing", "required checks fail"],
+        ["behind base", "the base has newer commits"], ["blocked", "a rule blocks the merge"]].map(([w, x]) => [mergeChip(w, t, dark), x]),
+      [chip("behind", t.ansi3), "your checkout is behind the PR"],
+      [chip("label", t.dim), "label"],
+      [text("bot", t.foreground).opacity(0.5), "faded: a bot wrote it"],
+    ];
+  return keyPanel(t, [["KEYS", keys], ["MARKS", marks]]);
 }

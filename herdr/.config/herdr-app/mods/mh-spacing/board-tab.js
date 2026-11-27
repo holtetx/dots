@@ -110,6 +110,5 @@ export function boardTab(view, t) {
     // hide has no row here, so a reset keeps it.
     reset: Object.keys(shared(KEY) ?? {}).some((k) => k !== "hide") ? () => setShared(KEY, shared(KEY).hide ? { hide: shared(KEY).hide } : {}) : null,
     resetLabel: "Reset to defaults",
-    hint: view.editing === "add-repo" ? "↵ add · esc close" : "↑↓ choose · space toggle · a add repo · tab sidebar · esc close",
   };
 }

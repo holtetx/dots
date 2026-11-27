@@ -6,7 +6,7 @@
 
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input } from "gpui-base";
-import { button, frame, ink, mark, WORDS } from "./pixel.js";
+import { button, frame, ink, keyPanel, mark, WORDS } from "./pixel.js";
 import { agents, spaces, terminals, run, hc, theme, settings, props, closeOverlay, shared, setShared } from "herdr";
 
 const MARK = { ansi6: "#6fc7bd", ansi3: "#8fa3f0", ansi4: "#7aa7e8", ansi5: "#b394f0", ansi2: "#8fcf94", ansi1: "#e49ac8" };
@@ -34,6 +34,8 @@ function spaceColor(t, p) {
   const c = spaceColors()[p.id] ?? PROJECT_COLORS[0];
   return c.startsWith("#") ? c : (MARK[c] ?? t[c]);
 }
+const avatar = (t, w) => h_flex().size(18).rounded(5).bg(spaceColor(t, w)).items_center().justify_center().text_size(10.5).font_bold().text_color(ink(spaceColor(t, w))).child([...w.name][0]?.toUpperCase() ?? "?");
+const isHelpKey = (e) => (e.key === "?" || (e.key === "/" && e.modifiers.shift)) && !e.modifiers.control && !e.modifiers.platform;
 
 export default class Picker extends View {
   init(_props, cx) {
@@ -63,6 +65,12 @@ export default class Picker extends View {
 
   close() {
     closeOverlay(props().overlay);
+  }
+
+  // The ? panel takes the keyboard from the search field, so nothing is typed under it.
+  setHelp(on) {
+    this.help = on;
+    (on ? this.handle : this.input).focus();
   }
 
   rows() {
@@ -163,7 +171,7 @@ export default class Picker extends View {
           .text_size(11)
           .font_semibold()
           .text_color(t.dim)
-          .child(h_flex().size(18).rounded(5).bg(spaceColor(t, r.w)).items_center().justify_center().text_size(10.5).font_bold().text_color(ink(spaceColor(t, r.w))).child([...r.w.name][0]?.toUpperCase() ?? "?"))
+          .child(avatar(t, r.w))
           .child(r.w.name);
       }
       if (r.kind === "earlier") {
@@ -224,15 +232,28 @@ export default class Picker extends View {
 
     return v_flex()
       .id("picker")
+      .relative()
       .track_focus(this.handle)
       .w_full()
       .min_h(0)
+      .when(Boolean(this.help), (el) => el.min_h(400))
       .p(18)
       .gap(10)
       .bg(t.popover)
       .text_size(13)
       .on_key_down((e, cx) => {
         const k = e.key;
+        // The ? panel takes every key; ? or esc closes it. ? opens it only with the search field empty.
+        if (this.help) {
+          if (k === "escape" || isHelpKey(e)) this.setHelp(false);
+          cx.stop_propagation();
+          return cx.notify();
+        }
+        if (isHelpKey(e) && !this.filter) {
+          this.setHelp(true);
+          cx.stop_propagation();
+          return cx.notify();
+        }
         if (k === "escape") return this.close();
         if (k === "down") this.at = (this.at + 1) % pickable.length;
         else if (k === "up") this.at = (this.at + pickable.length - 1) % pickable.length;
@@ -245,7 +266,7 @@ export default class Picker extends View {
         cx.stop_propagation();
         cx.notify();
       })
-      .child(h_flex().items_center().child(div().flex_1().text_size(15).font_semibold().text_color(t.foreground).child("GO TO…")).child(button(div(), t, false).bg(t.raised).id("picker-esc").px(7).py(2).text_size(11).text_color(t.dim).cursor_pointer().hover((s) => s.text_color(t.foreground)).on_click(() => this.close()).child("Esc")))
+      .child(h_flex().items_center().gap(10).child(div().flex_1().text_size(15).font_semibold().text_color(t.foreground).child("GO TO…")).child(div().text_size(11).text_color(t.dim).child("? keys")).child(button(div(), t, false).bg(t.raised).id("picker-esc").px(7).py(2).text_size(11).text_color(t.dim).cursor_pointer().hover((s) => s.text_color(t.foreground)).on_click(() => this.close()).child("Esc")))
       .child(
         frame(h_flex(), t.accent, t.background).h(36).flex_none().px(12).gap(8).items_center()
           .child(svg("mods/workspace-chrome/search.svg").size(15).text_color(t.dim))
@@ -270,6 +291,22 @@ export default class Picker extends View {
               cx.notify();
             }))
           .children(rows.map((r, i) => (visible(i) ? place(row(r), i) : null)).filter(Boolean)),
-      );
+      )
+      .when(Boolean(this.help), (el) => el.child(this.helpPanel(t)));
+  }
+
+  helpPanel(t) {
+    const keys = [
+      ["type", "filter by space, tab or agent"], ["↓↑", "move"], ["↵", "go to the tab, or make what a + row says"],
+      ["^D", "close the tab"], ["esc", "close"],
+    ];
+    const marks = [
+      [h_flex().gap(6).items_center().children(["working", "blocked", "done"].map((s) => mark(s, t))), "tab: working, needs you, done"],
+      [div().text_color(t.dim).child("○  ·"), "tab: idle agent, no agent"],
+      [div().font_semibold().text_color(t.foreground).child("bold"), "the tab you are on"],
+      [avatar(t, { id: "", name: "Space" }), "a space, in its sidebar color; busy ones first"],
+      [div().text_size(12).text_color(t.dim).child("earlier: 2"), "spaces with no agent running; ↵ shows them"],
+    ];
+    return keyPanel(t, [["KEYS", keys], ["MARKS", marks]]);
   }
 }

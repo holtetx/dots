@@ -4,7 +4,7 @@
 import { View, div } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, Scrollbar } from "gpui-base";
 import { run, props, closeOverlay, theme, spaces, panes, terminals, exec, home } from "herdr";
-import { frame, spinner } from "./pixel.js";
+import { frame, keyPanel, spinner } from "./pixel.js";
 
 // Where a space is now: its first terminal's live folder, else where it was made.
 function place(s, all = panes()) {
@@ -28,6 +28,7 @@ const slug = (branch) => {
   for (const char of normalized) hash = Math.imul(hash ^ char.codePointAt(0), 16777619);
   return `branch-${(hash >>> 0).toString(16).padStart(8, "0")}`;
 };
+const isHelpKey = (e) => (e.key === "?" || (e.key === "/" && e.modifiers.shift)) && !e.modifiers.control && !e.modifiers.platform;
 const ago = (s) => {
   const d = Date.now() / 1000 - s;
   return d < 3600 ? `${Math.max(1, Math.round(d / 60))}m` : d < 86400 ? `${Math.round(d / 3600)}h` : d < 86400 * 60 ? `${Math.round(d / 86400)}d` : `${Math.round(d / 86400 / 30)}mo`;
@@ -259,6 +260,15 @@ export default class Worktree extends View {
   }
 
   key(e, cx) {
+    // The ? panel takes every key and the keyboard from the filter; ? or esc closes it.
+    if (this.opening && (this.help || (isHelpKey(e) && !this.text && this.list))) {
+      if (!this.help || e.key === "escape" || isHelpKey(e)) {
+        this.help = !this.help;
+        (this.help ? this.handle : this.input).focus();
+      }
+      cx.stop_propagation();
+      return cx.notify();
+    }
     if (e.key === "escape") return this.close();
     if (this.opening) {
       const n = this.shown().length;
@@ -305,6 +315,7 @@ export default class Worktree extends View {
     const count = rows.length === all.length ? `${all.length} checkouts` : `${rows.length}/${all.length} checkouts`;
     return v_flex()
       .id("worktree")
+      .relative()
       .track_focus(this.handle)
       .on_key_down((e, cx) => this.key(e, cx))
       .size_full()
@@ -334,7 +345,15 @@ export default class Worktree extends View {
               .child(Scrollbar.vertical("wt-list").absolute().inset_0()),
           ),
       )
-      .child(h_flex().justify_end().text_size(11).text_color(t.dim).child("\u2191\u2193 choose \u00b7 \u21b5 open \u00b7 esc close"));
+      .child(h_flex().justify_end().text_size(11).text_color(t.dim).child("? keys · esc close"))
+      .when(Boolean(this.help), (el) => el.child(keyPanel(t, [
+        ["KEYS", [["type", "filter by branch or folder"], ["↓↑", "move"], ["↵", "go to its space, or open it in a new one"], ["esc", "close"]]],
+        ["MARKS", [
+          [div().text_size(11).text_color(t.dim).child("main checkout"), "the repo's own folder, not a worktree"],
+          [div().text_size(11).text_color(t.accent).child("open"), "a space shows it"],
+          [div().text_size(11).text_color(t.dim).child("3d"), "its last commit"],
+        ]],
+      ])));
   }
 
   render(cx) {
