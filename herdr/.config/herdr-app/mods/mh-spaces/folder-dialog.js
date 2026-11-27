@@ -23,7 +23,7 @@ export function folderInit(view, cx) {
   view.busy = false;
   view.handle = cx.focus_handle();
   bindPanelKeys(cx);
-  view.name = track(view, InputState.new({ placeholder: "Name", value: f?.name ?? "" }));
+  view.name = typingIn(view, InputState.new({ placeholder: "Name", value: f?.name ?? "" }));
   view.name.on("submit", (_e, cx) => save(view, cx));
   view.rows = ["", ...(sf.machines ?? []).map((m) => m.name)].map((key) => {
     const at = f?.paths?.[key];
@@ -38,7 +38,7 @@ export function folderInit(view, cx) {
 }
 
 // The field with the keyboard, kept while the ? panel has it.
-function track(view, input) {
+function typingIn(view, input) {
   input.on("focus", () => { view.typing = input; });
   input.on("blur", () => { if (view.typing === input && !view.help) view.typing = null; });
   return input;
@@ -46,7 +46,7 @@ function track(view, input) {
 
 // One more path field for a machine's row.
 function add(view, row, value = "", placeholder = "Another path") {
-  const input = track(view, InputState.new({ placeholder, value }));
+  const input = typingIn(view, InputState.new({ placeholder, value }));
   input.on("submit", (_e, cx) => save(view, cx));
   row.inputs.push(input);
   return input;
