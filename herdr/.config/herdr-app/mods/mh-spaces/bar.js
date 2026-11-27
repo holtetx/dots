@@ -2,7 +2,8 @@
 
 import { div, svg } from "gpui-kit";
 import { h_flex } from "gpui-base";
-import { agents, exec, focused, run, shared, theme, window as appWindow } from "herdr";
+import { agents, exec, focused, keys, run, shared, theme, window as appWindow } from "herdr";
+import { box } from "./pixel.js";
 import { badge, unknown } from "./github.js";
 
 // shortcut: polls the shown repo every 5 s instead of watching its files; switch to watchFolder if it lags.
@@ -94,13 +95,33 @@ function team(t) {
         .child(`${n} ${word}`)));
 }
 
+// The global key for an action, as symbols ("⌘⇧P"), like mh-help's.
+function chord(action) {
+  const k = keys().find((x) => x.section === "global" && x.action === action)?.keys;
+  if (!k) return "";
+  const names = appWindow()?.platform === "macos" ? { ctrl: "⌃", alt: "⌥", shift: "⇧", cmd: "⌘" } : { ctrl: "Ctrl+", alt: "Alt+", shift: "Shift+", cmd: "Super+" };
+  const parts = k.split(/\s+/)[0].split("-");
+  const key = parts.pop() || "-";
+  return Object.keys(names).filter((m) => parts.includes(m)).map((m) => names[m]).join("") + key.toUpperCase();
+}
+
+// Pixel HQ's status bar buttons: the key list and the command palette.
+function buttons(t) {
+  const button = (id, label, action) => h_flex().id(id).relative().flex_none().h(22).pl(7).pr(9).pb(2).items_center()
+    .children(box(t.input, t.chrome)).text_size(10).font_bold().text_color(t.muted).cursor_pointer().hover((s) => s.text_color(t.foreground))
+    .on_click(action).child(div().relative().child(label));
+  return h_flex().flex_none().gap(6).items_center()
+    .child(button("bar-hotkeys", `${chord("mod.open:mh-help")} HOTKEYS`.trim(), () => run("mod.open", { name: "mh-help" })))
+    .child(button("bar-commands", `${chord("app.palette")} COMMANDS`.trim(), () => run("app.palette")));
+}
+
 export function barRender(view) {
   const t = theme();
   const id = focused()?.space;
   const g = shared("git.spaces")?.[id];
   const bar = h_flex().size_full().px(12).gap(16).items_center().overflow_hidden().bg(t.chrome).text_size(11.8).text_color(t.muted);
   const crew = team(t);
-  if (!g) return bar.child(div().flex_1()).when(Boolean(crew), (el) => el.child(crew));
+  if (!g) return bar.child(div().flex_1()).when(Boolean(crew), (el) => el.child(crew)).child(buttons(t));
   const d = view.diff[JSON.stringify([g.machine, g.top])];
   const gh = shared("github") ?? {};
   const prs = prsOf(id, gh);
@@ -137,5 +158,6 @@ export function barRender(view) {
     .children(prs.map((u, i) => h_flex().min_w(0).flex_shrink(1).gap(6).items_center()
       .child(badge(u, gh.items ?? {}, t, `bar-pr-${i}`))
       .child(div().min_w(0).max_w(280).truncate().child(gh.items?.[u]?.title ?? ""))))
-    .when(Boolean(crew), (el) => el.child(div().w(1).h(14).flex_none().bg(t.border)).child(crew));
+    .when(Boolean(crew), (el) => el.child(div().w(1).h(14).flex_none().bg(t.border)).child(crew))
+    .child(buttons(t));
 }

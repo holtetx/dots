@@ -1,7 +1,7 @@
 import { View, div, svg, image } from "gpui-kit";
 import { h_flex, ScrollHandle } from "gpui-base";
 import { box, spinner } from "./pixel.js";
-import { spaces, panes, agents, run, openOverlay, theme, window, shared, setShared, layout, settings, focused, nextCommand, exec, home, notify } from "herdr";
+import { spaces, panes, agents, run, openOverlay, theme, window, shared, setShared, layout, settings, focused, nextCommand, exec, home, notify, setBadge } from "herdr";
 
 
 // A Pixel HQ box: rounded, a 1px frame, brighter when on.
@@ -57,6 +57,21 @@ function askWaiting(id, waiting) {
   setShared("spaces.waiting.ask", [...(shared("spaces.waiting.ask") ?? []), { id, waiting }]);
 }
 
+// ctrl-a N: a sample of each kind of toast in turn, to see how they look.
+let sample = 0;
+function testToast() {
+  const a = agents().find((x) => x.address === focused()?.terminal) ?? agents()[0];
+  const where = a && { title: `${a.program?.name ?? "Agent"} `, body: `${a.space_name} / ${a.tab_name}`, action: { name: "agent.focus", args: { terminal: a.address } } };
+  const kinds = [
+    where && { ...where, title: where.title + "needs you" },
+    where && { ...where, title: where.title + "finished" },
+    { title: "Sample info toast", body: "Something happened that you may want to know.", level: "info" },
+    { title: "Sample warning toast", body: "Something may need a look.", level: "warning" },
+    { title: "Sample error toast", body: "Something failed.", level: "error" },
+  ].filter(Boolean);
+  notify(kinds[sample++ % kinds.length]);
+}
+
 // A visit moves a space up the sidebar, so a run of steps keeps the order it started with.
 let held = { order: [], last: null };
 
@@ -98,6 +113,10 @@ export default class Tabs extends View {
         if (nth) {
           const id = spaceOrder()[Number(nth[1]) - 1];
           if (id) run("space.select", { id });
+          continue;
+        }
+        if (command === "test-toast") {
+          testToast();
           continue;
         }
         if (command === "waiting") {
@@ -177,6 +196,11 @@ export default class Tabs extends View {
 
   render() {
     const t = theme();
+    const blocked = agents().filter((a) => a.status === "blocked").length;
+    if (blocked !== this.badge) {
+      this.badge = blocked;
+      setBadge(blocked ? String(blocked) : null);
+    }
     const space = spaces().find(p => p.active);
     const shown = space?.tabs ?? [];
     const active = shown.findIndex(tab => tab.active);

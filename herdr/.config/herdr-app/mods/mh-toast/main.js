@@ -63,7 +63,7 @@ export default class Toast extends View {
     const detail = a
       ? h_flex().gap(6).items_center().text_size(11).text_color(t.muted).overflow_hidden()
         .child(chip)
-        .child(div().min_w(0).truncate().child(a.space_name))
+        .child(div().flex_none().max_w(180).truncate().child(a.space_name))
         .when(Boolean(branch), (el) => el.child(div().flex_none().text_color(t.dim).child("·")).child(div().min_w(0).truncate().child(branch)))
       : h_flex().gap(6).items_center().min_w(0).child(chip).when(Boolean(p.body) && !login, (el) => el.child(text(p.body).min_w(0).text_size(11).text_color(t.muted)));
     return h_flex()

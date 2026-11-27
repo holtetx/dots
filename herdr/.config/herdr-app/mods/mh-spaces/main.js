@@ -113,6 +113,13 @@ const parsedRunning = (text) => {
 };
 // A section's fold mark; folded, it takes the most urgent status's color.
 const chevron = (folded, top, t) => svg(`mods/workspace-chrome/chevron-${folded ? "right" : "down"}.svg`).size(11).flex_none().when(Boolean(folded && top), (el) => el.text_color(t[top]));
+// The branch a folder's checkout is on: the one most of its spaces (not worktrees) share.
+const checkoutBranch = (rows) => {
+  const n = {};
+  for (const r of rows) if (r.g?.branch && !r.g.linked) n[r.g.branch] = (n[r.g.branch] ?? 0) + 1;
+  return Object.keys(n).sort((a, b) => n[b] - n[a])[0] ?? null;
+};
+
 const urgent = (rows) => rows.map((r) => r.w.status).reduce((m, st) => ((URGENT[st] ?? 0) > (URGENT[m] ?? 0) ? st : m), null);
 
 function loadState() {
@@ -935,7 +942,9 @@ export default class Spaces extends View {
     // Where the active space's row lands among the list's children: it scrolls by them.
     this.activeAt = -1;
     const rows = (members, shut) => {
+      const shown = members.filter((r) => !shut || r.w.active);
       for (const r of members) {
+        r.last = r === shown.at(-1);
         listed.push(r.w.id);
         if (shut && !r.w.active) {
           hidden.add(r.w.id);
@@ -948,8 +957,11 @@ export default class Spaces extends View {
     };
     for (const f of tree.list) {
       const members = tree.inside.get(f.id);
+      const branch = checkoutBranch(members);
+      for (const r of members) r.folderBranch = branch;
       const color = f.color ? (MARK[f.color] ?? t[f.color]) : t.dim;
       out.push(collapsed ? this.railHead(f.id, f.name, color, folded.has(f.id), members, t) : this.folderHead(f, color, members, folded.has(f.id), t, tree.list));
+      if (!collapsed && branch && !folded.has(f.id)) out.push(this.branchLine(f.id, branch, color, t));
       rows(members, folded.has(f.id));
     }
     const dragging = this.pressed !== null && Boolean(this.rowsById.get(this.pressed)?.folder);
@@ -1198,13 +1210,23 @@ export default class Spaces extends View {
     const crew = [["blocked", "needs you"], ["working", "working"], ["done", "done"]]
       .map(([st, word]) => [st, word, mine.filter((a) => a.status === st).length]).filter(([, , n]) => n);
     const counts = mine.filter((a) => a.status !== "idle").length > 1 ? crew : [];
+    // Pixel HQ's second line: where it is (the space name when the title is a session and no folder says it), its own branch, and its agents when more than one.
+    const repo = !r.folder && label !== w.name ? w.name : null;
+    const aboard = mine.length > 1 ? `${mine.length} agents` : null;
+    // The folder header shows its checkout's branch: a row repeats a branch only when it is on another one (a worktree).
+    const branch = g?.branch && (g.linked || g.branch !== r.folderBranch) ? g.branch : null;
+    const line = Boolean(repo || branch || aboard);
+    const height = 30 + (line ? 18 : 0) + (counts.length ? 20 : 0);
+    // The station sits beside the title line, which is the first of the centered lines.
+    const lines = 18 + (line ? 18 : 0) + (counts.length ? 20 : 0);
+    const station = (height - lines) / 2 + 4;
     return v_flex()
       .relative()
       .id(`space-${w.id}`)
       // Under a header, the title lines up with the folder's name (8 + 12 icon + 7 gap).
       .pl(this.filed || r.ssh || r.waiting ? 27 : 8)
       .pr(8)
-      .h(counts.length ? 48 : 30)
+      .h(height)
       .flex_none()
       .justify_center()
       .gap(4)
@@ -1264,14 +1286,31 @@ export default class Spaces extends View {
       )
       // Pixel HQ's metro line: a track down the section, a station per space in its status color.
       .when(this.filed || r.ssh || r.waiting, (el) => el
-        .child(div().absolute().left(13).top(-8).bottom(-8).w(2).bg(t.raised))
-        .child(div().absolute().left(9).top(counts.length ? 9 : 10).size(10)
+        .child(div().absolute().left(13).top(-8).bottom(r.last ? height - station - 5 : -8).w(2).bg(t.raised))
+        .child(div().absolute().left(9).top(station).size(10)
           .children(notch(w.status && w.status !== "idle" ? t[w.status] : t.input, [0, 0, 0, 0]))
           .when(on, (d) => d.child(div().absolute().left(3).top(3).size(4).bg(t.foreground)))
           .when(w.status === "working", (d) => d.loop("opacity", { from: 0.5, to: 1, period: 1400 }))
           .when(w.status === "blocked", (d) => d.loop("opacity", { from: 0.3, to: 1, period: 700 }))))
+      .when(line, (el) => el.child(h_flex().min_w(0).gap(5).items_center().pl(pref("icon") !== "hidden" ? 27 : 0).text_size(11).text_color(t.dim)
+        .children([
+          repo && [div().flex_none().max_w(110).truncate().child(repo)],
+          branch && [svg("mods/workspace-chrome/git-branch.svg").size(10).flex_none(), div().min_w(0).truncate().text_color(t.muted).child(branch),
+            ...(g.ahead > 0 ? [div().flex_none().text_color(t.ansi2).child(`↑${g.ahead}`)] : []),
+            ...(g.behind > 0 ? [div().flex_none().text_color(t.ansi1).child(`↓${g.behind}`)] : [])],
+          aboard && [div().flex_none().child(aboard)],
+        ].filter(Boolean).flatMap((part, i) => (i ? [div().flex_none().child("·"), ...part] : part)))))
       .when(counts.length > 0, (el) => el.child(h_flex().gap(4).pl(pref("icon") !== "hidden" ? 27 : 0).children(counts.map(([st, word, n]) =>
         h_flex().relative().flex_none().px(5).h(16).items_center().children(outline(t[st])).text_size(9.5).font_bold().text_color(t[st]).child(`${n} ${word}`)))));
+  }
+
+  // The folder checkout's branch on a faint tint of the folder's color, on the metro line between its name and its spaces.
+  branchLine(id, branch, color, t) {
+    return h_flex().id(`folder-branch-${id}`).relative().h(24).flex_none().pl(27).pr(8).items_center().tooltip(branch)
+      .child(div().absolute().left(13).top(2).bottom(0).w(2).bg(t.raised))
+      .child(h_flex().min_w(0).h(18).px(6).gap(4).items_center().rounded(6).bg(color.slice(0, 7) + "14").text_size(10.5).text_color(t.muted)
+        .child(svg("mods/workspace-chrome/git-branch.svg").size(10).flex_none().text_color(color))
+        .child(div().min_w(0).truncate().child(branch)));
   }
 
   // One line per subagent (↳) and background shell ($) of the space's agents, under its row.

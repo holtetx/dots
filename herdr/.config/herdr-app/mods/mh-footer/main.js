@@ -4,6 +4,7 @@ import { View, div, svg } from "gpui-kit";
 import { h_flex, HoverCard } from "gpui-base";
 import { theme, home, readTextFile, watchFolder, layout, run, window as appWindow } from "herdr";
 import { syncSettings } from "./settings.js";
+import { box } from "./pixel.js";
 import { contextPanel, measure, shownSession } from "./context.js";
 
 function find(node, id) {
@@ -70,10 +71,11 @@ export default class Footer extends View {
     const session = shownSession();
     const shown = WINDOWS.map(([key, short, long]) => ({ key, short, long, w: this.limits?.[key] })).filter((x) => x.w);
     const collapsed = narrow();
-    const button = (id, icon, tip, action) => div().id(id).flex_none().p(3).rounded(5).text_color(t.dim)
-      .cursor_pointer().hover((s) => s.bg(t.hover).text_color(t.foreground)).tooltip(tip)
+    const button = (id, icon, tip, action) => div().id(id).relative().flex_none().size(20).pr(2).pb(2).flex().items_center().justify_center()
+      .children(box(t.input, t.chrome)).text_color(t.muted)
+      .cursor_pointer().hover((s) => s.text_color(t.foreground)).tooltip(tip)
       .on_click(action)
-      .child(svg(icon).size(13));
+      .child(svg(icon).size(11));
     const settings = button("settings", "mods/workspace-chrome/settings.svg", "Settings", () => run("app.settings"));
     const context = (s) => {
       const fill = s.context >= 80 ? t.blocked : s.context >= 60 ? t.ansi3 : t.done;
@@ -89,7 +91,7 @@ export default class Footer extends View {
     return h_flex()
       .size_full()
       .px(collapsed ? 0 : 12)
-      .gap(collapsed ? 8 : 10)
+      .gap(8)
       .items_center()
       .when(collapsed, (el) => el.justify_center())
       .bg(t.chrome)
@@ -113,7 +115,7 @@ export default class Footer extends View {
             .when(!collapsed, (el) => el.child(div().text_color(pct >= 75 ? fill : t.muted).child(`${short.toUpperCase()} ${pct}%`)));
         }),
       )
-      .when(!collapsed, (el) => el.child(div().flex_1()).child(h_flex().flex_none().gap(2)
+      .when(!collapsed, (el) => el.child(div().flex_1()).child(h_flex().flex_none().gap(3)
         .child(button("spacing", "mods/mh-spacing/sliders.svg", "Spacing, hints, links and sidebar", () => run("mod.open", { name: "mh-spacing" })))
         .child(settings)))
       .when(collapsed, (el) => el.child(settings));
