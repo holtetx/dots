@@ -100,6 +100,14 @@ const rootOf = (g) => {
 // When an agent in the space last changed state (0: not since Herdr started).
 const activity = (w) => Math.max(0, ...w.tabs.map((t) => t.changed_at ?? 0));
 const URGENT = { blocked: 3, done: 2, working: 1 };
+const parsedRunning = (text) => {
+  try {
+    const list = JSON.parse(text);
+    return Array.isArray(list) ? list : [];
+  } catch {
+    return [];
+  }
+};
 // A section's fold mark; folded, it takes the most urgent status's color.
 const chevron = (folded, top, t) => svg(`mods/workspace-chrome/chevron-${folded ? "right" : "down"}.svg`).size(11).flex_none().when(Boolean(folded && top), (el) => el.text_color(t[top]));
 const urgent = (rows) => rows.map((r) => r.w.status).reduce((m, st) => ((URGENT[st] ?? 0) > (URGENT[m] ?? 0) ? st : m), null);
@@ -919,13 +927,15 @@ export default class Spaces extends View {
     this.agentsOf = new Map();
     // A title a skill gave the session (hc label <terminal> mh.description=<title>).
     this.titles = new Map(ts.filter((k) => k.labels?.["mh.description"]?.trim()).map((k) => [k.address, k.labels["mh.description"].trim()]));
+    // Claude Code's subagents and background shells, which have no terminal of their own (hooks/herdr-activity.sh sets claude.running).
+    this.running = new Map(ts.filter((k) => k.labels?.["claude.running"]).map((k) => [k.address, parsedRunning(k.labels["claude.running"])]));
     for (const a of agents()) this.agentsOf.set(a.space, [...(this.agentsOf.get(a.space) ?? []), a]);
     const folded = new Set(shared("space-folders.folded") ?? []);
     const out = [];
     const order = [];
     const listed = [];
     const hidden = new Set();
-    const draw = (r) => (collapsed ? this.compact(r, t) : this.row(r, t));
+    const draw = (r) => (collapsed ? [this.compact(r, t)] : [this.row(r, t), ...this.runningRows(r, t)]);
     // Where the active space's row lands among the list's children: it scrolls by them.
     this.activeAt = -1;
     const rows = (members, shut) => {
@@ -937,7 +947,7 @@ export default class Spaces extends View {
         }
         r.n = order.push(r.w.id);
         if (r.w.active) this.activeAt = out.length;
-        out.push(draw(r));
+        out.push(...draw(r));
       }
     };
     for (const f of tree.list) {
@@ -1096,7 +1106,7 @@ export default class Spaces extends View {
       .on_click((_e, cx) => { setShared("waiting.open", !open); cx.notify(); })
       .when(!collapsed, (el) => el.child(div().flex_1().child("Waiting")))
       .child(chevron(!open, top, t));
-    return [collapsed ? railCell(head) : head, ...(open ? waiting.map(draw) : [])];
+    return [collapsed ? railCell(head) : head, ...(open ? waiting.flatMap(draw) : [])];
   }
 
   // A row per machine that needs you: asleep, a login (with the command to Copy),
@@ -1249,6 +1259,50 @@ export default class Spaces extends View {
           .when(w.tabs.length > 1, (el) => el.child(this.tabDots(w, t)))
           .when(Boolean(mark), (el) => el.child(mark)),
       );
+  }
+
+  // One line per subagent (↳) and background shell ($) of the space's agents, under its row.
+  runningRows(r, t) {
+    const { w } = r;
+    const items = (this.agentsOf.get(w.id) ?? []).flatMap((a) => (this.running.get(a.address) ?? []).map((it) => ({ ...it, owner: a.address })));
+    return items.map((it, i) => h_flex()
+      .id(`space-running-${w.id}-${i}`)
+      // The title's left edge: the row's padding, plus the icon and its gap when shown.
+      .pl((this.filed || r.ssh || r.waiting ? 27 : 8) + (pref("icon") !== "hidden" ? 27 : 0))
+      .pr(8)
+      .h(22)
+      .flex_none()
+      .gap(6)
+      .items_center()
+      .rounded(6)
+      .text_size(11.5)
+      .hover((s) => s.bg(t.hover))
+      .tooltip(it.kind === "shell" ? `Background shell: ${it.detail}` : `Subagent (${it.detail})`)
+      .on_click((_e, cx) => this.follow(w, it, cx))
+      .child(div().flex_none().w(10).text_color(t.dim).child(it.kind === "shell" ? "$" : "↳"))
+      .child(div().flex_1().min_w(0).truncate().text_color(t.muted).child(it.name))
+      .child(svg("mods/workspace-chrome/spinner.svg").size(10).flex_none().text_color(t.dim).spin(1400)));
+  }
+
+  // A subagent's transcript or a shell's output, live, as a peek over the space (follow.sh).
+  // One view per file: a second click shows it again. The file path is local to its machine.
+  follow(w, it, cx) {
+    run("space.select", { id: w.id });
+    if (!it.file || w.machine) return;
+    this.followers ??= new Map();
+    const open = this.followers.get(it.file);
+    if (open && terminals().some((x) => x.address === open && x.state === "live")) return run("terminal.peek", { terminal: open });
+    cx.spawn(async (cx) => {
+      const r = await hc(["run", "--json", "--bg", "--rm", "--no-parent", "--", "bash", `${appHome()}/mods/mh-spaces/follow.sh`, it.file, it.owner]);
+      let address = null;
+      try {
+        address = r.code === 0 ? JSON.parse(r.stdout).address : null;
+      } catch {}
+      if (!address) return notify({ title: `Couldn't show ${it.name}`, body: (r.stderr || r.stdout || "hc run failed").trim() });
+      this.followers.set(it.file, address);
+      for (let waited = 0; waited < 3000 && !terminals().some((x) => x.address === address); waited += 25) await new Promise((done) => cx.timer.after(25, done));
+      run("terminal.peek", { terminal: address });
+    });
   }
 
   compact({ w, n }, t) {
