@@ -5,6 +5,7 @@
 import { div, svg } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input } from "gpui-base";
 import { shared, setShared } from "herdr";
+import { box, field } from "./pixel.js";
 
 const KEY = "mh-board";
 const DEFAULTS = { repos: [], skip: [] };
@@ -79,12 +80,14 @@ export function boardKey(view, e) {
   return true;
 }
 
+// A pixel checkbox, also on the spacing dialog's other tabs.
+export const check = (t, on) => div().relative().size(16).pr(2).pb(2).flex_none().flex().items_center().justify_center()
+  .children(box(on ? t.accent : t.input, on ? t.accent : t.chrome, t.canvas))
+  .when(on, (el) => el.text_color(t.accent_foreground).child(svg("mods/workspace-chrome/check.svg").size(10)));
+
 export function boardTab(view, t) {
   const list = rows();
   view.board = Math.max(0, Math.min(view.board, list.length - 1));
-  const check = (on) => div().size(14).flex_none().flex().items_center().justify_center().rounded(4).border_1()
-    .border_color(on ? t.accent : t.input).when(on, (el) => el.bg(t.accent).text_color(t.accent_foreground))
-    .when(on, (el) => el.child(svg("mods/workspace-chrome/check.svg").size(10)));
   const row = (r, i) => h_flex()
     .id(`board-${r.kind}-${r.id}`)
     .h(30)
@@ -92,19 +95,19 @@ export function boardTab(view, t) {
     .gap(10)
     .flex_none()
     .items_center()
-    .rounded(7)
+    .rounded(6)
     .cursor_pointer()
     .when(i === view.board, (el) => el.bg(t.selected))
     .when(i !== view.board, (el) => el.hover((s) => s.bg(t.hover)))
     .on_click((_e, cx) => { view.board = i; toggle(r); cx.notify(); })
-    .child(check(r.on))
+    .child(check(t, r.on))
     .child(div().flex_1().min_w(0).truncate().text_color(r.on ? t.foreground : t.muted).child(r.label))
     .child(div().flex_none().text_size(11.5).text_color(t.dim).child(r.about));
-  const section = (label) => div().px(8).pt(8).pb(2).flex_none().text_size(11).text_color(t.dim).child(label);
-  const children = [section("Repos: their open PRs and issues")];
+  const section = (label) => div().px(8).pt(8).pb(2).flex_none().text_size(11).font_semibold().text_color(t.dim).child(label);
+  const children = [section("REPOS: THEIR OPEN PRs AND ISSUES")];
   children.push(h_flex().px(8).py(2).flex_none()
-    .child(Input.new(view.addRepo).flex_1().min_w(0).h(28).px(8).items_center().rounded(6).border(1)
-      .border_color(view.editing === "add-repo" ? t.accent : t.input).bg(t.background).text_color(t.foreground)));
+    .child(div().relative().flex_1().min_w(0).children(field(view.editing === "add-repo" ? t.accent : t.input, t.background))
+      .child(Input.new(view.addRepo).h(28).px(10).items_center().text_color(t.foreground))));
   if (view.addError) children.push(div().px(8).flex_none().text_size(11.5).text_color(t.blocked).child(view.addError));
   list.forEach((r, i) => children.push(row(r, i)));
   return {

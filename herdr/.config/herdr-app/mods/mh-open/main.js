@@ -5,6 +5,7 @@
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, ScrollHandle } from "gpui-base";
 import { spaces, panes, machines, theme, props, run, exec, closeOverlay, nextCommand } from "herdr";
+import { field } from "./pixel.js";
 
 const LIST = 440;
 const CAP = 100;
@@ -92,7 +93,7 @@ export default class Open extends View {
       const here = open.get(k) ?? new Set();
       const all = [...new Set([...(ranked ?? []), ...here])].map((path) => ({ path, machine: m, open: here.has(path) }));
       const hits = all.filter((r) => tokens.every((t) => `${tilde(r.path)} ${k}`.toLowerCase().includes(t)));
-      out.push({ name: m ?? "This computer", list: hits.slice(0, CAP), total: hits.length, loading: ranked === undefined });
+      out.push({ name: m ?? "THIS COMPUTER", list: hits.slice(0, CAP), total: hits.length, loading: ranked === undefined });
     }
     return out;
   }
@@ -150,7 +151,7 @@ export default class Open extends View {
         .px(10)
         .gap(9)
         .items_center()
-        .rounded(7)
+        .rounded(4)
         .cursor_pointer()
         .when(on, (el) => el.bg(t.selected))
         .when(!on, (el) => el.hover((st) => st.bg(t.hover)))
@@ -168,7 +169,7 @@ export default class Open extends View {
       if (!list.length && !loading) continue;
       if (name) {
         headers++;
-        children.push(h_flex().h(26).px(10).pt(6).flex_none().items_center().text_size(11).text_color(t.dim).child(loading ? `${name} · loading…` : `${name} · ${total > list.length ? `${list.length} of ${total}` : list.length}`));
+        children.push(h_flex().h(26).px(10).pt(6).flex_none().items_center().text_size(11).font_semibold().text_color(t.dim).child(loading ? `${name} · loading…` : `${name} · ${total > list.length ? `${list.length} of ${total}` : list.length}`));
       }
       for (const r of list) {
         this.childOf[n] = children.length;
@@ -202,18 +203,16 @@ export default class Open extends View {
       .gap(10)
       .bg(t.popover)
       .text_size(13)
-      .child(div().text_size(15).font_semibold().text_color(t.foreground).child("Open location"))
+      .child(div().text_size(15).font_semibold().text_color(t.foreground).child("OPEN LOCATION"))
       .child(
         h_flex()
           .h(36)
           .flex_none()
-          .px(10)
+          .relative()
+          .px(12)
           .gap(8)
           .items_center()
-          .rounded(9)
-          .border_1()
-          .border_color(t.accent)
-          .bg(t.background)
+          .children(field(t.accent, t.background))
           .child(svg(ICON("search")).size(15).text_color(t.dim))
           .child(Input.new(this.input).flex_1().h_full().text_size(12.8).text_color(t.foreground)),
       )

@@ -19,6 +19,7 @@
 
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex, ScrollHandle } from "gpui-base";
+import { box, notch, outline, spinner } from "./pixel.js";
 import { spaces, machines, panes, terminals, agents, focused, props, nextCommand, run, openOverlay, closeOverlay, exec, hc, home, appHome, readTextFile, theme, shared, setShared, window, layout, notify } from "herdr";
 import { branchName, expand, kinds, scanAgent } from "./github.js";
 import { githubDue, unreadDue } from "./github-poll.js";
@@ -35,7 +36,6 @@ import { barInit, barRender } from "./bar.js";
 import { telling } from "./title.js";
 import { discoverRepos } from "./board-data.js";
 
-const SPARKLE = ["·", "✢", "✳", "✶", "✻", "✽", "✻", "✶", "✳", "✢"];
 
 function find(node, id) {
   if (node?.id === id) return node;
@@ -123,14 +123,6 @@ function loadState() {
   }
 }
 
-// A space speaks up only when something in it needs you.
-export function glyph(status) {
-  return status === "blocked" ? "!" : status === "done" ? "✓" : "·";
-}
-
-function tone(t, status) {
-  return t[status] ?? t.unknown;
-}
 
 // The open board, which ctrl-a T closes again.
 let boardOverlay = null;
@@ -1088,11 +1080,11 @@ export default class Spaces extends View {
   }
 
   emptyRow(t, collapsed) {
-    const el = h_flex().id("spaces-new").h(28).flex_none().px(collapsed ? 0 : 8).gap(7).items_center().rounded(7)
+    const el = h_flex().id("spaces-new").h(28).flex_none().px(collapsed ? 0 : 8).gap(7).items_center().rounded(6)
       .text_size(12).text_color(t.dim).hover((st) => st.bg(t.hover).text_color(t.foreground))
       .on_click(() => run("space.new", { machine: "" }))
       .when(collapsed, (el) => el.w(RAIL_CELL).rounded(6).justify_center().tooltip("New space")
-        .child(h_flex().size(18).rounded(5).border_1().border_color(t.dim).items_center().justify_center()
+        .child(h_flex().relative().size(20).pr(2).pb(2).children(box(t.input, t.chrome, t.canvas)).items_center().justify_center()
           .child(svg("mods/workspace-chrome/plus.svg").size(10))))
       .when(!collapsed, (el) => el.child(svg("mods/workspace-chrome/plus.svg").size(12)).child("New space"));
     return collapsed ? railCell(el) : el;
@@ -1128,12 +1120,12 @@ export default class Spaces extends View {
       const login = machine?.state === "needs_login" ? `hc machine login ${m}` : null;
       const state = loading ? "loading…" : connected ? "unavailable" : (machine?.state ?? "asleep").replace(/_/g, " ");
       const icon = svg("mods/workspace-chrome/server.svg").size(13).flex_none();
-      const badge = div().absolute().right(-3).bottom(-2).size(6).rounded(3).border_1().border_color(t.chrome).bg(connected ? t.ansi2 : t.dim);
-      const head = h_flex().id(`machine-${m}`).h(26).mt(6).flex_none().px(collapsed ? 0 : 8).gap(7).items_center().rounded(6).text_size(11).text_color(t.dim)
+      const badge = div().absolute().right(-3).bottom(-2).size(6).rounded(1).border_1().border_color(t.chrome).bg(connected ? t.ansi2 : t.dim);
+      const head = h_flex().id(`machine-${m}`).h(26).mt(6).flex_none().px(collapsed ? 0 : 8).gap(7).items_center().rounded(6).text_size(11).font_semibold().text_color(t.dim)
         .when(!rebuilt && !loading, (el) => el.cursor_pointer().hover((st) => st.bg(t.hover)).on_click(() => run("app.settings", { section: "machines" })))
         .when(collapsed, (el) => el.w(RAIL_CELL).justify_center().tooltip(login ? `${m} needs a login: run ${login}. Click for Settings.` : `${m} · ${rebuilt ? "rebuilt" : state}`)
           .child(div().relative().flex_none().child(icon).child(badge)))
-        .when(!collapsed, (el) => el.child(icon).child(div().flex_1().truncate().child(m))
+        .when(!collapsed, (el) => el.child(icon).child(div().flex_1().truncate().child(m.toUpperCase()))
           .when(!rebuilt && !login, (el) => el.child(div().flex_none().child(state)))
           .when(rebuilt, (el) => el.child(h_flex().flex_none().gap(3).items_center()
             .child(div().max_w(140).truncate().child(repair?.error || "rebuilt ·"))
@@ -1142,15 +1134,15 @@ export default class Spaces extends View {
               .tooltip(repair?.error || "This machine was rebuilt or replaced. Click to connect to the new one.")
               .on_click((_e, cx) => { cx.stop_propagation(); this.reconnect(machine, cx); })
               .child(repair?.busy ? "Connecting…" : "Connect"))))
-          .child(div().size(6).rounded(3).flex_none().bg(connected ? t.ansi2 : t.dim)));
+          .child(div().size(6).rounded(1).flex_none().bg(connected ? t.ansi2 : t.dim)));
       const guidance = !collapsed && login ? [v_flex().px(8).pb(6).gap(3).flex_none()
         .child(div().text_size(11).text_color(t.blocked).child("needs a login: run"))
         .child(h_flex().gap(5).items_center()
           .child(div().flex_1().min_w(0).truncate().tooltip(login).text_size(11).text_color(t.muted).child(login))
-          .child(div().id(`machine-login-copy-${m}`).flex_none().px(5).py(2).rounded(4)
-            .text_size(11).text_color(t.foreground).bg(t.raised).cursor_pointer().hover((st) => st.bg(t.hover))
+          .child(div().id(`machine-login-copy-${m}`).relative().flex_none().pl(7).pr(9).pt(2).pb(4).children(box(t.input, t.raised, t.canvas))
+            .text_size(10).font_bold().text_color(t.muted).cursor_pointer().hover((st) => st.text_color(t.foreground))
             .on_click((_e, cx) => { cx.stop_propagation(); cx.write_to_clipboard(login); this.copiedLogin = login; cx.notify(); })
-            .child(this.copiedLogin === login ? "Copied" : "Copy")))] : [];
+            .child(this.copiedLogin === login ? "COPIED" : "COPY")))] : [];
       return [collapsed ? railCell(head) : head, ...guidance];
     });
   }
@@ -1182,9 +1174,9 @@ export default class Spaces extends View {
 
   // Working sparkles, blocked asks, done waits to be seen; idle shows nothing.
   mark(status, t) {
-    if (status === "working") return div().w(12).flex_none().flex().justify_center().text_size(13).text_color(t.working).child("·").frames(SPARKLE, 120);
-    if (status === "blocked") return div().size(14).flex_none().rounded(2).border_1().border_color(t.blocked + "66").bg(t.blocked + "26").text_size(10.5).font_bold().text_color(t.blocked).flex().items_center().justify_center().child("!");
-    if (status === "done") return div().flex_none().text_size(12).font_bold().text_color(t.done).child("✓");
+    if (status === "working") return spinner(14).text_color(t.working);
+    if (status === "blocked") return h_flex().relative().size(14).flex_none().children(outline(t.blocked)).text_color(t.blocked).flex().items_center().justify_center().child(svg("mods/mh-spaces/px-bang.svg").size(8));
+    if (status === "done") return div().flex_none().text_color(t.done).child(svg("mods/mh-spaces/px-tick.svg").size(11));
     return null;
   }
 
@@ -1197,18 +1189,25 @@ export default class Spaces extends View {
     const color = colors[w.id] ?? "ansi6";
     const fill = color.startsWith("#") ? color : (MARK[color] ?? t[color]);
     const label = this.label(w);
-    const mark = this.mark(w.status, t);
+    // On the metro line the station shows the status; only working keeps its spinner there, for the motion.
+    const mark = (this.filed || r.ssh || r.waiting) && w.status !== "working" ? null : this.mark(w.status, t);
     // Repo (when the row shows a session title), branch and machine, on the title only: the tab dots have their own.
     const where = [label === w.name ? null : w.name, g?.branch && (g.linked ? `${g.branch} (worktree)` : g.branch), w.machine].filter(Boolean).join(" · ");
+    // Pixel HQ's station chips: with two or more agents busy, how many are in each state.
+    const mine = this.agentsOf.get(w.id) ?? [];
+    const crew = [["blocked", "needs you"], ["working", "working"], ["done", "done"]]
+      .map(([st, word]) => [st, word, mine.filter((a) => a.status === st).length]).filter(([, , n]) => n);
+    const counts = mine.filter((a) => a.status !== "idle").length > 1 ? crew : [];
     return v_flex()
       .relative()
       .id(`space-${w.id}`)
       // Under a header, the title lines up with the folder's name (8 + 12 icon + 7 gap).
       .pl(this.filed || r.ssh || r.waiting ? 27 : 8)
       .pr(8)
-      .h(30)
+      .h(counts.length ? 48 : 30)
       .flex_none()
       .justify_center()
+      .gap(4)
       .rounded(8)
       .when(on, (el) => el.bg(t.selected))
       .when(!on, (el) => el.hover((s) => s.bg(t.hover)))
@@ -1262,7 +1261,17 @@ export default class Spaces extends View {
           .when(this.links?.get(w.id)?.length > 0, (el) => el.child(kinds(this.links.get(w.id), this.items, t, `gh-${w.id}`, () => openLinks(w.id))))
           .when(w.tabs.length > 1, (el) => el.child(this.tabDots(w, t)))
           .when(Boolean(mark), (el) => el.child(mark)),
-      );
+      )
+      // Pixel HQ's metro line: a track down the section, a station per space in its status color.
+      .when(this.filed || r.ssh || r.waiting, (el) => el
+        .child(div().absolute().left(13).top(-8).bottom(-8).w(2).bg(t.raised))
+        .child(div().absolute().left(9).top(counts.length ? 9 : 10).size(10)
+          .children(notch(w.status && w.status !== "idle" ? t[w.status] : t.input, [0, 0, 0, 0]))
+          .when(on, (d) => d.child(div().absolute().left(3).top(3).size(4).bg(t.foreground)))
+          .when(w.status === "working", (d) => d.loop("opacity", { from: 0.5, to: 1, period: 1400 }))
+          .when(w.status === "blocked", (d) => d.loop("opacity", { from: 0.3, to: 1, period: 700 }))))
+      .when(counts.length > 0, (el) => el.child(h_flex().gap(4).pl(pref("icon") !== "hidden" ? 27 : 0).children(counts.map(([st, word, n]) =>
+        h_flex().relative().flex_none().px(5).h(16).items_center().children(outline(t[st])).text_size(9.5).font_bold().text_color(t[st]).child(`${n} ${word}`)))));
   }
 
   // One line per subagent (↳) and background shell ($) of the space's agents, under its row.
@@ -1285,7 +1294,7 @@ export default class Spaces extends View {
       .on_click((_e, cx) => this.follow(w, it, cx))
       .child(div().flex_none().w(10).text_color(t.dim).child(it.kind === "shell" ? "$" : "↳"))
       .child(div().flex_1().min_w(0).truncate().text_color(t.muted).child(it.name))
-      .child(div().w(10).flex_none().flex().justify_center().text_size(11).text_color(t.dim).child("·").frames(SPARKLE, 160)));
+      .child(spinner(10).text_color(t.dim)));
   }
 
   // A subagent's transcript or a shell's output, live, as a peek over the space (follow.sh).
@@ -1310,6 +1319,10 @@ export default class Spaces extends View {
   }
 
   compact({ w, n }, t) {
+    const st = w.status;
+    const mark = st === "working" ? spinner(11).text_color(t.working)
+      : st === "blocked" ? svg("mods/mh-spaces/px-bang.svg").size(9).text_color(t.blocked)
+      : st === "done" ? svg("mods/mh-spaces/px-tick.svg").size(11).text_color(t.done) : null;
     return railCell(h_flex()
       .id(`space-${w.id}`)
       .tooltip(w.machine ? `${w.name} · ${w.machine}` : w.name)
@@ -1323,7 +1336,7 @@ export default class Spaces extends View {
       .when(!w.active, (el) => el.hover((s) => s.bg(t.hover)))
       .on_click(() => run("space.select", { id: w.id }))
       .child(div().text_color(w.active ? t.foreground : t.muted).child(String(n)))
-      .child(div().absolute().right(5).text_color(tone(t, w.status)).child(glyph(w.status))));
+      .when(Boolean(mark), (el) => el.child(div().absolute().right(5).child(mark))));
   }
 
   render() {
@@ -1362,7 +1375,7 @@ export default class Spaces extends View {
       .child(h_flex().h(31).pl(16).pr(10).items_center().justify_between().text_size(11.5).text_color(t.dim)
         .when(collapsed, el => el.pl(0).pr(0).justify_center())
         .when(!collapsed, el => el.font_semibold().child("SPACES"))
-        .child(div().id("space-new").size(26).flex_none().flex().items_center().justify_center().rounded(6).hover(s => s.bg(t.hover).text_color(t.foreground))
+        .child(div().id("space-new").relative().size(26).pr(2).pb(2).flex_none().flex().items_center().justify_center().children(box(t.input, t.chrome, t.canvas)).text_color(t.muted).hover(s => s.text_color(t.foreground))
           .tooltip("New space · right-click: on another machine, or a folder")
           .on_click(() => run("space.new"))
           .on_mouse_down("right", () => openOverlay({ mod: "mh-menu", kind: "popup", width: 240, height: 300, props: { tab: "new" } }))

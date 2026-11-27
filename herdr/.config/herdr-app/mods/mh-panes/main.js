@@ -8,6 +8,7 @@
 import { View, div } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input } from "gpui-base";
 import { spaces, panes, shared, props, run, hc, theme, notify, closeOverlay } from "herdr";
+import { field } from "./pixel.js";
 
 const MARK = { ansi6: "#94e2d5", ansi3: "#fab387", ansi4: "#89b4fa", ansi5: "#cba6f7", ansi2: "#a6e3a1", ansi1: "#f5c2e7" };
 
@@ -135,7 +136,7 @@ export default class Panes extends View {
         .px(10)
         .gap(9)
         .items_center()
-        .rounded(7)
+        .rounded(6)
         .cursor_pointer()
         .when(i === this.at, (el) => el.bg(t.selected))
         .when(i !== this.at, (el) => el.hover((s) => s.bg(t.hover)))
@@ -160,8 +161,8 @@ export default class Panes extends View {
       .gap(10)
       .bg(t.popover)
       .text_size(13)
-      .child(div().font_semibold().text_color(t.foreground).child("Move pane to space"))
-      .child(Input.new(this.input).h(32).px(10).items_center().rounded(6).border(1).border_color(t.accent).bg(t.background).text_color(t.foreground))
+      .child(div().font_semibold().text_color(t.foreground).child("MOVE PANE TO SPACE"))
+      .child(div().relative().flex_none().p(2).children(field(t.accent, t.background)).child(Input.new(this.input).h(28).px(10).items_center().border_0().bg(t.background).text_color(t.foreground)))
       .child(v_flex().flex_1().min_h(0).overflow_y_scrollbar().children(choices.map(row)))
       .child(h_flex().justify_end().text_size(11).text_color(t.dim).child(this.busy ? "moving…" : "↵ move · esc cancel"));
   }

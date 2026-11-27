@@ -40,7 +40,7 @@ export default class NewMenu extends View {
   }
   row(id, icon, name, action, hint = "", enabled = true) {
     const t = theme();
-    return h_flex().id(id).h(31).px(9).gap(10).rounded(7).items_center().flex_none()
+    return h_flex().id(id).h(31).px(9).gap(10).rounded(4).items_center().flex_none()
       .text_color(enabled ? t.foreground : t.dim).when(enabled, el => el.hover(s => s.bg(t.selected)))
       .on_click(() => { if (enabled) { closeOverlay(props().overlay); action(); } })
       .child(icon).child(div().flex_1().child(name)).child(div().text_size(11).text_color(t.dim).child(hint));
@@ -60,7 +60,7 @@ export default class NewMenu extends View {
         run("tab.new", { name: agent.name, space: space?.id, argv: agent.run });
       })
       .child(this.row("terminal", svg("icons/shell.svg").size(14), "Terminal", () => run("tab.new", { space: space?.id }), shortcut("tab.new")))
-      .child(div().px(9).pt(8).pb(4).text_size(11).text_color(t.dim).child("Start an agent"))
+      .child(div().px(9).pt(8).pb(4).text_size(11).font_semibold().text_color(t.dim).child("START AN AGENT"))
       .child(v_flex().flex_1().min_h(0).overflow_y_scrollbar()
         .children(choices.map((a, i) => this.row(a.key, a.tint ? svg(a.icon).size(14).text_color(t.foreground) : image(a.icon).size(14), a.name,
           () => run("tab.new", { name: a.name, space: space?.id, argv: a.run }), a.installed ? (i < 9 ? String(i + 1) : "") : "not installed", a.installed)))

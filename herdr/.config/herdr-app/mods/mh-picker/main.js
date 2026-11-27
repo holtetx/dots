@@ -6,9 +6,8 @@
 
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input } from "gpui-base";
+import { box, field, spinner } from "./pixel.js";
 import { agents, spaces, terminals, run, hc, theme, settings, props, closeOverlay, shared, setShared } from "herdr";
-
-const SPARKLE = ["·", "✢", "✳", "✶", "✻", "✽", "✻", "✶", "✳", "✢"];
 
 const MARK = { ansi6: "#94e2d5", ansi3: "#fab387", ansi4: "#89b4fa", ansi5: "#cba6f7", ansi2: "#a6e3a1", ansi1: "#f5c2e7" };
 
@@ -123,8 +122,9 @@ export default class Picker extends View {
   }
 
   glyph(t, st) {
-    if (st === "working") return div().w(12).flex_none().flex().justify_center().text_size(13).text_color(t.working).child("·").frames(SPARKLE, 120);
-    return div().w(12).flex_none().text_color(t[st] ?? t.dim).child(st === "idle" ? "○" : st === "blocked" ? "!" : st === "done" ? "✓" : st ? "●" : "·");
+    if (st === "working") return div().w(12).flex_none().flex().justify_center().text_color(t.working).child(spinner(12));
+    if (st === "blocked" || st === "done") return div().w(12).flex_none().flex().justify_center().text_color(t[st]).child(svg(`mods/mh-spaces/px-${st === "done" ? "tick" : "bang"}.svg`).size(st === "done" ? 11 : 9));
+    return div().w(12).flex_none().text_color(t[st] ?? t.dim).child(st === "idle" ? "○" : st ? "●" : "·");
   }
 
   render() {
@@ -198,7 +198,7 @@ export default class Picker extends View {
           .px(10)
           .h(32)
           .items_center()
-          .rounded(7)
+          .rounded(6)
           .gap(8)
           .text_color(t.muted)
           .cursor_pointer()
@@ -215,7 +215,7 @@ export default class Picker extends View {
         .mx(4)
         .px(10)
 .h(32)
-        .rounded(7)
+        .rounded(6)
         .gap(10)
         .items_center()
         .cursor_pointer()
@@ -252,9 +252,9 @@ export default class Picker extends View {
         cx.stop_propagation();
         cx.notify();
       })
-      .child(h_flex().items_center().child(div().flex_1().text_size(15).font_semibold().text_color(t.foreground).child("Go to…")).child(div().id("picker-esc").px(6).py(2).rounded(5).text_size(11).text_color(t.dim).cursor_pointer().hover((s) => s.bg(t.hover).text_color(t.foreground)).on_click(() => this.close()).child("Esc")))
+      .child(h_flex().items_center().child(div().flex_1().text_size(15).font_semibold().text_color(t.foreground).child("GO TO…")).child(div().id("picker-esc").relative().pl(7).pr(9).pt(2).pb(4).children(box(t.input, t.raised, t.canvas)).text_size(11).text_color(t.dim).cursor_pointer().hover((s) => s.text_color(t.foreground)).on_click(() => this.close()).child("Esc")))
       .child(
-        h_flex().h(36).flex_none().px(10).gap(8).items_center().rounded(9).border_1().border_color(t.accent).bg(t.background)
+        h_flex().relative().h(36).flex_none().px(12).gap(8).items_center().children(field(t.accent, t.background))
           .child(svg("mods/workspace-chrome/search.svg").size(15).text_color(t.dim))
           .child(Input.new(this.input).flex_1().h_full().text_size(12.8).text_color(t.foreground)),
       )

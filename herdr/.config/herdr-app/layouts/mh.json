@@ -84,7 +84,15 @@
                   "veil": 0.3,
                   "radius": 12,
                   "gap": 8,
-                  "lone": true
+                  "lone": true,
+                  "header": {
+                    "content": {
+                      "mod": "mh-pane"
+                    },
+                    "height": 36,
+                    "position": "top",
+                    "reveal": "always"
+                  }
                 }
               }
             },

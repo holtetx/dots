@@ -5,6 +5,7 @@ import { View, div } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { props, closeOverlay, theme, shared, checking } from "herdr";
 import { emojis } from "./emoji.js";
+import { box } from "./pixel.js";
 
 const canteen = () => {
   const c = shared("mh-lunch");
@@ -51,7 +52,7 @@ export default class Lunch extends View {
     return v_flex()
       .gap(10)
       .p(14)
-      .rounded(12)
+      .rounded(6)
       .bg(t.raised)
       .border_1()
       .border_color(t.accent)
@@ -62,7 +63,7 @@ export default class Lunch extends View {
           return h_flex()
             .gap(12)
             .items_center()
-            .child(h_flex().flex_none().w(44).h(44).rounded(10).bg(t.background).items_center().justify_center().text_size(26).child(lead))
+            .child(h_flex().flex_none().w(44).h(44).rounded(4).bg(t.background).items_center().justify_center().text_size(26).child(lead))
             .child(
               v_flex()
                 .flex_1()
@@ -115,9 +116,9 @@ export default class Lunch extends View {
           .px(4)
           .items_center()
           .gap(8)
-          .child(div().text_size(16).font_semibold().text_color(t.foreground).child("Lunch"))
+          .child(div().text_size(16).font_semibold().text_color(t.foreground).child("LUNCH"))
           .child(div().flex_1().text_size(12).text_color(t.dim).child(sub))
-          .child(div().id("mh-lunch-esc").px(6).py(2).rounded(5).text_size(11).text_color(t.dim).cursor_pointer().hover((s) => s.bg(t.hover).text_color(t.foreground)).on_click(hide).child("Esc")),
+          .child(div().id("mh-lunch-esc").relative().pl(7).pr(9).pt(2).pb(4).children(box(t.input, t.chrome, t.canvas)).text_size(11).text_color(t.dim).cursor_pointer().hover((s) => s.text_color(t.foreground)).on_click(hide).child("Esc")),
       )
       .when(!!text, (el) => el.child(div().px(4).pb(4).text_size(13).text_color(t.dim).child(text)))
       .when(!text, (el) => el.children(this.days.map((day) => (day.date === now ? this.today(t, day) : this.row(t, day, day.date < now)))));

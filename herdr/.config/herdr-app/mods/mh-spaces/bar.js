@@ -2,7 +2,7 @@
 
 import { div, svg } from "gpui-kit";
 import { h_flex } from "gpui-base";
-import { exec, focused, shared, theme, window as appWindow } from "herdr";
+import { agents, exec, focused, run, shared, theme, window as appWindow } from "herdr";
 import { badge, unknown } from "./github.js";
 
 // shortcut: polls the shown repo every 5 s instead of watching its files; switch to watchFolder if it lags.
@@ -74,18 +74,39 @@ function tick(view, cx) {
   });
 }
 
+// Pixel HQ's status bar: every agent by status, most urgent first. A click goes to the next agent in that state.
+const TEAM = [["blocked", "needs you"], ["working", "working"], ["done", "done"], ["idle", "idle"]];
+function team(t) {
+  const all = agents();
+  if (!all.length) return null;
+  const next = (status) => {
+    const list = all.filter((a) => a.status === status);
+    const at = list.findIndex((a) => a.address === focused()?.terminal);
+    run("agent.focus", { terminal: list[(at + 1) % list.length].address });
+  };
+  return h_flex().flex_none().gap(14).items_center()
+    .child(div().text_color(t.dim).child(`${all.length} on the team`))
+    .children(TEAM.map(([status, word]) => [status, word, all.filter((a) => a.status === status).length]).filter(([, , n]) => n).map(([status, word, n]) =>
+      h_flex().id(`team-${status}`).gap(5).items_center().cursor_pointer().text_color(status === "idle" ? t.dim : t.muted).hover((s) => s.text_color(t.foreground))
+        .tooltip("Go to the next one")
+        .on_click(() => next(status))
+        .child(div().size(6).flex_none().rounded(3).bg(t[status]))
+        .child(`${n} ${word}`)));
+}
+
 export function barRender(view) {
   const t = theme();
   const id = focused()?.space;
   const g = shared("git.spaces")?.[id];
   const bar = h_flex().size_full().px(12).gap(16).items_center().overflow_hidden().bg(t.chrome).text_size(11.8).text_color(t.muted);
-  if (!g) return bar;
+  const crew = team(t);
+  if (!g) return bar.child(div().flex_1()).when(Boolean(crew), (el) => el.child(crew));
   const d = view.diff[JSON.stringify([g.machine, g.top])];
   const gh = shared("github") ?? {};
   const prs = prsOf(id, gh);
   const icon = (path) => svg(path).size(13).flex_none().text_color(t.dim);
   return bar
-    .child(h_flex().id("bar-branch").min_w(0).gap(6).items_center()
+    .child(h_flex().id("bar-branch").flex_none().max_w(300).gap(6).items_center()
       .tooltip(g.linked ? `${g.branch} (worktree)` : g.branch)
       .child(icon("mods/workspace-chrome/git-branch.svg"))
       .child(div().min_w(0).truncate().text_color(t.foreground).child(g.branch))
@@ -103,8 +124,7 @@ export function barRender(view) {
           .tooltip(`This branch compared with ${d.base}`)
           .child(icon("mods/mh-spaces/file-diff.svg"))
           .child(plural(b.files, "file"))
-          .children(counts(b))
-          .child(div().text_color(t.dim).child(`vs ${d.base.replace(/^origin\//, "")}`))))
+          .children(counts(b))))
         .when(l.files > 0, (el) => el.child(h_flex().id("bar-local").flex_none().gap(6).items_center()
           .tooltip(`Not committed: ${plural(l.files, "file")} +${l.added} -${l.deleted}${l.untracked ? `, ${l.untracked} untracked` : ""}`)
           .child(svg("mods/workspace-chrome/square-pen.svg").size(13).flex_none().text_color(t.ansi3))
@@ -114,7 +134,8 @@ export function barRender(view) {
           .child("no changes")));
     })
     .child(div().flex_1())
-    .children(prs.map((u, i) => h_flex().flex_none().gap(6).items_center()
+    .children(prs.map((u, i) => h_flex().min_w(0).flex_shrink(1).gap(6).items_center()
       .child(badge(u, gh.items ?? {}, t, `bar-pr-${i}`))
-      .child(div().max_w(320).truncate().child(gh.items?.[u]?.title ?? ""))));
+      .child(div().min_w(0).max_w(280).truncate().child(gh.items?.[u]?.title ?? ""))))
+    .when(Boolean(crew), (el) => el.child(div().w(1).h(14).flex_none().bg(t.border)).child(crew));
 }

@@ -9,6 +9,7 @@ import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, ScrollHandle } from "gpui-base";
 import { spaces, terminals, theme, props, run, exec, home, appHome, readTextFile, shared, closeOverlay, notify } from "herdr";
 import { covers, readHosts } from "./hosts.js";
+import { field } from "./pixel.js";
 
 const LIST = 440;
 const FEW = 10; // at most this many hosts: list them all before typing
@@ -124,7 +125,7 @@ export default class Ssh extends View {
         .px(10)
         .gap(9)
         .items_center()
-        .rounded(7)
+        .rounded(4)
         .cursor_pointer()
         .when(i === this.at, (el) => el.bg(t.selected))
         .when(i !== this.at, (el) => el.hover((st) => st.bg(t.hover)))
@@ -159,13 +160,11 @@ export default class Ssh extends View {
         h_flex()
           .h(36)
           .flex_none()
-          .px(10)
+          .relative()
+          .px(12)
           .gap(8)
           .items_center()
-          .rounded(9)
-          .border_1()
-          .border_color(t.accent)
-          .bg(t.background)
+          .children(field(t.accent, t.background))
           .child(svg(ICON("search")).size(15).text_color(t.dim))
           .child(Input.new(this.input).flex_1().h_full().text_size(12.8).text_color(t.foreground)),
       )

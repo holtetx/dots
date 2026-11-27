@@ -1,11 +1,12 @@
 import { View, div, svg, image } from "gpui-kit";
 import { h_flex, ScrollHandle } from "gpui-base";
+import { box, spinner } from "./pixel.js";
 import { spaces, panes, agents, run, openOverlay, theme, window, shared, setShared, layout, settings, focused, nextCommand, exec, home, notify } from "herdr";
 
-const SPARKLE = ["·", "✢", "✳", "✶", "✻", "✽", "✻", "✶", "✳", "✢"];
 
-// Pixel HQ box: square corners, a 1px frame and a 2px bottom edge as a hard shadow.
-const pixel = (el, t, on) => el.rounded(2).border_1().border_b(2).border_color(on ? t.accent : t.input);
+// A Pixel HQ box: rounded, a 1px frame, brighter when on.
+const pixel = (el, t, on) => el.relative().pl(9).pr(11).pt(3).pb(5)
+  .children(box(on ? t.muted : t.input, on ? t.raised : t.chrome));
 
 function find(node, id) {
   if (node?.id === id) return node;
@@ -186,17 +187,17 @@ export default class Tabs extends View {
       if (active >= 0) this.scroll.scroll_to_item(active);
     }
     const stop = (_e, cx) => cx.stop_propagation();
-    const button = (id, label, action) => pixel(div(), t).id(id).size(22).flex_none().flex().items_center().justify_center().bg(t.surface).text_color(t.muted).hover(s => s.bg(t.hover).text_color(t.foreground))
+    const button = (id, label, action) => div().id(id).relative().size(26).pb(2).pr(2).flex_none().flex().items_center().justify_center().children(box(t.input, t.chrome, t.canvas)).text_color(t.muted).hover(s => s.text_color(t.foreground))
       .on_mouse_down("left", stop).on_click(action).child(label);
     const item = (c, i) => {
       const lead = panes().find(p => p.tab === c.id && p.program?.agent) ?? panes().find(p => p.tab === c.id);
       const program = lead?.program;
       const name = label(c, lead);
-      return pixel(h_flex(), t, c.active).id(`tab-${c.id}`).h(22).px(8).gap(5).items_center().flex_none().text_size(12.5)
+      return pixel(h_flex(), t, c.active).id(`tab-${c.id}`).h(26).gap(6).items_center().flex_none().text_size(12.5)
         // A rename or status dot on this or an earlier tab can push the active one out.
         .when(i <= active, el => el.on_size_change((_size, cx) => { this.scroll.scroll_to_item(active); cx.notify(); }))
-        .bg(c.active ? t.raised : t.surface).text_color(c.active ? t.foreground : t.muted)
-        .hover(s => s.bg(t.hover))
+        .text_color(c.active ? t.foreground : t.muted)
+        .hover(s => s.text_color(t.foreground))
         .on_hover((on, cx) => { if (on) this.hovered = c.id; else if (this.hovered === c.id) this.hovered = null; cx.notify(); })
         .on_mouse_down("left", (e, cx) => { cx.stop_propagation(); this.pressed = i; if (e.click_count === 2) run("tab.rename", { id: c.id }); })
         .on_mouse_up("left", () => {
@@ -207,8 +208,8 @@ export default class Tabs extends View {
         .on_mouse_down("right", (_e, cx) => { cx.stop_propagation(); openOverlay({ mod: "menu", kind: "popup", width: 200, props: { tab: "tab", target: { id: c.id, space: space.id } } }); })
         .when(Boolean(program?.icon), el => el.child(program.tint ? svg(program.icon).size(12).text_color(t.muted) : image(program.icon).size(12)))
         .child(div().max_w(170).truncate().child(c.zoomed ? `${name} Z` : name))
-        .when(c.status === "working", el => el.child(div().w(11).flex_none().flex().justify_center().text_size(12).text_color(t.working).child("·").frames(SPARKLE, 120)))
-        .when(c.status === "blocked" || c.status === "done", el => el.child(div().flex_none().font_bold().text_color(t[c.status]).child(c.status === "blocked" ? "!" : "✓")))
+        .when(c.status === "working", el => el.child(spinner(12).text_color(t.working)))
+        .when(c.status === "blocked" || c.status === "done", el => el.child(div().flex_none().text_color(t[c.status]).child(svg(`mods/mh-spaces/px-${c.status === "blocked" ? "bang" : "tick"}.svg`).size(c.status === "blocked" ? 9 : 11))))
         .when(this.hovered === c.id, el => el.child(div().id(`close-${c.id}`).text_color(t.dim).on_mouse_down("left", stop).on_click((_e, cx) => { cx.stop_propagation(); run("tab.close", { id: c.id }); }).child(svg("mods/pane/close.svg").size(10))));
     };
     const root = layout(), sidebar = find(root, "sidebar"), w = window();
@@ -221,9 +222,9 @@ export default class Tabs extends View {
     this.syncPanel(space, panel, body, enabled);
     const panelButton = (id, label, icon) => {
       const on = panel && !panel.hidden && body?.active === id;
-      return pixel(h_flex(), t, on).id(`panel-${id}`).h(22).px(7).gap(5).flex_none().items_center()
-        .text_size(11).font_semibold().bg(on ? t.raised : t.surface).text_color(on ? t.foreground : t.muted)
-        .hover(s => s.bg(t.hover)).on_mouse_down("left", stop)
+      return pixel(h_flex(), t, on).id(`panel-${id}`).h(26).gap(5).flex_none().items_center()
+        .text_size(10.5).font_bold().text_color(on ? t.foreground : t.muted)
+        .hover(s => s.text_color(t.foreground)).on_mouse_down("left", stop)
         .on_click(() => {
           if (on) run("layout.hide", { id: "panel" });
           else { run("layout.select", { stack: "panel-body", child: id }); run("layout.show", { id: "panel" }); }

@@ -217,7 +217,7 @@ export default class Menu extends View {
             .h(31)
             .px(8)
             .gap(9)
-            .rounded(7)
+            .rounded(4)
             .items_center()
             .justify_between()
             .text_color(t.foreground)

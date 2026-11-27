@@ -6,7 +6,8 @@ import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, ScrollHandle } from "gpui-base";
 import { agents, spaces, panes, theme, shared, setShared, props, run, exec, hc, home, appHome, readTextFile, closeOverlay } from "herdr";
 import { base, ago, worktree, label, place, missing, resume } from "./sessions.js";
-import { taskInit, taskRender } from "./tasks.js";
+import { field } from "./pixel.js";
+import { taskInit, taskRender, mark } from "./tasks.js";
 
 const LIST = 440;
 const ICON = (name) => `mods/workspace-chrome/${name}.svg`;
@@ -186,7 +187,7 @@ export default class Sessions extends View {
       const on = i === this.at;
       const icon =
         kind === "open"
-          ? div().size(7).rounded(4).bg(t[s.status] ?? t.idle)
+          ? mark(s.status, t)
           : kind === "space"
             ? h_flex().size(14).rounded(4).bg(s.color.startsWith("#") ? s.color : (MARK[s.color] ?? t[s.color])).items_center().justify_center().text_size(8.5).font_bold().text_color("#11111b").child([...s.title][0]?.toUpperCase() ?? "?")
             : svg(ICON("clock")).size(13).text_color(t.dim);
@@ -197,7 +198,7 @@ export default class Sessions extends View {
         .px(10)
         .gap(9)
         .items_center()
-        .rounded(7)
+        .rounded(6)
         .cursor_pointer()
         .when(on, (el) => el.bg(t.selected))
         .when(!on, (el) => el.hover((st) => st.bg(t.hover)))
@@ -212,7 +213,7 @@ export default class Sessions extends View {
     let n = 0;
     for (const { name, kind, list, total, loading } of sections) {
       if (!list.length && !loading) continue;
-      children.push(h_flex().h(26).px(10).pt(6).flex_none().items_center().text_size(11).text_color(t.dim).child(loading ? `${name} · loading…` : `${name} · ${total > list.length ? `${list.length} of ${total}` : list.length}`));
+      children.push(h_flex().h(26).px(10).pt(6).flex_none().items_center().text_size(11).font_semibold().text_color(t.dim).child(loading ? `${name.toUpperCase()} · loading…` : `${name.toUpperCase()} · ${total > list.length ? `${list.length} of ${total}` : list.length}`));
       for (const s of list) {
         this.childOf[n] = children.length;
         children.push(row(kind === "waiting" ? s.kind : kind, s, n++));
@@ -244,18 +245,16 @@ export default class Sessions extends View {
       .gap(10)
       .bg(t.popover)
       .text_size(13)
-      .child(div().text_size(15).font_semibold().text_color(t.foreground).child("Sessions"))
+      .child(div().text_size(15).font_semibold().text_color(t.foreground).child("SESSIONS"))
       .child(
         h_flex()
           .h(36)
           .flex_none()
-          .px(10)
+          .relative()
+          .px(12)
           .gap(8)
           .items_center()
-          .rounded(9)
-          .border_1()
-          .border_color(t.accent)
-          .bg(t.background)
+          .children(field(t.accent, t.background))
           .child(svg(ICON("search")).size(15).text_color(t.dim))
           .child(Input.new(this.input).flex_1().h_full().text_size(12.8).text_color(t.foreground)),
       )

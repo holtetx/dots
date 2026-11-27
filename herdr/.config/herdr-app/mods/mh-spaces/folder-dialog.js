@@ -8,6 +8,7 @@ import { div, svg } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input } from "gpui-base";
 import { props, closeOverlay, theme, spaces, panes, exec, shared, setShared, pickFolder } from "herdr";
 import { MARK, base, expand, tilde, trim } from "./folders.js";
+import { box, field, notch } from "./pixel.js";
 
 const COLORS = [null, ...Object.keys(MARK)];
 const info = () => shared("space-folders") ?? {};
@@ -118,15 +119,15 @@ function choose(input, cx) {
 export function folderRender(view) {
   const t = theme();
   const states = new Map((info().machines ?? []).map((m) => [m.name, m.state]));
-  const field = (state) => Input.new(state).h(30).px(9).flex_1().min_w(0).items_center().rounded(6).border(1).border_color(t.input).bg(t.background).text_color(t.foreground);
-  const button = (id, text, primary, click) => div().id(id).flex_none().px(12).py(5).rounded(2).border_1().border_b(2).border_color(primary ? t.accent : t.input).cursor_pointer()
-    .bg(primary ? t.solid : t.raised).text_color(primary ? t.solid_foreground : t.foreground)
-    .when(!primary, (el) => el.hover((s) => s.bg(t.hover))).on_click(click).child(text);
+  const entry = (state) => div().relative().flex_1().min_w(0).children(field(t.input, t.background)).child(Input.new(state).h(30).px(11).items_center().text_color(t.foreground));
+  const button = (id, text, primary, click) => div().id(id).relative().flex_none().pl(13).pr(15).pt(5).pb(7).cursor_pointer()
+    .children(box(primary ? t.accent : t.input, primary ? t.solid : t.chrome, t.canvas)).text_color(primary ? t.solid_foreground : t.muted)
+    .text_size(11.5).font_semibold().when(!primary, (el) => el.hover((s) => s.text_color(t.foreground))).on_click(click).child(text.toUpperCase());
   const id = (r) => r.key || "local";
   const pathField = (r, input, i) => h_flex().id(`folder-path-${id(r)}-${i}`).gap(6).items_center().flex_none()
-    .child(field(input))
+    .child(entry(input))
     .when(!r.key, (el) => el.child(button(`folder-choose-${i}`, "Choose…", false, (_e, cx) => choose(input, cx))))
-    .when(r.inputs.length > 1, (el) => el.child(div().id(`folder-path-drop-${id(r)}-${i}`).flex_none().p(4).rounded(4).cursor_pointer().text_color(t.dim)
+    .when(r.inputs.length > 1, (el) => el.child(div().id(`folder-path-drop-${id(r)}-${i}`).flex_none().p(4).rounded(2).cursor_pointer().text_color(t.dim)
       .hover((s) => s.bg(t.hover).text_color(t.foreground))
       .tooltip("Remove this path")
       .on_click((_e, cx) => { r.inputs.splice(i, 1); cx.notify(); })
@@ -146,9 +147,8 @@ export function folderRender(view) {
       .when(!r.editable, (el) => el.child(div().flex_1().min_w(0).h(30).flex().items_center().truncate().text_color(t.dim)
         .child(`${r.was.length ? `${r.was.join(", ")} · ` : ""}${(states.get(r.key) ?? "asleep").replace(/_/g, " ")}, can't change it now`)));
   };
-  const dots = h_flex().gap(6).flex_none().items_center().children(COLORS.map((c) => div().id(`folder-color-${c ?? "none"}`).size(16).rounded(8).cursor_pointer()
-    .bg(c ? MARK[c] : t.dim)
-    .when(view.color === c, (el) => el.border_2().border_color(t.foreground))
+  const dots = h_flex().gap(6).flex_none().items_center().children(COLORS.map((c) => div().id(`folder-color-${c ?? "none"}`).relative().size(16).cursor_pointer()
+    .children(view.color === c ? field(t.foreground, c ? MARK[c] : t.dim) : notch(c ? MARK[c] : t.dim, [0, 0, 0, 0]))
     .on_click((_e, cx) => { view.color = c; cx.notify(); })));
 
   return v_flex()
@@ -158,9 +158,9 @@ export function folderRender(view) {
     .gap(12)
     .bg(t.popover)
     .text_size(13)
-    .child(div().flex_none().font_semibold().text_color(t.foreground).child(view.id ? "Edit folder" : "New folder"))
-    .child(h_flex().gap(10).items_center().flex_none().child(field(view.name)).child(dots))
-    .child(div().flex_none().text_size(11).text_color(t.dim).child("Where it is"))
+    .child(div().flex_none().font_semibold().text_color(t.foreground).child(view.id ? "EDIT FOLDER" : "NEW FOLDER"))
+    .child(h_flex().gap(10).items_center().flex_none().child(entry(view.name)).child(dots))
+    .child(div().flex_none().text_size(11).font_semibold().text_color(t.dim).child("WHERE IT IS"))
     .child(v_flex().id("folder-paths").flex_1().min_h(0).gap(10).overflow_y_scrollbar().children(view.rows.map(pathRow)))
     .child(div().flex_none().text_size(11).text_color(t.dim)
       .child("Spaces under one of its paths go in it, worktrees nested there too. A machine left empty uses another's paths, moved to its own home."))

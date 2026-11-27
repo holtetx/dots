@@ -18,8 +18,12 @@ Inspired by Pixel HQ (github.com/bnhan2710/pixel-hq), built by hand.
 
 - Theme `themes/pixel-hq.json`: Catppuccin Mocha with Pixel HQ's window colors. The `layouts/mh.json` root sets it, and JetBrains Mono for terminals and mods.
 - Cards: the root has padding 8 and gap 8. The sidebar, tab bar, panes, side panel and git bar are rounded cards (radius 12). The spacing dialog sets the same radius.
-- Pixel boxes (tabs, buttons, board tabs): `rounded(2)`, a 1px frame and a 2px bottom edge as a hard shadow, accent frame when on. Chips: `rounded(2)`, a tinted fill and frame (`chip`, `tag`). Section headers and buttons are in caps.
-- Status marks: a sparkle when working, `!` when blocked, `✓` when done. The footer's limits are 5-segment gauges.
+- Pixel chrome: `mods/mh-spaces/pixel.js`, copied unchanged into each mh-* mod that uses it (mods can't import each other). Buttons, toggles and tabs are `box()`: rounded corners (6) and a 1px frame, as Pixel HQ's preview shows them, brighter when on. Chips are `outline()` (a tinted pill), inputs `field()`. These are absolute children, so they come before the content, and hover changes the text color, not the background. Section headers and buttons are in caps.
+- Status marks: `spinner()` (`px-spinner.svg`, a turning ring of pixels) when working, `px-bang.svg` when blocked, `px-tick.svg` when done. The footer's limits are 5-segment gauges.
+- Toasts (`mh-toast`): one notched box with no Herdr frame (`mod.json` overlay frame none), a level or status chip (`NEEDS YOU`, `DONE`, `ERR`, `WARN`, `OK`, `INFO`) and the title.
+- Pane headers: `mods/mh-pane` (a clone of Herdr's `pane`), always shown, 36 px: program, the session title (`mh.description`) as a chip, folder and branch, and a status chip (working with the spinner, needs you, done, idle). The spacing dialog's title bars use it.
+- Git bar: branch first, then the diff, PRs, and on the right every busy or idle agent as a mark and a count (`team()` in `bar.js`). A click goes to the next agent in that state.
+- Sidebar: a space with two or more busy agents gets count chips under its title. In folders, Other, SSH and Waiting the rows form a metro line: a track and a notched station per space in its status color (working pulses slowly and keeps its spinner on the right, blocked pulses fast, the shown space has a light core). Those rows have no other status mark on the right.
 - Fixed colors (GitHub, Jira, space marks) are Catppuccin pairs `[Latte, Mocha]`.
 
 ## Where state lives

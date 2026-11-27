@@ -21,6 +21,7 @@ import { boardRepos, fetchIssues, fetchPrs } from "./board-data.js";
 import { fetchJira, jiraSettings } from "./jira-data.js";
 import { avatars, loadAvatars } from "./preview-data.js";
 import { BLUE, PRIORITY_COLOR, TYPE_COLOR, foldKey, hue, initials } from "./jira.js";
+import { box, field, outline, spinner } from "./pixel.js";
 
 const FRESH = 2 * 60000;
 const ICON = (name) => `mods/workspace-chrome/${name}.svg`;
@@ -481,6 +482,10 @@ function counts(url, view, t) {
 }
 
 export const pick = (c, dark) => c[dark ? 1 : 0];
+
+// A Pixel HQ box with an accent underline when on, as mh-tabs draws its tabs.
+const pixel = (el, t, on) => el.relative().pl(9).pr(11).pt(3).pb(5)
+  .children(box(on ? t.muted : t.input, on ? t.raised : t.chrome));
 const stateIcon = (it, dark, t, size = 13) => {
   const s = GH[it.state];
   const fallback = it.kind === "issue" ? GH["issue-open"].icon : GH.open.icon;
@@ -520,7 +525,7 @@ function verdict(p, t, dark) {
   return ["needs review", pick(YELLOW, dark)];
 }
 
-const tag = (text, t) => div().flex_none().px(5).rounded(2).text_size(10.5).text_color(t.ansi3).border_1().border_color(tint(t.ansi3, "88")).bg(tint(t.ansi3, "22")).child(text);
+const tag = (text, t) => h_flex().relative().flex_none().px(6).py(1).items_center().children(outline(t.ansi3)).text_size(10.5).text_color(t.ansi3).child(text);
 
 // Lines, not text: the font draws the └ and ├ characters with different weight.
 const branchMark = (last, t) =>
@@ -593,8 +598,8 @@ function openCreate(view, md) {
 }
 
 // Pixel HQ chip: square corners, a tinted frame.
-export const chip = (text, color, t, dot) => h_flex().flex_none().gap(5).px(6).h(18).items_center().rounded(2).border_1().border_color(tint(color, "55")).text_size(10.5).font_medium()
-  .bg(tint(color, "22")).text_color(dot ? t.muted : color)
+export const chip = (text, color, t, dot) => h_flex().relative().flex_none().gap(5).px(7).h(18).items_center().children(outline(color)).text_size(10.5).font_medium()
+  .text_color(dot ? t.muted : color)
   .when(Boolean(dot), (el) => el.child(div().size(6).flex_none().rounded(1).bg(color)))
   .child(div().truncate().child(text));
 
@@ -648,8 +653,8 @@ function jiraColumns(view, t, dark) {
     cx.notify();
   };
   const red = pick(RED, dark);
-  const count = (c, over, short) => div().flex_none().px(6).h(16).flex().items_center().rounded(2).text_size(10.5).font_medium()
-    .bg(over ? tint(red, "2e") : t.hover).text_color(over ? red : t.muted)
+  const count = (c, over, short) => div().relative().flex_none().px(7).h(16).flex().items_center().children(outline(over ? red : t.muted)).text_size(10.5).font_medium()
+    .text_color(over ? red : t.muted)
     .child(over && !short ? `${c.items.length} / ${c.max}` : String(c.items.length));
   return h_flex()
     .id("jira-cols")
@@ -662,7 +667,7 @@ function jiraColumns(view, t, dark) {
       const over = c.max != null && c.items.length > c.max;
       const ring = ci === sel && at < 0 ? t.accent : "#00000000";
       if (c.folded) {
-        return v_flex().id(`jf-${c.name}`).w(32).flex_none().pt(10).gap(10).items_center().rounded(10).border_1().border_color(ring).bg(t.surface)
+        return v_flex().id(`jf-${c.name}`).w(32).flex_none().pt(10).gap(10).items_center().rounded(6).border_1().border_color(ring).bg(t.surface)
           .cursor_pointer().hover((s) => s.bg(t.hover)).on_click(fold(c)).tooltip(`${c.name}${over ? ` · over max ${c.max}` : ""} · z open`)
           .child(count(c, over, true))
           .child(v_flex().gap(1).items_center().text_size(10).font_semibold().text_color(t.dim)
@@ -670,7 +675,7 @@ function jiraColumns(view, t, dark) {
       }
       const scroll = view.colScroll[ci];
       if (scroll && view.reveal && ci === sel && at >= 0) scroll.scroll_to_item(at);
-      return v_flex().id(`jc-${c.name}`).flex_1().min_w(0).min_h(0).px(8).pt(4).pb(8).gap(4).rounded(10).border_1().border_color(ring).bg(t.surface)
+      return v_flex().id(`jc-${c.name}`).flex_1().min_w(0).min_h(0).px(8).pt(4).pb(8).gap(4).rounded(6).border_1().border_color(ring).bg(t.surface)
         .child(h_flex().id(`jh-${c.name}`).flex_none().h(32).px(6).gap(8).items_center().rounded(6).cursor_pointer()
           .on_click(fold(c)).tooltip(over ? `over the board's max of ${c.max} · z fold` : "z · fold")
           .child(div().min_w(0).truncate().text_size(11).font_semibold().text_color(over ? red : t.muted).child(c.name.toUpperCase()))
@@ -733,7 +738,7 @@ function pickerPanel(view, t, dark) {
       .w(620)
       .p(14)
       .gap(8)
-      .rounded(10)
+      .rounded(6)
       .border_1()
       .border_color(t.border)
       .bg(t.popover)
@@ -774,17 +779,16 @@ export function boardRender(view) {
   const countOf = (x) => x.list()?.filter(shown).length;
   const bots = (tab.list() ?? []).filter(isBot).length;
   // Tabs in a fixed order, the shown one highlighted; the same text either way, so nothing moves.
-  const tabEl = (x, i) => h_flex().id(`tab-${x.id}`).flex_none().gap(6).px(7).py(2).items_center().rounded(2).border_1().border_b(2).cursor_pointer()
+  const tabEl = (x, i) => pixel(h_flex(), t, x.id === tab.id).id(`tab-${x.id}`).flex_none().gap(6).items_center().cursor_pointer()
     .text_size(11.5).font_semibold()
-    .when(x.id === tab.id, (el) => el.text_color(t.foreground).bg(t.raised).border_color(t.accent))
-    .when(x.id !== tab.id, (el) => el.text_color(t.muted).bg(t.surface).border_color(t.input).hover((s) => s.bg(t.hover)))
+    .text_color(x.id === tab.id ? t.foreground : t.muted).hover((s) => s.text_color(t.foreground))
     .on_click((_e, cx) => { showTab(view, x.id, cx); view.note = ""; cx.notify(); })
     .child(x.name.toUpperCase())
     .when(countOf(x) != null, (el) => el.child(div().text_size(11).text_color(t.dim).child(String(countOf(x)))))
     .tooltip(i < 9 ? `${i + 1} · tab` : "tab");
   const error = memory.errors[tab.id];
   const status = view.busy[tab.id]
-    ? h_flex().gap(6).items_center().child(div().frames(["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"], 90)).child("refreshing")
+    ? h_flex().gap(6).items_center().child(spinner(11).text_color(t.dim)).child("refreshing")
     : error ? div().max_w(360).truncate().text_color(t.blocked).child(error)
     : memory.at[tab.id] ? div().child(Date.now() - memory.at[tab.id] < 60000 ? "updated now" : `updated ${ago(memory.at[tab.id])} ago`) : div();
   const gh = memory.data[tab.id];
@@ -818,13 +822,12 @@ export function boardRender(view) {
     .child(h_flex().flex_none().gap(10).items_center()
       .child(h_flex().flex_none().gap(4).items_center().children(tabs.map(tabEl)))
       .child(div().id("status").flex_none().text_size(11).text_color(t.dim).child(status).tooltip("r · refresh"))
-      .when(bots > 0, (el) => el.child(div().id("bots").flex_none().px(6).py(1).rounded(5).cursor_pointer().text_size(11).text_color(t.muted).hover((s) => s.bg(t.hover))
+      .when(bots > 0, (el) => el.child(div().id("bots").relative().flex_none().pl(7).pr(9).pt(2).pb(4).children(box(t.input, t.chrome, t.canvas)).cursor_pointer().text_size(11).text_color(t.muted).hover((s) => s.text_color(t.foreground))
         .on_click((_e, cx) => { memory.bots = !memory.bots; view.reveal = true; cx.notify(); })
         .child(memory.bots ? `Dependabot shown ${bots}` : `Dependabot hidden ${bots}`).tooltip("b · show or hide Dependabot PRs")))
       .child(div().id("keys").flex_1().min_w(0).truncate().text_right().text_size(11).text_color(t.dim).child(hint).when(!view.searching, (el) => el.tooltip(allKeys))))
     .when(view.searching || Boolean(view.text), (el) => el.child(
-      h_flex().h(30).flex_none().px(10).gap(8).items_center().rounded(6).border_1()
-        .border_color(view.searching ? t.accent : t.border).bg(t.background)
+      h_flex().relative().h(30).flex_none().px(12).gap(8).items_center().children(field(view.searching ? t.accent : t.input, t.background))
         .child(svg(ICON("search")).size(13).text_color(t.dim))
         .child(Input.new(view.input).flex_1().h_full().text_size(12.5).text_color(t.foreground))))
     .child(body)

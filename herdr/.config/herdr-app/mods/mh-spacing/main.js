@@ -11,7 +11,12 @@
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { layout, run, theme, props, closeOverlay, appHome, readTextFile, shared, setShared } from "herdr";
-import { boardTab, boardTabInit, boardKey } from "./board-tab.js";
+import { boardTab, boardTabInit, boardKey, check } from "./board-tab.js";
+import { box } from "./pixel.js";
+
+// A Pixel HQ box (notched, framed, hard shadow), with an accent underline when on, as mh-tabs draws its tabs.
+const pixel = (el, t, on) => el.relative().pl(9).pr(11).pt(3).pb(5)
+  .children(box(on ? t.muted : t.input, on ? t.raised : t.chrome));
 
 const DEFAULT = { gap: 6, padX: 14, padY: 12 };
 const ROWS = [
@@ -21,7 +26,7 @@ const ROWS = [
 ];
 const STEP = 2;
 const BARS = [["always", "Shown"], ["hover", "On hover"], ["none", "Hidden"]];
-const HEADER = { content: { mod: "pane" }, height: 26, position: "top" };
+const HEADER = { content: { mod: "mh-pane" }, height: 36, position: "top" };
 const HINTS = "mh-copy.hints";
 const TABS = [["spacing", "Spacing"], ["hints", "Hints"], ["links", "Links"], ["board", "Board"], ["sidebar", "Sidebar"]];
 
@@ -39,7 +44,7 @@ const SHOWN = [["shown", "Shown"], ["hidden", "Hidden"]];
 const SIDEBAR_ROWS = [
   { store: "mh-spaces", key: "icon", label: "Icon", options: SHOWN },
 ];
-const SECTIONS = { "mh-spaces": "Spaces" };
+const SECTIONS = { "mh-spaces": "SPACES" };
 const prefValue = (row) => shared(row.store)?.[row.key] ?? PREFS[row.store][row.key];
 
 function setPref(row, value) {
@@ -53,10 +58,10 @@ function cyclePref(row, delta) {
 }
 
 // Options side by side, the chosen one raised.
-const segmented = (t, id, options, value, pick) => h_flex().flex_none().gap(2).text_size(12).children(options.map(([v, label]) => div()
-  .id(`${id}-${v}`).px(8).py(3).rounded(5).cursor_pointer()
+const segmented = (t, id, options, value, pick) => h_flex().flex_none().gap(4).text_size(12).children(options.map(([v, label]) => div()
+  .id(`${id}-${v}`).relative().pl(9).pr(11).pt(3).pb(5).cursor_pointer()
+  .children(box(value === v ? t.accent : t.input, value === v ? t.raised : t.chrome, t.canvas))
   .text_color(value === v ? t.foreground : t.muted)
-  .when(value === v, (el) => el.bg(t.hover))
   .when(value !== v, (el) => el.hover((s) => s.text_color(t.foreground)))
   .on_click((_e, cx) => { pick(v); cx.notify(); })
   .child(label)));
@@ -220,8 +225,8 @@ export default class Spacing extends View {
 
   spacing(t) {
     const values = current();
-    const button = (id, icon, on) => div().id(id).size(24).flex_none().flex().items_center().justify_center().rounded(6)
-      .text_color(t.muted).cursor_pointer().hover((s) => s.bg(t.hover).text_color(t.foreground))
+    const button = (id, icon, on) => div().id(id).relative().size(26).pr(2).pb(2).flex_none().flex().items_center().justify_center().children(box(t.input, t.chrome, t.canvas))
+      .text_color(t.muted).cursor_pointer().hover((s) => s.text_color(t.foreground))
       .on_click((_e, cx) => { on(); cx.notify(); })
       .child(svg(`mods/workspace-chrome/${icon}.svg`).size(12));
     const row = (r, i) => h_flex()
@@ -231,7 +236,7 @@ export default class Spacing extends View {
       .gap(6)
       .flex_none()
       .items_center()
-      .rounded(7)
+      .rounded(6)
       .when(i === this.at, (el) => el.bg(t.selected))
       .on_click((_e, cx) => { this.at = i; cx.notify(); })
       .child(div().flex_1().min_w(0).truncate().text_color(t.foreground).child(r.label))
@@ -245,7 +250,7 @@ export default class Spacing extends View {
       .gap(6)
       .flex_none()
       .items_center()
-      .rounded(7)
+      .rounded(6)
       .when(this.at === ROWS.length, (el) => el.bg(t.selected))
       .on_click((_e, cx) => { this.at = ROWS.length; cx.notify(); })
       .child(div().flex_1().min_w(0).truncate().text_color(t.foreground).child("Pane title bars"))
@@ -269,14 +274,12 @@ export default class Spacing extends View {
         .gap(10)
         .flex_none()
         .items_center()
-        .rounded(7)
+        .rounded(6)
         .cursor_pointer()
         .when(i === this.hint, (el) => el.bg(t.selected))
         .when(i !== this.hint, (el) => el.hover((s) => s.bg(t.hover)))
         .on_click((_e, cx) => { this.hint = i; toggle(p); cx.notify(); })
-        .child(div().size(14).flex_none().flex().items_center().justify_center().rounded(4).border_1()
-          .border_color(on ? t.accent : t.input).when(on, (el) => el.bg(t.accent).text_color(t.accent_foreground))
-          .when(on, (el) => el.child(svg("mods/workspace-chrome/check.svg").size(10))))
+        .child(check(t, on))
         .child(div().flex_none().text_color(on ? t.foreground : t.muted).child(p.label))
         .child(div().flex_1().min_w(0).truncate().text_right().text_size(11.5).text_color(t.dim).child(p.example));
     };
@@ -299,14 +302,12 @@ export default class Spacing extends View {
       .gap(10)
       .flex_none()
       .items_center()
-      .rounded(7)
+      .rounded(6)
       .cursor_pointer()
       .when(i === this.link, (el) => el.bg(t.selected))
       .when(i !== this.link, (el) => el.hover((s) => s.bg(t.hover)))
       .on_click((_e, cx) => { this.link = i; setLink(sw.key, !on(sw.key)); cx.notify(); })
-      .child(div().size(14).flex_none().flex().items_center().justify_center().rounded(4).border_1()
-        .border_color(on(sw.key) ? t.accent : t.input).when(on(sw.key), (el) => el.bg(t.accent).text_color(t.accent_foreground))
-        .when(on(sw.key), (el) => el.child(svg("mods/workspace-chrome/check.svg").size(10))))
+      .child(check(t, on(sw.key)))
       .child(div().flex_none().text_color(on(sw.key) ? t.foreground : t.muted).child(sw.label))
       .child(div().flex_1().min_w(0).truncate().text_right().text_size(11.5).text_color(t.dim).child(sw.about));
     return {
@@ -326,12 +327,12 @@ export default class Spacing extends View {
       .gap(6)
       .flex_none()
       .items_center()
-      .rounded(7)
+      .rounded(6)
       .when(i === this.side, (el) => el.bg(t.selected))
       .on_click((_e, cx) => { this.side = i; cx.notify(); })
       .child(div().flex_1().min_w(0).truncate().text_color(t.foreground).child(r.label))
       .child(segmented(t, `side-${r.store}-${r.key}`, r.options, prefValue(r), (v) => { this.side = i; setPref(r, v); }));
-    const section = (store) => div().px(8).pt(6).flex_none().text_size(11).text_color(t.dim).child(SECTIONS[store]);
+    const section = (store) => div().px(8).pt(6).flex_none().text_size(11).font_semibold().text_color(t.dim).child(SECTIONS[store]);
     return {
       body: v_flex().flex_1().min_h(0).gap(4)
         .children(SIDEBAR_ROWS.flatMap((r, i) => [...(SIDEBAR_ROWS[i - 1]?.store !== r.store ? [section(r.store)] : []), row(r, i)]))
@@ -346,12 +347,10 @@ export default class Spacing extends View {
   render() {
     const t = theme();
     const view = this.tab === "hints" ? this.hints(t) : this.tab === "links" ? this.links(t) : this.tab === "board" ? boardTab(this, t) : this.tab === "sidebar" ? this.sidebar(t) : this.spacing(t);
-    const tab = ([id, label]) => div().id(`tab-${id}`).px(10).py(4).rounded(6).cursor_pointer()
-      .text_color(this.tab === id ? t.foreground : t.muted)
-      .when(this.tab === id, (el) => el.bg(t.selected))
-      .when(this.tab !== id, (el) => el.hover((s) => s.bg(t.hover)))
+    const tab = ([id, label]) => pixel(div(), t, this.tab === id).id(`tab-${id}`).cursor_pointer().text_size(11.5)
+      .text_color(this.tab === id ? t.foreground : t.muted).hover((s) => s.text_color(t.foreground))
       .on_click((_e, cx) => { this.show(id); cx.notify(); })
-      .child(label);
+      .child(label.toUpperCase());
     return v_flex()
       .id("spacing")
       .track_focus(this.handle)
@@ -369,14 +368,14 @@ export default class Spacing extends View {
       .gap(8)
       .bg(t.popover)
       .text_size(13)
-      .child(h_flex().gap(4).items_center().font_semibold().children(TABS.map(tab)))
+      .child(h_flex().gap(6).items_center().font_semibold().children(TABS.map(tab)))
       .child(view.body)
       .child(h_flex().gap(8).items_center().text_size(11).text_color(t.dim)
-        .child(div().id("reset").px(8).py(3).rounded(5).text_color(view.reset ? t.muted : t.dim)
-          .when(Boolean(view.reset), (el) => el.cursor_pointer().hover((s) => s.bg(t.hover).text_color(t.foreground))
+        .child(div().id("reset").relative().pl(9).pr(11).pt(3).pb(5).children(box(t.input, t.chrome, t.canvas)).text_color(view.reset ? t.muted : t.dim)
+          .when(Boolean(view.reset), (el) => el.cursor_pointer().hover((s) => s.text_color(t.foreground))
             .on_click((_e, cx) => { view.reset(); cx.notify(); }))
-          .child(view.resetLabel))
+          .child(view.resetLabel.toUpperCase()))
         .child(div().flex_1())
-        .child(view.hint));
+        .child(div().min_w(0).truncate().child(view.hint)));
   }
 }

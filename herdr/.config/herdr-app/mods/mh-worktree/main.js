@@ -4,6 +4,7 @@
 import { View, div } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, Scrollbar } from "gpui-base";
 import { run, props, closeOverlay, theme, spaces, panes, terminals, exec, home } from "herdr";
+import { field, spinner } from "./pixel.js";
 
 // Where a space is now: its first terminal's live folder, else where it was made.
 function place(s, all = panes()) {
@@ -285,7 +286,7 @@ export default class Worktree extends View {
         .h(44)
         .px(10)
         .justify_center()
-        .rounded(7)
+        .rounded(4)
         .cursor_pointer()
         .when(on, (el) => el.bg(t.selected))
         .when(!on, (el) => el.hover((s) => s.bg(t.hover)))
@@ -311,12 +312,12 @@ export default class Worktree extends View {
       .gap(10)
       .bg(t.popover)
       .text_size(13)
-      .child(h_flex().child(div().flex_1().font_semibold().text_color(t.foreground).child(`Open worktree${r ? ` of ${r.name}` : ""}`)).child(div().text_size(11).text_color(t.dim).child(r ? count : "")))
+      .child(h_flex().child(div().flex_1().font_semibold().text_color(t.foreground).child(`OPEN WORKTREE${r ? ` OF ${r.name}` : ""}`)).child(div().text_size(11).text_color(t.dim).child(r ? count : "")))
       .when(r === undefined || (r && this.list === undefined), (el) => el.child(div().text_color(t.muted).child("\u2026")))
       .when(r === null, (el) => el.child(div().text_color(t.muted).child(`${this.folder ? tilde(this.folder, this.userHome ?? "") : "This folder"} is not in a git repository.`)))
       .when(Boolean(r && this.list), (el) =>
         el
-          .child(Input.new(this.input).h(32).px(10).items_center().rounded(6).border(1).border_color(this.inputFocused ? t.accent : t.input).bg(t.background).text_color(t.foreground))
+          .child(div().relative().flex_none().p(2).children(field(this.inputFocused ? t.accent : t.input, t.background)).child(Input.new(this.input).h(28).px(10).items_center().border_0().bg(t.background).text_color(t.foreground)))
           .child(
             div()
               .relative()
@@ -342,7 +343,7 @@ export default class Worktree extends View {
     const remove = props()?.action === "remove";
     const s = this.space();
     const r = this.repo;
-    const title = remove ? `Remove worktree ${s?.name ?? ""}?` : `New worktree${r ? ` of ${r.name}` : ""}`;
+    const title = remove ? `REMOVE WORKTREE ${s?.name ?? ""}?` : `NEW WORKTREE${r ? ` OF ${r.name}` : ""}`;
     const detail =
       r === undefined
         ? "…"
@@ -369,15 +370,12 @@ export default class Worktree extends View {
       .when(remove && this.unpushed.length > 0, (el) => el.child(div().text_color(t.blocked).child(`Submodule ${this.unpushed.join(", ")} has commits that aren't pushed anywhere: they will be lost.`)))
       .when(!remove && !blocked, (el) =>
         el.child(
-          Input.new(this.input)
-            .h(32)
-            .px(10)
-            .items_center()
-            .rounded(6)
-            .border(1)
-            .border_color(this.inputFocused ? t.accent : t.input)
-            .bg(t.background)
-            .text_color(t.foreground),
+          div()
+            .relative()
+            .flex_none()
+            .p(2)
+            .children(field(this.inputFocused ? t.accent : t.input, t.background))
+            .child(Input.new(this.input).h(28).px(10).items_center().border_0().bg(t.background).text_color(t.foreground)),
         ),
       )
       .when(Boolean(this.error), (el) => el.child(div().text_color(t.blocked).child(this.error)))
@@ -388,7 +386,7 @@ export default class Worktree extends View {
           .text_size(11)
           .text_color(t.dim)
           .gap(6)
-          .when(this.busy, (el) => el.child(div().frames(["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"], 90)))
+          .when(this.busy, (el) => el.child(spinner(11).text_color(t.working)))
           .child(this.busy ? "working…" : blocked ? "esc close" : remove ? "↵ remove · esc cancel" : "↵ create · esc cancel"),
       );
   }

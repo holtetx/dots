@@ -14,6 +14,7 @@ import { v_flex, h_flex, InputState, Input, ScrollHandle } from "gpui-base";
 import { props, closeOverlay, theme, spaces, panes, agents, terminals, exec, shared, setShared } from "herdr";
 import { badge, expand, githubRepo, open, openPrs, resolve } from "./github.js";
 import { editLinks, forgetHistory, linksOf, split } from "./docs.js";
+import { field, spinner } from "./pixel.js";
 
 const spaceOf = () => spaces().find((s) => s.id === props()?.link);
 const agentOf = () => agents().find((a) => a.address === props()?.agent);
@@ -201,36 +202,36 @@ export function linkRender(view) {
     .gap(8)
     .flex_none()
     .items_center()
-    .rounded(7)
+    .rounded(6)
     .cursor_pointer()
     .when(i === view.at, (el) => el.bg(t.selected))
     .when(i !== view.at, (el) => el.hover((el) => el.bg(t.hover)));
   const linkedRow = (r, i) => base(r, i)
     .when(r.hidden, (el) => el.opacity(0.5))
     .on_click((_e, cx) => open(r.url, cx))
-    .child(div().w(52).flex_none().child(badge(r.url, items, t, `link-badge-${r.url}`)))
+    .child(div().w(64).flex_none().child(badge(r.url, items, t, `link-badge-${r.url}`)))
     .child(div().flex_1().min_w(0).truncate().text_color(t.foreground).child(items[r.url]?.title || r.url.replace(/^https:\/\/(github\.com\/)?/, "")))
     .child(div().flex_none().max_w(160).truncate().text_size(11).text_color(t.dim).child(r.hidden ? `hidden · ${r.from}` : r.from))
-    .child(div().id(`drop-${r.url}`).flex_none().p(2).rounded(4).text_color(t.dim)
+    .child(div().id(`drop-${r.url}`).flex_none().p(2).rounded(2).text_color(t.dim)
       .hover((el) => el.bg(t.selected).text_color(t.foreground))
       .tooltip(r.owner ? "Unlink" : r.hidden ? "Show in the sidebar" : "Hide from the sidebar")
       .on_click((_e, cx) => { cx.stop_propagation(); drop(view, id, r, cx); })
       .child(svg(`mods/workspace-chrome/${r.hidden ? "plus" : "x"}.svg`).size(12)));
   const openRow = (r, i) => base(r, i)
     .on_click((_e, cx) => { link(view, r.pr, cx); cx.notify(); })
-    .child(div().w(52).flex_none().child(badge(r.url, { [r.url]: r.pr }, t, `open-badge-${r.url}`)))
+    .child(div().w(64).flex_none().child(badge(r.url, { [r.url]: r.pr }, t, `open-badge-${r.url}`)))
     .child(div().flex_1().min_w(0).truncate().text_color(t.foreground).child(r.pr.title))
     .child(div().flex_none().max_w(200).truncate().text_size(11).text_color(t.dim).child(r.pr.mine ? r.pr.branch : `${r.pr.author} · ${r.pr.branch}`));
-  const header = (label) => h_flex().h(26).px(8).pt(6).flex_none().items_center().text_size(11).text_color(t.dim).child(label);
+  const header = (label) => h_flex().h(26).px(8).pt(6).flex_none().items_center().text_size(11).font_semibold().text_color(t.dim).child(label);
 
   const children = [];
   view.childOf = [];
   let n = 0;
-  if (mine.length) children.push(header("Linked"));
+  if (mine.length) children.push(header("LINKED"));
   for (const r of mine) { view.childOf[n] = children.length; children.push(linkedRow(r, n++)); }
   if (view.repo) {
     const count = others.length === candidates.length ? `${candidates.length}` : `${others.length} of ${candidates.length}`;
-    children.push(header(view.open === undefined ? `Open in ${view.repo} · loading…` : `Open in ${view.repo} · ${count}`));
+    children.push(header(view.open === undefined ? `OPEN IN ${view.repo} · loading…` : `OPEN IN ${view.repo} · ${count}`));
   }
   for (const r of others) { view.childOf[n] = children.length; children.push(openRow(r, n++)); }
   const empty = !view.rows.length && view.open !== undefined;
@@ -270,13 +271,13 @@ export function linkRender(view) {
     .bg(t.popover)
     .text_size(13)
     .child(div().flex_none().truncate().font_semibold().text_color(t.foreground)
-      .child(agent ? `Links of ${agent.pane ? nameOf(agent) : "the agent"}${s ? ` in ${s.name}` : ""}` : `Links${s ? ` of ${s.name}` : ""}`))
-    .child(Input.new(view.input).h(32).px(10).flex_none().items_center().rounded(6).border(1).border_color(t.accent).bg(t.background).text_color(t.foreground))
+      .child(agent ? `LINKS OF ${agent.pane ? nameOf(agent) : "THE AGENT"}${s ? ` IN ${s.name}` : ""}` : `LINKS${s ? ` OF ${s.name}` : ""}`))
+    .child(div().relative().flex_none().children(field(t.accent, t.background)).child(Input.new(view.input).h(32).px(12).items_center().text_color(t.foreground)))
     .when(Boolean(view.error), (el) => el.child(div().flex_none().text_color(t.blocked).child(view.error)))
     .child(v_flex().id("link-list").flex_1().min_h(0).overflow_y_scrollbar().track_scroll(view.scroll)
       .children(children)
       .when(empty, (el) => el.child(div().p(8).text_color(t.dim).child(why))))
     .child(h_flex().flex_none().justify_end().gap(6).text_size(11).text_color(t.dim)
-      .when(view.busy, (el) => el.child(div().frames(["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"], 90)))
+      .when(view.busy, (el) => el.child(spinner(11).text_color(t.dim)))
       .child(hint));
 }

@@ -87,7 +87,7 @@ export function statusRender(view) {
     .child(v_flex().flex_none().gap(8)
       .child(div().truncate().text_size(11.5).text_color(t.dim).child(`${issue} · ${title}`))
       .child(h_flex().gap(8).items_center()
-        .child(div().font_semibold().text_color(t.foreground).child("Move from"))
+        .child(div().font_semibold().text_color(t.foreground).child("MOVE FROM"))
         .when(Boolean(from?.name), (el) => el.child(statusChip(from.name, from.category, t, dark)))))
     .child(div().flex_none().h(1).bg(t.border))
     .when(Boolean(view.note), (el) => el.child(div().flex_none().text_color(view.failed ? t.blocked : t.muted).child(view.note)))

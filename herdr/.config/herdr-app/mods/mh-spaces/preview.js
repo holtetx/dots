@@ -2,10 +2,11 @@ import { div, svg, image } from "gpui-kit";
 import { v_flex, h_flex, ScrollHandle, TextView } from "gpui-base";
 import { props, closeOverlay, theme, settings, shared } from "herdr";
 import { GH, FINAL, open } from "./github.js";
-import { ago, avatar, chip, colorOf, openStatus, pick, statusChip, tint } from "./board.js";
+import { ago, avatar, chip, colorOf, openStatus, pick, statusChip } from "./board.js";
 import { REVIEW_WORD, canCache, cacheImage, fetchPreview, loadAvatars, pruneCache } from "./preview-data.js";
 import { fetchJiraPreview } from "./jira-data.js";
 import { PRIORITY_COLOR, TYPE_COLOR, hue } from "./jira.js";
+import { outline } from "./pixel.js";
 
 const GREEN = ["#40a02b", "#a6e3a1"], RED = ["#d20f39", "#f38ba8"], YELLOW = ["#df8e1d", "#f9e2af"];
 const CHECK_COLOR = { failed: RED, running: YELLOW, passed: GREEN };
@@ -100,7 +101,7 @@ function key(view, e, cx) {
 
 const md = (id, text) => TextView.markdown(id, text).selectable(true).on_link_click((url, cx) => open(url, cx));
 
-const tag = (text, color) => div().flex_none().px(5).rounded(2).text_size(10.5).text_color(color).border_1().border_color(tint(color, "88")).bg(tint(color, "22")).child(text);
+const tag = (text, color) => h_flex().relative().flex_none().px(6).py(1).items_center().children(outline(color)).text_size(10.5).text_color(color).child(text);
 
 function parts(id, list, view, t) {
   return v_flex().gap(6).children(list.map((p, i) => {
@@ -129,20 +130,20 @@ const person = (name, url, t) => h_flex().gap(8).items_center().min_w(0).child(a
 function linkRow(l, first, t, dark) {
   const done = l.statusCategory === "done";
   return h_flex().h(30).gap(10).items_center()
-    .child(div().w(104).flex_none().truncate().text_size(11.5).text_color(l.blocker && !done ? pick(RED, dark) : t.dim).child(first ? l.why : ""))
+    .child(div().w(120).flex_none().truncate().text_size(11.5).text_color(l.blocker && !done ? pick(RED, dark) : t.dim).child(first ? l.why : ""))
     .child(div().size(8).flex_none().rounded(2).bg(colorOf(TYPE_COLOR, l.type, dark, t)))
-    .child(div().w(72).flex_none().text_size(11.5).text_color(t.dim).when(done, (el) => el.line_through()).child(l.key))
+    .child(div().w(80).flex_none().truncate().text_size(11.5).text_color(t.dim).when(done, (el) => el.line_through()).child(l.key))
     .child(div().flex_1().min_w(0).truncate().text_color(done ? t.muted : t.foreground).child(l.title))
     .child(statusChip(l.status, l.statusCategory, t, dark));
 }
 
 function jiraDetails(d, t, dark) {
   const priority = colorOf(PRIORITY_COLOR, d.priority, dark, t);
-  return v_flex().w(310).flex_none().self_start().px(16).py(14).gap(8).rounded(10).bg(t.surface).text_size(12.5)
+  return v_flex().w(310).flex_none().self_start().px(16).py(14).gap(8).rounded(6).bg(t.surface).text_size(12.5)
     .child(field("Status", statusChip(d.status, d.statusCategory, t, dark), t))
     .child(field("Assignee", person(d.assignee, d.assigneeAvatar, t), t))
     .child(field("Reporter", person(d.reporter, d.reporterAvatar, t), t))
-    .child(field("Priority", h_flex().gap(8).items_center().child(div().size(8).rounded_full().bg(priority)).child(div().text_color(t.foreground).child(d.priority || "None")), t))
+    .child(field("Priority", h_flex().gap(8).items_center().child(div().size(8).rounded(2).bg(priority)).child(div().text_color(t.foreground).child(d.priority || "None")), t))
     .when(Boolean(d.parent), (el) => el.child(field("Parent", h_flex().min_w(0).child(chip(d.parent?.title ?? "", hue(d.parent?.key ?? "", t), t, true)), t)))
     .when(d.labels.length > 0, (el) => el.child(field("Labels", h_flex().gap(4).flex_wrap().children(d.labels.map((l) => chip(l, t.muted, t))), t)))
     .child(div().my(4).h(1).bg(t.border))
@@ -159,13 +160,13 @@ function jiraBlocks(view, d, t, dark) {
   const body = d.body.length ? d.body : [{ md: "" }];
   view.blocks = [
     ...body.map((b, i) => ({ url: d.url, el: v_flex().gap(10)
-      .when(i === 0, (el) => el.child(label("Description")))
+      .when(i === 0, (el) => el.child(label("DESCRIPTION")))
       .child(b.md ? md(`pv-body-${i}`, b.md) : div().text_color(t.dim).child("No description.")) })),
     ...links.map((l, i) => ({ url: l.url, preview: l.url, tight: true, start: i === 0, el: v_flex().gap(6)
-      .when(i === 0, (el) => el.child(label("Linked issues", links.length)))
+      .when(i === 0, (el) => el.child(label("LINKED ISSUES", links.length)))
       .child(linkRow(l, l.why !== links[i - 1]?.why, t, dark)) })),
     ...d.posts.map((p, i) => ({ url: p.url, start: i === 0, el: v_flex().gap(8)
-      .when(i === 0, (el) => el.child(label("Comments", d.posts.length)))
+      .when(i === 0, (el) => el.child(label("COMMENTS", d.posts.length)))
       .child(h_flex().gap(8).items_center().child(avatar(p.who, t, 24, p.avatar)).child(div().text_size(12.5).font_semibold().text_color(t.foreground).child(p.who)).child(div().text_size(11.5).text_color(t.dim).child(`${ago(p.at)} ago`)))
       .child(div().pl(32).child(md(`pv-post-${i}`, p.parts[0].md || "_Empty._"))) })),
   ];
@@ -221,14 +222,14 @@ function status(d, t, dark) {
   const sum = ["failed", "running", "passed", "skipped"].map((s) => count(s) && `${count(s)} ${s}`).filter(Boolean).join(", ");
   return v_flex().gap(6)
     .child(h_flex().gap(10).flex_wrap().text_size(12)
-      .child(div().text_color(t.dim).child("Reviews"))
+      .child(div().font_semibold().text_color(t.dim).child("REVIEWS"))
       .children(d.reviewers.length
         ? d.reviewers.map((r) => div().text_color(REVIEW_COLOR[r.state] ? pick(REVIEW_COLOR[r.state], dark) : t.foreground).child(`${r.who} ${REVIEW_WORD[r.state] ?? r.state.toLowerCase()}`))
         : [div().text_color(t.muted).child("none yet")]))
-    .child(h_flex().gap(10).text_size(12).child(div().text_color(t.dim).child("CI")).child(div().text_color(t.foreground).child(sum || "no checks")))
+    .child(h_flex().gap(10).text_size(12).child(div().font_semibold().text_color(t.dim).child("CI")).child(div().text_color(t.foreground).child(sum || "no checks")))
     .children(d.checks.filter((c) => c.state === "failed" || c.state === "running").map((c) => h_flex().id(`pv-check-${c.name}-${c.url}`).gap(8).pl(22).text_size(12).cursor_pointer()
       .on_click((_e, cx) => open(c.url, cx))
-      .child(div().w(52).flex_none().text_color(pick(CHECK_COLOR[c.state], dark)).child(c.state))
+      .child(div().w(60).flex_none().text_color(pick(CHECK_COLOR[c.state], dark)).child(c.state))
       .child(div().flex_1().min_w(0).truncate().text_color(t.foreground).child(c.name))));
 }
 
@@ -281,7 +282,7 @@ export function previewRender(view) {
   if (d?.jira) return root.p(22).child(jiraRender(view, d, t, dark, footer));
   return root
     .child(v_flex().id("pv-list").flex_1().min_h(0).overflow_y_scrollbar().track_scroll(view.scroll).gap(4)
-      .children(view.blocks.map((b, i) => v_flex().id(`pv-block-${i}`).p(10).rounded(8).border_1()
+      .children(view.blocks.map((b, i) => v_flex().id(`pv-block-${i}`).p(10).rounded(6).border_1()
         .border_color(i === view.at ? t.accent : t.popover)
         .on_click((_e, cx) => { view.at = i; cx.notify(); })
         .child(b.el)))
