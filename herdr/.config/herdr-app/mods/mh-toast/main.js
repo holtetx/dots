@@ -1,7 +1,7 @@
 // Herdr's agent toasts name only the program and "<space> / <tab>": find the agent to say which session.
 
 import { View, div, image, svg } from "gpui-kit";
-import { box, outline } from "./pixel.js";
+import { button, chip, frame } from "./pixel.js";
 import { v_flex, h_flex } from "gpui-base";
 import { props, closeOverlay, run, theme, agents, terminals, panes } from "herdr";
 
@@ -21,11 +21,7 @@ function agentOf(p) {
   return hits.length === 1 ? hits[0] : null;
 }
 
-// Copied from mh-spaces/title.js: a mod can not import from another mod's folder.
-// Drops what an agent puts before its title: a status glyph or spinner and the separator
-// after it ("✦  Working", "⠋ - Thinking"), and Codex's blinking "[ ! ] " / "[ . ] " mark.
-// Stops at an opening bracket or quote, so a title that starts with one ("[web] login") keeps it,
-// and at an emoji ("🔴 login", "❤️ deploy"), except for known status marks.
+// Same as mh-spaces/title.js (mods can't import each other): drops a status glyph, keeps a leading bracket or quote.
 const clean = (s) => (s ?? "").replace(/^(?:\[ [!.] \] |[✋⏳]️?(?=\s)|(?!(?:\p{Emoji}️|[#*]⃣))[^\p{L}\p{N}\p{Ps}\p{Pi}\p{Emoji_Presentation}])+/u, "").trim();
 
 // The agent's title when it says more than the program, a path or user@host.
@@ -58,27 +54,24 @@ export default class Toast extends View {
     const icon = p.icon ? image(p.icon).w(18).h(18).flex_none()
       : prog?.icon ? (prog.tint ? svg(prog.icon).size(18).flex_none().text_color(t.foreground) : image(prog.icon).w(18).h(18).flex_none())
       : null;
-    const chip = h_flex().relative().flex_none().px(5).h(16).items_center().children(outline(color))
-      .child(div().text_size(9.5).font_bold().text_color(color).child(badge));
+    const tag = chip(badge, color);
     const detail = a
       ? h_flex().gap(6).items_center().text_size(11).text_color(t.muted).overflow_hidden()
-        .child(chip)
+        .child(tag)
         .child(div().flex_none().max_w(180).truncate().child(a.space_name))
         .when(Boolean(branch), (el) => el.child(div().flex_none().text_color(t.dim).child("·")).child(div().min_w(0).truncate().child(branch)))
-      : h_flex().gap(6).items_center().min_w(0).child(chip).when(Boolean(p.body) && !login, (el) => el.child(text(p.body).min_w(0).text_size(11).text_color(t.muted)));
-    return h_flex()
+      : h_flex().gap(6).items_center().min_w(0).child(tag).when(Boolean(p.body) && !login, (el) => el.child(text(p.body).min_w(0).text_size(11).text_color(t.muted)));
+    return frame(h_flex(), t.input, t.chrome)
       .id("toast")
-      .relative()
       .when(p.fitHeight, (el) => el.w_full().min_h(70).flex_none())
       .when(!p.fitHeight, (el) => el.size_full())
-      .children(box(t.input, t.chrome, t.canvas))
       .cursor_pointer()
       .hover((s) => s.opacity(0.96))
       .on_click(() => {
         if (p.action?.name) run(p.action.name, p.action.args ?? {});
         closeOverlay(p.overlay);
       })
-      .child(h_flex().relative().flex_1().min_w(0).pl(14).pr(16).pt(10).pb(12).gap(10).items_center()
+      .child(h_flex().flex_1().min_w(0).px(14).py(10).gap(10).items_center()
         .when(Boolean(icon), (el) => el.child(icon))
         .child(
           v_flex()
@@ -90,10 +83,10 @@ export default class Toast extends View {
             .child(detail)
             .when(Boolean(login), (el) => el.child(h_flex().gap(8).items_center()
               .child(div().flex_1().min_w(0).truncate().tooltip(command).text_size(11).text_color(t.muted).child(command))
-              .child(h_flex().id("toast-login-copy").relative().flex_none().h(22).pl(7).pr(9).pb(2).items_center().children(box(t.input, t.raised, t.canvas))
+              .child(button(h_flex(), t, false).bg(t.raised).id("toast-login-copy").flex_none().h(20).px(7).items_center()
                 .cursor_pointer().hover(s => s.text_color(t.foreground))
                 .on_click((_e, cx) => { cx.stop_propagation(); cx.write_to_clipboard(command); this.copied = true; cx.notify(); })
-                .child(div().relative().text_size(9.5).font_bold().text_color(this.copied ? t.done : t.accent).child(this.copied ? "COPIED" : "COPY"))))),
+                .child(div().text_size(9.5).font_bold().text_color(this.copied ? t.done : t.accent).child(this.copied ? "COPIED" : "COPY"))))),
         ));
   }
 }

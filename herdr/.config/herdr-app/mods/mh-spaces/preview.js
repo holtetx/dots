@@ -2,19 +2,17 @@ import { div, svg, image } from "gpui-kit";
 import { v_flex, h_flex, ScrollHandle, TextView } from "gpui-base";
 import { props, closeOverlay, theme, settings, shared } from "herdr";
 import { GH, FINAL, open } from "./github.js";
-import { ago, avatar, chip, colorOf, openStatus, pick, statusChip } from "./board.js";
+import { ago, avatar, colorOf, epic, openStatus, pick, statusChip } from "./board.js";
 import { REVIEW_WORD, canCache, cacheImage, fetchPreview, loadAvatars, pruneCache } from "./preview-data.js";
 import { fetchJiraPreview } from "./jira-data.js";
-import { PRIORITY_COLOR, TYPE_COLOR, hue } from "./jira.js";
-import { outline } from "./pixel.js";
+import { GREEN, PRIORITY_COLOR, RED, TYPE_COLOR, YELLOW, hue } from "./jira.js";
+import { chip } from "./pixel.js";
 
-const GREEN = ["#40a02b", "#a6e3a1"], RED = ["#d20f39", "#f38ba8"], YELLOW = ["#df8e1d", "#f9e2af"];
 const CHECK_COLOR = { failed: RED, running: YELLOW, passed: GREEN };
 const REVIEW_COLOR = { APPROVED: GREEN, CHANGES_REQUESTED: RED };
 const MERGE_COLOR = { conflicts: RED, "checks failing": RED, "ready to merge": GREEN };
 // The last answer per URL: shown at once on the next opening while it asks again.
 const memory = {};
-
 
 export function previewInit(view, cx) {
   view.handle = cx.focus_handle();
@@ -101,8 +99,6 @@ function key(view, e, cx) {
 
 const md = (id, text) => TextView.markdown(id, text).selectable(true).on_link_click((url, cx) => open(url, cx));
 
-const tag = (text, color) => h_flex().relative().flex_none().px(6).py(1).items_center().children(outline(color)).text_size(10.5).text_color(color).child(text);
-
 function parts(id, list, view, t) {
   return v_flex().gap(6).children(list.map((p, i) => {
     if (p.md) return md(`${id}-${i}`, p.md);
@@ -117,14 +113,13 @@ function parts(id, list, view, t) {
   }));
 }
 
-function field(name, value, t) {
+function entry(name, value, t) {
   return h_flex().gap(12).items_start().min_h(24)
     .child(div().w(64).flex_none().pt(3).text_size(11.5).text_color(t.dim).child(name))
     .child(div().flex_1().min_w(0).flex().items_center().min_h(22).child(value));
 }
 
 const person = (name, url, t) => h_flex().gap(8).items_center().min_w(0).child(avatar(name, t, 22, url)).child(div().min_w(0).truncate().text_color(name ? t.foreground : t.muted).child(name || "Unassigned"));
-
 
 // One row per linked issue; the link word only on the first of its group.
 function linkRow(l, first, t, dark) {
@@ -140,15 +135,15 @@ function linkRow(l, first, t, dark) {
 function jiraDetails(d, t, dark) {
   const priority = colorOf(PRIORITY_COLOR, d.priority, dark, t);
   return v_flex().w(310).flex_none().self_start().px(16).py(14).gap(8).rounded(6).bg(t.surface).text_size(12.5)
-    .child(field("Status", statusChip(d.status, d.statusCategory, t, dark), t))
-    .child(field("Assignee", person(d.assignee, d.assigneeAvatar, t), t))
-    .child(field("Reporter", person(d.reporter, d.reporterAvatar, t), t))
-    .child(field("Priority", h_flex().gap(8).items_center().child(div().size(8).rounded(2).bg(priority)).child(div().text_color(t.foreground).child(d.priority || "None")), t))
-    .when(Boolean(d.parent), (el) => el.child(field("Parent", h_flex().min_w(0).child(chip(d.parent?.title ?? "", hue(d.parent?.key ?? "", t), t, true)), t)))
-    .when(d.labels.length > 0, (el) => el.child(field("Labels", h_flex().gap(4).flex_wrap().children(d.labels.map((l) => chip(l, t.muted, t))), t)))
+    .child(entry("Status", statusChip(d.status, d.statusCategory, t, dark), t))
+    .child(entry("Assignee", person(d.assignee, d.assigneeAvatar, t), t))
+    .child(entry("Reporter", person(d.reporter, d.reporterAvatar, t), t))
+    .child(entry("Priority", h_flex().gap(8).items_center().child(div().size(8).rounded(2).bg(priority)).child(div().text_color(t.foreground).child(d.priority || "None")), t))
+    .when(Boolean(d.parent), (el) => el.child(entry("Parent", h_flex().min_w(0).child(epic(d.parent?.title ?? "", hue(d.parent?.key ?? "", t), t)), t)))
+    .when(d.labels.length > 0, (el) => el.child(entry("Labels", h_flex().gap(4).flex_wrap().children(d.labels.map((l) => chip(l, t.muted))), t)))
     .child(div().my(4).h(1).bg(t.border))
-    .child(field("Created", div().text_color(t.muted).child(`${ago(d.created)} ago`), t))
-    .child(field("Updated", div().text_color(t.muted).child(`${ago(d.updated)} ago`), t));
+    .child(entry("Created", div().text_color(t.muted).child(`${ago(d.created)} ago`), t))
+    .child(entry("Updated", div().text_color(t.muted).child(`${ago(d.updated)} ago`), t));
 }
 
 // The left side's blocks, which j k move through: description pieces, linked issues, comments.
@@ -199,9 +194,9 @@ function header(d, view, t, dark) {
   const s = GH[d.state];
   const live = !FINAL.has(d.state);
   const tags = [
-    ...(live && d.merge ? [tag(d.merge, MERGE_COLOR[d.merge] ? pick(MERGE_COLOR[d.merge], dark) : t.ansi3)] : []),
-    ...(props().behind && view.url === props().preview ? [tag("behind", t.ansi3)] : []),
-    ...d.labels.map((l) => tag(l, t.dim)),
+    ...(live && d.merge ? [chip(d.merge, MERGE_COLOR[d.merge] ? pick(MERGE_COLOR[d.merge], dark) : t.ansi3)] : []),
+    ...(props().behind && view.url === props().preview ? [chip("behind", t.ansi3)] : []),
+    ...d.labels.map((l) => chip(l, t.dim)),
   ];
   return v_flex().gap(6)
     .child(h_flex().gap(8).items_center().text_size(11.5)

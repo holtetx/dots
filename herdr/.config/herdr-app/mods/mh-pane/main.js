@@ -1,10 +1,10 @@
-// A pane's header in the Pixel HQ style (cloned from Herdr's pane mod): the program, its session
-// title as a chip, the folder and branch, and the agent's status as a chip.
+// A pane's header in the Pixel HQ style (cloned from Herdr's pane mod): the program, the folder, the status.
+// The session title, which the tab already shows, only tells split panes apart.
 // Buttons split, zoom and close this pane on hover. Props from the app: { pane, terminal }.
 
 import { View, div, svg, image } from "gpui-kit";
 import { h_flex } from "gpui-base";
-import { outline, spinner } from "./pixel.js";
+import { chip, mark, WORDS } from "./pixel.js";
 import { panes, props, run, theme, home, layout, terminals } from "herdr";
 
 // Match the first visible tab frame, including the active child of a stack.
@@ -42,8 +42,6 @@ function telling(p) {
   return live && live !== p.terminal && live !== p.program?.name && !path && !live.includes("@") && live.toLowerCase() !== p.program?.key ? live : null;
 }
 
-const STATUS = { working: "working", blocked: "needs you", done: "done", idle: "idle" };
-
 export default class Pane extends View {
   init() { this.hovered = false; }
 
@@ -55,7 +53,7 @@ export default class Pane extends View {
     return div()
       .id(id)
       .p(3)
-      .rounded(2)
+      .rounded(6)
       .text_color(t.dim)
       .hover((s) => s.bg(t.hover).text_color(t.foreground))
       .on_click((_e, cx) => {
@@ -71,14 +69,13 @@ export default class Pane extends View {
     if (!p) return div();
     const agent = Boolean(p.program?.agent);
     const name = p.name || ((agent || p.program?.shell) && p.program.name) || p.title || p.program?.name || "shell";
-    const session = agent ? (terminals().find((x) => x.address === p.terminal)?.labels?.["mh.description"] || telling(p)) : null;
+    const split = panes().filter((x) => x.tab === p.tab).length > 1;
+    const session = agent && split ? (terminals().find((x) => x.address === p.terminal)?.labels?.["mh.description"] || telling(p)) : null;
     const pic = icon(p.program, 14, t.dim);
-    const st = agent ? p.status ?? "idle" : null;
-    const color = st === "idle" ? t.dim : t[st];
+    const st = p.status;
+    const color = t[st] ?? t.dim;
     const pane = p.pane;
     const bottom = paneFrame(layout())?.header?.position === "bottom";
-    const chip = (text, c, icon) => h_flex().relative().flex_none().gap(5).px(7).h(20).items_center().children(outline(c))
-      .text_size(9.5).font_bold().text_color(c).when(Boolean(icon), (el) => el.child(icon)).child(text);
     return h_flex()
       .id(`pane-head-${pane}`)
       .size_full()
@@ -96,12 +93,12 @@ export default class Pane extends View {
       .child(div().flex_none().truncate().max_w(200).font_semibold().text_color(t.foreground).child(name))
       .when(Boolean(session), (el) => el.child(div().min_w(0).max_w(360).flex_shrink(1).child(chip(session, t.accent).max_w(360).truncate().font_medium().text_size(10.5).text_color("#b4befe"))))
       .child(div().id(`ph-where-${pane}`).flex_1().min_w(0).truncate().text_color(t.dim).tooltip([folder(p.cwd), p.branch].filter(Boolean).join(" · "))
-        .child([folder(p.cwd), p.branch].filter(Boolean).join(" · ")))
+        .child(folder(p.cwd)))
       .when(this.hovered, el => el
         .child(this.button(t, `ph-r-${pane}`, "split-right", "pane.split", { direction: "right", pane }))
         .child(this.button(t, `ph-d-${pane}`, "split-down", "pane.split", { direction: "down", pane }))
         .child(this.button(t, `ph-z-${pane}`, p.zoomed ? "unzoom" : "zoom", "pane.zoom", { pane }))
         .child(this.button(t, `ph-x-${pane}`, "close", "pane.close", { pane })))
-      .when(Boolean(st), (el) => el.child(chip((STATUS[st] ?? st).toUpperCase(), color, st === "working" ? spinner(11) : null)));
+      .when(Boolean(st), (el) => el.child(chip(WORDS[st].toUpperCase(), color, mark(st, t, 11))));
   }
 }

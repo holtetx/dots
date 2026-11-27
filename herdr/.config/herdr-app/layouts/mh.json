@@ -165,8 +165,8 @@
   ],
   "background": "canvas",
   "terminal_padding": [
-    6,
-    0
+    16,
+    14
   ],
   "titlebar": "none",
   "traffic_lights": [

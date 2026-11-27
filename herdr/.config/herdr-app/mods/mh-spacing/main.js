@@ -1,24 +1,12 @@
-// Spacing dialog: the gap between panes (and around them), the terminals' padding
-// and the panes' title bars, written into the shown layout with layout.set as they change.
-// ↑/↓ pick a row, ←/→ or the buttons change it. Its Hints tab picks what hint
-// mode (ctrl-a f, mh-copy/patterns.json) highlights, kept as shared("mh-copy.hints").
-// Its Links tab picks whether the sidebar's GitHub badges bring along a PR's issues and
-// an issue's PRs, kept as shared("mh-links").
-// Its Board tab picks the board's (ctrl-a T) repos (board-tab.js).
-// Its Sidebar tab picks whether space rows (mh-spaces) show their icon, kept as shared("mh-spaces").
-// What isn't in the layout is saved in mh-settings.json by mh-footer.
+// Spacing dialog: pane gap, terminal padding and title bars (layout.set), plus the Hints, Links, Board and Sidebar tabs (saved by mh-footer).
 
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { layout, run, theme, props, closeOverlay, appHome, readTextFile, shared, setShared } from "herdr";
 import { boardTab, boardTabInit, boardKey, check } from "./board-tab.js";
-import { box } from "./pixel.js";
+import { button } from "./pixel.js";
 
-// A Pixel HQ box (notched, framed, hard shadow), with an accent underline when on, as mh-tabs draws its tabs.
-const pixel = (el, t, on) => el.relative().pl(9).pr(11).pt(3).pb(5)
-  .children(box(on ? t.muted : t.input, on ? t.raised : t.chrome));
-
-const DEFAULT = { gap: 6, padX: 14, padY: 12 };
+const DEFAULT = { gap: 8, padX: 16, padY: 14 };
 const ROWS = [
   { key: "gap", label: "Pane gap", max: 16 },
   { key: "padX", label: "Terminal padding, sides", max: 32 },
@@ -57,10 +45,8 @@ function cyclePref(row, delta) {
   setPref(row, row.options[(i + delta + row.options.length) % row.options.length][0]);
 }
 
-// Options side by side, the chosen one raised.
-const segmented = (t, id, options, value, pick) => h_flex().flex_none().gap(4).text_size(12).children(options.map(([v, label]) => div()
-  .id(`${id}-${v}`).relative().pl(9).pr(11).pt(3).pb(5).cursor_pointer()
-  .children(box(value === v ? t.accent : t.input, value === v ? t.raised : t.chrome, t.canvas))
+const segmented = (t, id, options, value, pick) => h_flex().flex_none().gap(4).text_size(12).children(options.map(([v, label]) => button(div(), t, value === v)
+  .id(`${id}-${v}`).px(9).py(3).cursor_pointer()
   .text_color(value === v ? t.foreground : t.muted)
   .when(value !== v, (el) => el.hover((s) => s.text_color(t.foreground)))
   .on_click((_e, cx) => { pick(v); cx.notify(); })
@@ -225,7 +211,7 @@ export default class Spacing extends View {
 
   spacing(t) {
     const values = current();
-    const button = (id, icon, on) => div().id(id).relative().size(26).pr(2).pb(2).flex_none().flex().items_center().justify_center().children(box(t.input, t.chrome, t.canvas))
+    const step = (id, icon, on) => button(div(), t, false).id(id).size(24).flex_none().flex().items_center().justify_center()
       .text_color(t.muted).cursor_pointer().hover((s) => s.text_color(t.foreground))
       .on_click((_e, cx) => { on(); cx.notify(); })
       .child(svg(`mods/workspace-chrome/${icon}.svg`).size(12));
@@ -240,9 +226,9 @@ export default class Spacing extends View {
       .when(i === this.at, (el) => el.bg(t.selected))
       .on_click((_e, cx) => { this.at = i; cx.notify(); })
       .child(div().flex_1().min_w(0).truncate().text_color(t.foreground).child(r.label))
-      .child(button(`less-${r.key}`, "minus", () => this.change(r.key, -STEP)))
+      .child(step(`less-${r.key}`, "minus", () => this.change(r.key, -STEP)))
       .child(div().w(44).flex_none().text_center().text_color(t.foreground).child(`${values[r.key]} px`))
-      .child(button(`more-${r.key}`, "plus", () => this.change(r.key, STEP)));
+      .child(step(`more-${r.key}`, "plus", () => this.change(r.key, STEP)));
     const titleBars = h_flex()
       .id("row-bars")
       .h(34)
@@ -347,7 +333,7 @@ export default class Spacing extends View {
   render() {
     const t = theme();
     const view = this.tab === "hints" ? this.hints(t) : this.tab === "links" ? this.links(t) : this.tab === "board" ? boardTab(this, t) : this.tab === "sidebar" ? this.sidebar(t) : this.spacing(t);
-    const tab = ([id, label]) => pixel(div(), t, this.tab === id).id(`tab-${id}`).cursor_pointer().text_size(11.5)
+    const tab = ([id, label]) => button(div(), t, this.tab === id).id(`tab-${id}`).px(9).py(3).cursor_pointer().text_size(11.5)
       .text_color(this.tab === id ? t.foreground : t.muted).hover((s) => s.text_color(t.foreground))
       .on_click((_e, cx) => { this.show(id); cx.notify(); })
       .child(label.toUpperCase());
@@ -371,7 +357,7 @@ export default class Spacing extends View {
       .child(h_flex().gap(6).items_center().font_semibold().children(TABS.map(tab)))
       .child(view.body)
       .child(h_flex().gap(8).items_center().text_size(11).text_color(t.dim)
-        .child(div().id("reset").relative().pl(9).pr(11).pt(3).pb(5).children(box(t.input, t.chrome, t.canvas)).text_color(view.reset ? t.muted : t.dim)
+        .child(button(div(), t, false).id("reset").px(9).py(3).text_color(view.reset ? t.muted : t.dim)
           .when(Boolean(view.reset), (el) => el.cursor_pointer().hover((s) => s.text_color(t.foreground))
             .on_click((_e, cx) => { view.reset(); cx.notify(); }))
           .child(view.resetLabel.toUpperCase()))

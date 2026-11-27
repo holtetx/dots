@@ -1,20 +1,11 @@
-// The link dialog of a space, or of one of its agents: its GitHub PRs and issues,
-// those linked by hand (a space's include its agents', an agent's its
-// space's) beside its branch's PR and its Claude sessions', then what those bring
-// along (a PR's issues, an issue's PRs: "via #12"), then its
-// repo's open PRs to link.
-// Typing filters both (a number picks that one; a URL or owner/repo#12 is looked up).
-// ^D (or the row's button) unlinks one linked by hand, and hides the others from the
-// space and its agents until ^D shows them again. Both are kept on the space's
-// machine (docs.js), so every screen shows the same.
-// A mh-spaces overlay with props { link: spaceId, agent?: terminalAddress }.
+// The link dialog of a space or an agent, a mh-spaces overlay { link: spaceId, agent?: terminalAddress }; links are kept by docs.js.
 
 import { div, svg } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, ScrollHandle } from "gpui-base";
 import { props, closeOverlay, theme, spaces, panes, agents, terminals, exec, shared, setShared } from "herdr";
 import { badge, expand, githubRepo, open, openPrs, resolve } from "./github.js";
 import { editLinks, forgetHistory, linksOf, split } from "./docs.js";
-import { field, spinner } from "./pixel.js";
+import { frame, spinner } from "./pixel.js";
 
 const spaceOf = () => spaces().find((s) => s.id === props()?.link);
 const agentOf = () => agents().find((a) => a.address === props()?.agent);
@@ -212,7 +203,7 @@ export function linkRender(view) {
     .child(div().w(64).flex_none().child(badge(r.url, items, t, `link-badge-${r.url}`)))
     .child(div().flex_1().min_w(0).truncate().text_color(t.foreground).child(items[r.url]?.title || r.url.replace(/^https:\/\/(github\.com\/)?/, "")))
     .child(div().flex_none().max_w(160).truncate().text_size(11).text_color(t.dim).child(r.hidden ? `hidden · ${r.from}` : r.from))
-    .child(div().id(`drop-${r.url}`).flex_none().p(2).rounded(2).text_color(t.dim)
+    .child(div().id(`drop-${r.url}`).flex_none().p(2).rounded(6).text_color(t.dim)
       .hover((el) => el.bg(t.selected).text_color(t.foreground))
       .tooltip(r.owner ? "Unlink" : r.hidden ? "Show in the sidebar" : "Hide from the sidebar")
       .on_click((_e, cx) => { cx.stop_propagation(); drop(view, id, r, cx); })
@@ -272,7 +263,7 @@ export function linkRender(view) {
     .text_size(13)
     .child(div().flex_none().truncate().font_semibold().text_color(t.foreground)
       .child(agent ? `LINKS OF ${agent.pane ? nameOf(agent) : "THE AGENT"}${s ? ` IN ${s.name}` : ""}` : `LINKS${s ? ` OF ${s.name}` : ""}`))
-    .child(div().relative().flex_none().children(field(t.accent, t.background)).child(Input.new(view.input).h(32).px(12).items_center().text_color(t.foreground)))
+    .child(frame(Input.new(view.input), t.accent, t.background).flex_none().h(32).px(12).items_center().text_color(t.foreground))
     .when(Boolean(view.error), (el) => el.child(div().flex_none().text_color(t.blocked).child(view.error)))
     .child(v_flex().id("link-list").flex_1().min_h(0).overflow_y_scrollbar().track_scroll(view.scroll)
       .children(children)

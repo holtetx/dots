@@ -48,7 +48,6 @@ const folderDialog = (folder) => {
 };
 const connected = () => (shared("space-folders")?.machines ?? []).filter((m) => m.state === "connected").map((m) => m.name);
 
-
 function items(p, git) {
   p = p ?? {};
   const tg = p.target ?? {};
@@ -217,7 +216,7 @@ export default class Menu extends View {
             .h(31)
             .px(8)
             .gap(9)
-            .rounded(4)
+            .rounded(6)
             .items_center()
             .justify_between()
             .text_color(t.foreground)

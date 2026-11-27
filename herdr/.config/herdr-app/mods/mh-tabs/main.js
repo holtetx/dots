@@ -1,12 +1,7 @@
 import { View, div, svg, image } from "gpui-kit";
 import { h_flex, ScrollHandle } from "gpui-base";
-import { box, spinner } from "./pixel.js";
+import { button, mark } from "./pixel.js";
 import { spaces, panes, agents, run, openOverlay, theme, window, shared, setShared, layout, settings, focused, nextCommand, exec, home, notify, setBadge } from "herdr";
-
-
-// A Pixel HQ box: rounded, a 1px frame, brighter when on.
-const pixel = (el, t, on) => el.relative().pl(9).pr(11).pt(3).pb(5)
-  .children(box(on ? t.muted : t.input, on ? t.raised : t.chrome));
 
 function find(node, id) {
   if (node?.id === id) return node;
@@ -61,10 +56,11 @@ function askWaiting(id, waiting) {
 let sample = 0;
 function testToast() {
   const a = agents().find((x) => x.address === focused()?.terminal) ?? agents()[0];
-  const where = a && { title: `${a.program?.name ?? "Agent"} `, body: `${a.space_name} / ${a.tab_name}`, action: { name: "agent.focus", args: { terminal: a.address } } };
+  const name = a?.program?.name ?? "Agent";
+  const where = a && { body: `${a.space_name} / ${a.tab_name}`, action: { name: "agent.focus", args: { terminal: a.address } } };
   const kinds = [
-    where && { ...where, title: where.title + "needs you" },
-    where && { ...where, title: where.title + "finished" },
+    where && { ...where, title: `${name} needs you` },
+    where && { ...where, title: `${name} finished` },
     { title: "Sample info toast", body: "Something happened that you may want to know.", level: "info" },
     { title: "Sample warning toast", body: "Something may need a look.", level: "warning" },
     { title: "Sample error toast", body: "Something failed.", level: "error" },
@@ -211,13 +207,13 @@ export default class Tabs extends View {
       if (active >= 0) this.scroll.scroll_to_item(active);
     }
     const stop = (_e, cx) => cx.stop_propagation();
-    const button = (id, label, action) => div().id(id).relative().size(26).pb(2).pr(2).flex_none().flex().items_center().justify_center().children(box(t.input, t.chrome, t.canvas)).text_color(t.muted).hover(s => s.text_color(t.foreground))
+    const square = (id, label, action) => button(div(), t, false).id(id).size(24).flex_none().flex().items_center().justify_center().text_color(t.muted).hover(s => s.text_color(t.foreground))
       .on_mouse_down("left", stop).on_click(action).child(label);
     const item = (c, i) => {
       const lead = panes().find(p => p.tab === c.id && p.program?.agent) ?? panes().find(p => p.tab === c.id);
       const program = lead?.program;
       const name = label(c, lead);
-      return pixel(h_flex(), t, c.active).id(`tab-${c.id}`).h(26).gap(6).items_center().flex_none().text_size(12.5)
+      return button(h_flex(), t, c.active).id(`tab-${c.id}`).h(24).px(9).gap(6).items_center().flex_none().text_size(12.5)
         // A rename or status dot on this or an earlier tab can push the active one out.
         .when(i <= active, el => el.on_size_change((_size, cx) => { this.scroll.scroll_to_item(active); cx.notify(); }))
         .text_color(c.active ? t.foreground : t.muted)
@@ -232,8 +228,7 @@ export default class Tabs extends View {
         .on_mouse_down("right", (_e, cx) => { cx.stop_propagation(); openOverlay({ mod: "menu", kind: "popup", width: 200, props: { tab: "tab", target: { id: c.id, space: space.id } } }); })
         .when(Boolean(program?.icon), el => el.child(program.tint ? svg(program.icon).size(12).text_color(t.muted) : image(program.icon).size(12)))
         .child(div().max_w(170).truncate().child(c.zoomed ? `${name} Z` : name))
-        .when(c.status === "working", el => el.child(spinner(12).text_color(t.working)))
-        .when(c.status === "blocked" || c.status === "done", el => el.child(div().flex_none().text_color(t[c.status]).child(svg(`mods/mh-spaces/px-${c.status === "blocked" ? "bang" : "tick"}.svg`).size(c.status === "blocked" ? 9 : 11))))
+        .children([mark(c.status, t)].filter(Boolean))
         .when(this.hovered === c.id, el => el.child(div().id(`close-${c.id}`).text_color(t.dim).on_mouse_down("left", stop).on_click((_e, cx) => { cx.stop_propagation(); run("tab.close", { id: c.id }); }).child(svg("mods/pane/close.svg").size(10))));
     };
     const root = layout(), sidebar = find(root, "sidebar"), w = window();
@@ -246,7 +241,7 @@ export default class Tabs extends View {
     this.syncPanel(space, panel, body, enabled);
     const panelButton = (id, label, icon) => {
       const on = panel && !panel.hidden && body?.active === id;
-      return pixel(h_flex(), t, on).id(`panel-${id}`).h(26).gap(5).flex_none().items_center()
+      return button(h_flex(), t, on).id(`panel-${id}`).h(24).px(9).gap(5).flex_none().items_center()
         .text_size(10.5).font_bold().text_color(on ? t.foreground : t.muted)
         .hover(s => s.text_color(t.foreground)).on_mouse_down("left", stop)
         .on_click(() => {
@@ -260,11 +255,11 @@ export default class Tabs extends View {
       .child(h_flex().id("tab-scroll").flex_1().min_w(0).h_full().items_center().gap(6).overflow_x_scrollbar().track_scroll(this.scroll)
         .on_size_change((_size, cx) => { if (active >= 0) { this.scroll.scroll_to_item(active); cx.notify(); } })
         .children(shown.map(item)))
-      .child(button("tab-new", "+", () => openOverlay({ mod: "mh-new-menu", kind: "popup", width: 250, height: 512 })))
+      .child(square("tab-new", "+", () => openOverlay({ mod: "mh-new-menu", kind: "popup", width: 250, height: 512 })))
       .when(enabled.includes("files"), el => el.child(panelButton("files", "FILES", "mods/files/file.svg")))
       .when(enabled.includes("changes"), el => el.child(panelButton("changes", "CHANGES", "mods/changes/changes.svg")))
-      .when(w?.buttons, el => el.child(button("minimize", w.platform === "windows" ? svg("mods/mh-tabs/win-min.svg").size(16) : "−", () => run("window.minimize")))
-        .child(button("maximize", w.platform === "windows" ? svg(`mods/mh-tabs/${w.maximized ? "win-restore" : "win-max"}.svg`).size(16) : "□", () => run("window.maximize")))
-        .child(button("close-window", w.platform === "windows" ? svg("mods/mh-tabs/win-close.svg").size(16) : svg("mods/pane/close.svg").size(13), () => run("window.close"))));
+      .when(w?.buttons, el => el.child(square("minimize", w.platform === "windows" ? svg("mods/mh-tabs/win-min.svg").size(16) : "−", () => run("window.minimize")))
+        .child(square("maximize", w.platform === "windows" ? svg(`mods/mh-tabs/${w.maximized ? "win-restore" : "win-max"}.svg`).size(16) : "□", () => run("window.maximize")))
+        .child(square("close-window", w.platform === "windows" ? svg("mods/mh-tabs/win-close.svg").size(16) : svg("mods/pane/close.svg").size(13), () => run("window.close"))));
   }
 }

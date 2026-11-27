@@ -13,7 +13,7 @@ import { div, svg } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, ScrollHandle } from "gpui-base";
 import { agents, terminals, settings, shared, setShared, props, run, exec, closeOverlay, openOverlay } from "herdr";
 import { ago, base, bring, label, missing, resume, startNew, worktree } from "./sessions.js";
-import { field, spinner } from "./pixel.js";
+import { frame, mark, WORDS } from "./pixel.js";
 
 const ICON = (name) => `mods/workspace-chrome/${name}.svg`;
 // mh-spaces/github.js's: GitHub's colors, [light, dark].
@@ -28,12 +28,6 @@ const GH = {
   "issue-done": { icon: "mods/workspace-chrome/circle-check.svg", color: PURPLE, label: "Closed" },
   "issue-skip": { icon: "mods/mh-spaces/circle-slash.svg", color: GRAY, label: "Not planned" },
 };
-// An agent's status mark, as the mh-spaces sidebar draws it.
-export const mark = (st, t) =>
-  st === "working" ? spinner(12).text_color(t.working)
-  : st === "blocked" ? svg("mods/mh-spaces/px-bang.svg").size(9).text_color(t.blocked)
-  : st === "done" ? svg("mods/mh-spaces/px-tick.svg").size(11).text_color(t.done)
-  : div().size(7).rounded(4).bg(t[st] ?? t.idle);
 const FINAL = new Set(["merged", "closed", "issue-done", "issue-skip"]);
 const FALLBACK = { pr: GH.open.icon, issue: GH["issue-open"].icon };
 
@@ -272,10 +266,10 @@ export function taskRender(view, t) {
     const where = view.busy === keyOf(s) ? "resuming…" : `${s.machine ? `${s.machine} · ` : ""}${label(s.cwd)}${gone ? " · gone" : ""}`;
     return line(`tk-${task.url}-${keyOf(s)}`, i, row)
       .when(!props()?.url, (el) => el.pl(33))
-      .child(h_flex().w(14).flex_none().justify_center().child(s.running ? mark(s.running.status, t) : svg(ICON("clock")).size(12).text_color(t.dim)))
+      .child(h_flex().w(14).flex_none().justify_center().child(s.running ? (mark(s.running.status, t) ?? "") : svg(ICON("clock")).size(12).text_color(t.dim)))
       .child(div().flex_1().min_w(0).truncate().text_color(gone ? t.dim : t.foreground).child(s.title))
       .child(div().flex_none().max_w(220).truncate().text_size(11.5).text_color(t.dim).child(where))
-      .child(h_flex().flex_none().w(52).justify_end().text_size(11).text_color(t.dim).child(s.running ? s.running.status : ago(s.at)));
+      .child(h_flex().flex_none().w(52).justify_end().text_size(11).text_color(t.dim).child(s.running ? WORDS[s.running.status] : ago(s.at)));
   };
   const children = [];
   view.childOf = [];
@@ -324,14 +318,12 @@ export function taskRender(view, t) {
     .text_size(13)
     .child(div().text_size(15).font_semibold().text_color(t.foreground).truncate().child(it ? `SESSIONS · ${refOf(it)}${it.title ? ` ${it.title}` : ""}` : "TASKS"))
     .child(
-      h_flex()
+      frame(h_flex(), t.accent, t.background)
         .h(36)
         .flex_none()
-        .relative()
         .px(12)
         .gap(8)
         .items_center()
-        .children(field(t.accent, t.background))
         .child(svg(ICON("search")).size(15).text_color(t.dim))
         .child(Input.new(view.input).flex_1().h_full().text_size(12.8).text_color(t.foreground)),
     )

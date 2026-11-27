@@ -7,7 +7,7 @@
 import { View, div } from "gpui-kit";
 import { h_flex } from "gpui-base";
 import { props, focused, terminals, theme, run, hc, closeOverlay } from "herdr";
-import { outline } from "./pixel.js";
+import { chip, frame } from "./pixel.js";
 
 // Each move: [the keys Claude gets, terminal.scroll's args for the rest].
 const MOVES = {
@@ -58,7 +58,7 @@ export default class Scroll extends View {
 
   render() {
     const t = theme();
-    return h_flex()
+    return frame(h_flex(), t.accent, t.popover)
       .id("scroll")
       .track_focus(this.handle)
       .on_key_down((e, cx) => {
@@ -74,12 +74,8 @@ export default class Scroll extends View {
       .px(10)
       .gap(10)
       .items_center()
-      .rounded(6)
-      .bg(t.popover)
-      .border_1()
-      .border_color(t.accent)
       .text_size(12)
-      .child(h_flex().relative().flex_none().px(6).h(16).items_center().children(outline(t.accent)).text_size(10.5).font_semibold().text_color(t.accent).child("SCROLL"))
+      .child(chip("SCROLL", t.accent))
       .child(div().flex_1().min_w(0).truncate().text_color(t.muted)
         .child(this.terminal ? "j/k line · ^U/^D half page · ^B/^F page · g/G top/bottom · q quit" : "No terminal in focus · q quit"));
   }

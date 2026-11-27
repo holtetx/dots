@@ -1,11 +1,9 @@
-// The spacing dialog's Board tab: what the board (ctrl-a T) shows. Its repos, those the
-// sidebar found in its folders (shared("board.repos"), on unless turned off: `skip`) and
-// those added here (`repos`). Kept as shared("mh-board") (mh-spaces/board-data.js's DEFAULTS).
+// The spacing dialog's Board tab: the board's repos, from sidebar folders (off: `skip`) and added here (`repos`), kept as shared("mh-board").
 
 import { div, svg } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input } from "gpui-base";
 import { shared, setShared } from "herdr";
-import { box, field } from "./pixel.js";
+import { button, frame } from "./pixel.js";
 
 const KEY = "mh-board";
 const DEFAULTS = { repos: [], skip: [] };
@@ -80,10 +78,8 @@ export function boardKey(view, e) {
   return true;
 }
 
-// A pixel checkbox, also on the spacing dialog's other tabs.
-export const check = (t, on) => div().relative().size(16).pr(2).pb(2).flex_none().flex().items_center().justify_center()
-  .children(box(on ? t.accent : t.input, on ? t.accent : t.chrome, t.canvas))
-  .when(on, (el) => el.text_color(t.accent_foreground).child(svg("mods/workspace-chrome/check.svg").size(10)));
+export const check = (t, on) => button(div(), t, on).size(16).flex_none().flex().items_center().justify_center()
+  .when(on, (el) => el.border_color(t.accent).bg(t.accent).text_color(t.accent_foreground).child(svg("mods/workspace-chrome/check.svg").size(10)));
 
 export function boardTab(view, t) {
   const list = rows();
@@ -106,8 +102,7 @@ export function boardTab(view, t) {
   const section = (label) => div().px(8).pt(8).pb(2).flex_none().text_size(11).font_semibold().text_color(t.dim).child(label);
   const children = [section("REPOS: THEIR OPEN PRs AND ISSUES")];
   children.push(h_flex().px(8).py(2).flex_none()
-    .child(div().relative().flex_1().min_w(0).children(field(view.editing === "add-repo" ? t.accent : t.input, t.background))
-      .child(Input.new(view.addRepo).h(28).px(10).items_center().text_color(t.foreground))));
+    .child(frame(Input.new(view.addRepo), view.editing === "add-repo" ? t.accent : t.input, t.background).flex_1().min_w(0).h(28).px(10).items_center().text_color(t.foreground)));
   if (view.addError) children.push(div().px(8).flex_none().text_size(11.5).text_color(t.blocked).child(view.addError));
   list.forEach((r, i) => children.push(row(r, i)));
   return {

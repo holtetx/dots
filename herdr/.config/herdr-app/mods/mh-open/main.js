@@ -5,7 +5,7 @@
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, ScrollHandle } from "gpui-base";
 import { spaces, panes, machines, theme, props, run, exec, closeOverlay, nextCommand } from "herdr";
-import { field } from "./pixel.js";
+import { frame } from "./pixel.js";
 
 const LIST = 440;
 const CAP = 100;
@@ -151,7 +151,7 @@ export default class Open extends View {
         .px(10)
         .gap(9)
         .items_center()
-        .rounded(4)
+        .rounded(6)
         .cursor_pointer()
         .when(on, (el) => el.bg(t.selected))
         .when(!on, (el) => el.hover((st) => st.bg(t.hover)))
@@ -205,14 +205,12 @@ export default class Open extends View {
       .text_size(13)
       .child(div().text_size(15).font_semibold().text_color(t.foreground).child("OPEN LOCATION"))
       .child(
-        h_flex()
+        frame(h_flex(), t.accent, t.background)
           .h(36)
           .flex_none()
-          .relative()
           .px(12)
           .gap(8)
           .items_center()
-          .children(field(t.accent, t.background))
           .child(svg(ICON("search")).size(15).text_color(t.dim))
           .child(Input.new(this.input).flex_1().h_full().text_size(12.8).text_color(t.foreground)),
       )

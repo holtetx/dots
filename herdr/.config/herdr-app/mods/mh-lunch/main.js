@@ -5,7 +5,7 @@ import { View, div } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { props, closeOverlay, theme, shared, checking } from "herdr";
 import { emojis } from "./emoji.js";
-import { box } from "./pixel.js";
+import { button, frame } from "./pixel.js";
 
 const canteen = () => {
   const c = shared("mh-lunch");
@@ -49,13 +49,9 @@ export default class Lunch extends View {
   }
 
   today(t, day) {
-    return v_flex()
+    return frame(v_flex(), t.accent, t.raised)
       .gap(10)
       .p(14)
-      .rounded(6)
-      .bg(t.raised)
-      .border_1()
-      .border_color(t.accent)
       .child(div().text_size(11).font_semibold().text_color(t.accent).child(`TODAY · ${day.name.toUpperCase()}`))
       .children(
         day.dishes.map((name) => {
@@ -118,7 +114,7 @@ export default class Lunch extends View {
           .gap(8)
           .child(div().text_size(16).font_semibold().text_color(t.foreground).child("LUNCH"))
           .child(div().flex_1().text_size(12).text_color(t.dim).child(sub))
-          .child(div().id("mh-lunch-esc").relative().pl(7).pr(9).pt(2).pb(4).children(box(t.input, t.chrome, t.canvas)).text_size(11).text_color(t.dim).cursor_pointer().hover((s) => s.text_color(t.foreground)).on_click(hide).child("Esc")),
+          .child(button(div(), t, false).id("mh-lunch-esc").px(7).py(2).text_size(11).text_color(t.dim).cursor_pointer().hover((s) => s.text_color(t.foreground)).on_click(hide).child("Esc")),
       )
       .when(!!text, (el) => el.child(div().px(4).pb(4).text_size(13).text_color(t.dim).child(text)))
       .when(!text, (el) => el.children(this.days.map((day) => (day.date === now ? this.today(t, day) : this.row(t, day, day.date < now)))));

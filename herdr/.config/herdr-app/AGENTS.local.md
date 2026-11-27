@@ -16,15 +16,16 @@ Read these first. They are in `~/.config/herdr-app`:
 
 Inspired by Pixel HQ (github.com/bnhan2710/pixel-hq), built by hand.
 
-- Theme `themes/pixel-hq.json`: Catppuccin Mocha with Pixel HQ's window colors. The `layouts/mh.json` root sets it, and JetBrains Mono for terminals and mods.
-- Cards: the root has padding 8 and gap 8. The sidebar, tab bar, panes, side panel and git bar are rounded cards (radius 12). The spacing dialog sets the same radius.
-- Pixel chrome: `mods/mh-spaces/pixel.js`, copied unchanged into each mh-* mod that uses it (mods can't import each other). Buttons, toggles and tabs are `box()`: rounded corners (6) and a 1px frame, as Pixel HQ's preview shows them, brighter when on. Chips are `outline()` (a tinted pill), inputs `field()`. These are absolute children, so they come before the content, and hover changes the text color, not the background. Section headers and buttons are in caps.
-- Status marks: `spinner()` (`px-spinner.svg`, a turning ring of pixels) when working, `px-bang.svg` when blocked, `px-tick.svg` when done. The footer's limits are 5-segment gauges, and its two icon buttons are boxes. `mh-tabs` sets the Dock badge to the number of agents that need you. `ctrl-a N` (`mh-tabs.test-toast`) shows a sample toast, the next kind each time.
-- Toasts (`mh-toast`): one notched box with no Herdr frame (`mod.json` overlay frame none), a level or status chip (`NEEDS YOU`, `DONE`, `ERR`, `WARN`, `OK`, `INFO`) and the title.
-- Pane headers: `mods/mh-pane` (a clone of Herdr's `pane`), always shown, 36 px: program, the session title (`mh.description`) as a chip, folder and branch, and a status chip (working with the spinner, needs you, done, idle). The spacing dialog's title bars use it.
-- Git bar: branch first, then the diff, PRs, and on the right every busy or idle agent as a mark and a count (`team()` in `bar.js`). A click goes to the next agent in that state. Then `HOTKEYS` (opens `mh-help`) and `COMMANDS` (the palette) buttons, labeled with their global keys from `keys()`.
-- Sidebar: under a folder's name, on the metro line, its checkout's branch on a faint tint of the folder's color (branch icon in that color) (`branchLine()`; `checkoutBranch()` picks the one most of its spaces share). The track ends at the last station. A space row gets a second line only with something of its own: the space name when the title is a session and no folder names it, a branch other than the folder's (a worktree) with ahead/behind, and `N agents` from 2. A space with two or more busy agents gets count chips under that. In folders, Other, SSH and Waiting the rows form a metro line: a track and a notched station per space in its status color (working pulses slowly and keeps its spinner on the right, blocked pulses fast, the shown space has a light core). Those rows have no other status mark on the right.
-- Fixed colors (GitHub, Jira, space marks) are Catppuccin pairs `[Latte, Mocha]`.
+- Theme `themes/pixel-hq.json`: Catppuccin Mocha with Pixel HQ's window colors. The `layouts/mh.json` root sets it, JetBrains Mono for terminals and mods, and terminal padding 16 by 14.
+- Cards: the root has padding 8 and gap 8. The sidebar, tab bar, panes, side panel and git bar are rounded cards (radius 12). The spacing dialog's defaults match (gap 8, padding 16 by 14).
+- `mods/mh-spaces/pixel.js`, copied unchanged into each mh-* mod that uses it (mods can't import each other): `button()` (rounded 6, 1px frame, brighter when on) for buttons, toggles and tabs, `frame()` for inputs and cards, `chip()` for tinted pills, `mark()` for an agent's status (`px-spinner.svg` turning, `px-bang.svg`, `px-tick.svg`, nothing when idle), `WORDS` for status words (needs you, working, done, idle), `ink()` for text on a colored tile. Rows and small icon buttons are rounded 6. Section headers are in caps.
+- Toasts (`mh-toast`): a framed card with no Herdr frame (`mod.json` overlay frame none). The title on the first line; a chip (`NEEDS YOU`, `DONE`, `ERR`, `WARN`, `OK`, `INFO`) with the space and branch, or the body, on the second. `ctrl-a N` (`mh-tabs.test-toast`) shows a sample, the next kind each time.
+- Pane headers: `mods/mh-pane` (a clone of Herdr's `pane`), always shown, 36 px: program, folder (folder and branch in its tooltip), the pane's status chip. The session title shows as a chip only in a split tab: the tab already shows it.
+- Git bar: branch, diff, PRs, then `N on the team` and a count per status (`team()` in `bar.js`). A click goes to the next agent in that state.
+- Sidebar: folders use Pixel HQ's metro line colors (`MARK` in `folders.js` and its copies). Under a folder's name, its checkout's branch in a chip (`branchLine()`; `checkoutBranch()` picks the one most of its spaces share). The track runs in the folder's color and ends at the last station. A station per space in its status color (working pulses slowly and keeps its spinner on the right, blocked pulses fast, the shown space has a light core). A row gets a second line only with something of its own: the space name when the title is a session and no folder names it, a branch other than the folder's (a worktree), `N agents` from 2. A space with two or more busy agents gets count chips. Subagent rows sit on the track with a blue spinner.
+- A PR with new activity has a small yellow square on its icon (sidebar and board).
+- The footer's limits are 5-segment gauges. `mh-tabs` sets the Dock badge to the number of agents that need you.
+- Fixed colors: GitHub and Jira states are Catppuccin pairs `[Latte, Mocha]`, defined once in `mods/mh-spaces/jira.js`.
 
 ## Where state lives
 
@@ -67,7 +68,7 @@ A space takes its git info from the folder of its first tab, or from that termin
 
 ## Toasts
 
-`mods/mh-toast` (layout `"toast"`) draws every notification. Herdr's agent toasts carry only "<program> needs you|finished" and "<space> / <tab>". The mod finds the agent from the click action (`agent.focus {terminal}`), else from that text when only one agent fits, and shows its `mh.description` or title, status, space and branch. Other toasts look like Herdr's, with a status bar on the left.
+`mods/mh-toast` (layout `"toast"`) draws every notification. Herdr's agent toasts carry only "<program> needs you|finished" and "<space> / <tab>". The mod finds the agent from the click action (`agent.focus {terminal}`), else from that text when only one agent fits, and shows its `mh.description` or title, status, space and branch. Other toasts show a level chip (see Look).
 
 ## Git bar
 

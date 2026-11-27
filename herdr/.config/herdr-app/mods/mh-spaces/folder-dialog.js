@@ -1,18 +1,18 @@
-// The folder dialog: a folder's name, color and where it is on each machine (one or
-// more paths there). A
-// mh-spaces overlay with props { folder: { id? (an existing one), from? (a space whose
-// repo to start a new one from) } }. Saving asks the sidebar to keep it
-// (shared("space-folders.ask")); what it shows comes from shared("space-folders").
+// The folder dialog, a mh-spaces overlay { folder: { id?, from? (a space to start from) } }; saving goes through shared("space-folders.ask").
 
 import { div, svg } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input } from "gpui-base";
 import { props, closeOverlay, theme, spaces, panes, exec, shared, setShared, pickFolder } from "herdr";
 import { MARK, base, expand, tilde, trim } from "./folders.js";
-import { box, field, notch } from "./pixel.js";
+import { button, frame } from "./pixel.js";
 
 const COLORS = [null, ...Object.keys(MARK)];
 const info = () => shared("space-folders") ?? {};
 const label = (key) => key || "This computer";
+// A dialog's action button, also in create.js.
+export const action = (t, id, text, primary, click) => button(div(), t, false).id(id).flex_none().px(13).py(5).cursor_pointer()
+  .when(primary, (el) => el.border_color(t.accent).bg(t.solid)).text_color(primary ? t.solid_foreground : t.muted)
+  .text_size(11.5).font_semibold().when(!primary, (el) => el.hover((s) => s.text_color(t.foreground))).on_click(click).child(text.toUpperCase());
 const ask = (op) => setShared("space-folders.ask", [...(shared("space-folders.ask") ?? []), op]);
 
 export function folderInit(view, cx) {
@@ -119,15 +119,12 @@ function choose(input, cx) {
 export function folderRender(view) {
   const t = theme();
   const states = new Map((info().machines ?? []).map((m) => [m.name, m.state]));
-  const entry = (state) => div().relative().flex_1().min_w(0).children(field(t.input, t.background)).child(Input.new(state).h(30).px(11).items_center().text_color(t.foreground));
-  const button = (id, text, primary, click) => div().id(id).relative().flex_none().pl(13).pr(15).pt(5).pb(7).cursor_pointer()
-    .children(box(primary ? t.accent : t.input, primary ? t.solid : t.chrome, t.canvas)).text_color(primary ? t.solid_foreground : t.muted)
-    .text_size(11.5).font_semibold().when(!primary, (el) => el.hover((s) => s.text_color(t.foreground))).on_click(click).child(text.toUpperCase());
+  const entry = (state) => frame(Input.new(state), t.input, t.background).flex_1().min_w(0).h(30).px(11).items_center().text_color(t.foreground);
   const id = (r) => r.key || "local";
   const pathField = (r, input, i) => h_flex().id(`folder-path-${id(r)}-${i}`).gap(6).items_center().flex_none()
     .child(entry(input))
-    .when(!r.key, (el) => el.child(button(`folder-choose-${i}`, "Choose…", false, (_e, cx) => choose(input, cx))))
-    .when(r.inputs.length > 1, (el) => el.child(div().id(`folder-path-drop-${id(r)}-${i}`).flex_none().p(4).rounded(2).cursor_pointer().text_color(t.dim)
+    .when(!r.key, (el) => el.child(action(t, `folder-choose-${i}`, "Choose…", false, (_e, cx) => choose(input, cx))))
+    .when(r.inputs.length > 1, (el) => el.child(div().id(`folder-path-drop-${id(r)}-${i}`).flex_none().p(4).rounded(6).cursor_pointer().text_color(t.dim)
       .hover((s) => s.bg(t.hover).text_color(t.foreground))
       .tooltip("Remove this path")
       .on_click((_e, cx) => { r.inputs.splice(i, 1); cx.notify(); })
@@ -147,8 +144,8 @@ export function folderRender(view) {
       .when(!r.editable, (el) => el.child(div().flex_1().min_w(0).h(30).flex().items_center().truncate().text_color(t.dim)
         .child(`${r.was.length ? `${r.was.join(", ")} · ` : ""}${(states.get(r.key) ?? "asleep").replace(/_/g, " ")}, can't change it now`)));
   };
-  const dots = h_flex().gap(6).flex_none().items_center().children(COLORS.map((c) => div().id(`folder-color-${c ?? "none"}`).relative().size(16).cursor_pointer()
-    .children(view.color === c ? field(t.foreground, c ? MARK[c] : t.dim) : notch(c ? MARK[c] : t.dim, [0, 0, 0, 0]))
+  const dots = h_flex().gap(6).flex_none().items_center().children(COLORS.map((c) => div().id(`folder-color-${c ?? "none"}`).size(16).rounded(6).bg(c ? MARK[c] : t.dim).cursor_pointer()
+    .when(view.color === c, (el) => el.border_2().border_color(t.foreground))
     .on_click((_e, cx) => { view.color = c; cx.notify(); })));
 
   return v_flex()
@@ -166,11 +163,11 @@ export function folderRender(view) {
       .child("Spaces under one of its paths go in it, worktrees nested there too. A machine left empty uses another's paths, moved to its own home."))
     .when(Boolean(view.error), (el) => el.child(div().flex_none().text_color(t.blocked).child(view.error)))
     .child(h_flex().gap(8).items_center().flex_none()
-      .when(Boolean(view.id), (el) => el.child(button("folder-delete", "Delete", false, () => {
+      .when(Boolean(view.id), (el) => el.child(action(t, "folder-delete", "Delete", false, () => {
         ask({ op: "delete", id: view.id });
         closeOverlay(props().overlay);
       })))
       .child(div().flex_1())
-      .child(button("folder-cancel", "Cancel", false, () => closeOverlay(props().overlay)))
-      .child(button("folder-save", view.busy ? "Saving…" : "Save", true, (_e, cx) => save(view, cx))));
+      .child(action(t, "folder-cancel", "Cancel", false, () => closeOverlay(props().overlay)))
+      .child(action(t, "folder-save", view.busy ? "Saving…" : "Save", true, (_e, cx) => save(view, cx))));
 }

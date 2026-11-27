@@ -1,13 +1,11 @@
-// The create dialog (n on the Jira tab; openCreate in board.js): a Task with a title, a
-// description, me or no one as assignee, in a column of the board. Creating sets
-// shared("jira.moved"), so the board reloads.
-// A mh-spaces overlay with props { create: project key, columns: [{ name, statuses }], col, back }.
+// The create dialog (n on the Jira tab), a mh-spaces overlay { create: project key, columns: [{ name, statuses }], col, back }.
 
 import { div } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, TextareaState, Textarea } from "gpui-base";
 import { props, closeOverlay, setShared, theme } from "herdr";
 import { createJiraIssue } from "./jira-data.js";
-import { box, field } from "./pixel.js";
+import { button, frame } from "./pixel.js";
+import { action } from "./folder-dialog.js";
 
 const ASSIGNEES = ["No one", "Me"];
 // Tab stops: the two text fields, then the two chip rows on the dialog's own focus.
@@ -90,16 +88,13 @@ function key(view, e, cx) {
 export function createRender(view) {
   const t = theme();
   const { create: project, columns } = props();
-  const chip = (id, text, on, click) => div().id(id).relative().flex_none().pl(9).pr(11).pt(4).pb(6).cursor_pointer().text_size(12)
-    .children(box(on ? t.accent : t.input, on ? t.raised : t.chrome, t.canvas)).text_color(on ? t.foreground : t.muted)
+  const chip = (id, text, on, click) => button(div(), t, on).id(id).flex_none().px(9).py(4).cursor_pointer().text_size(12)
+    .text_color(on ? t.foreground : t.muted)
     .when(!on, (el) => el.hover((s) => s.text_color(t.foreground)))
     .on_click(click).child(text);
   const row = (stop, label, chips) => h_flex().flex_none().gap(10).items_start()
     .child(div().w(70).flex_none().py(3).text_size(11.5).text_color(view.stop === stop ? t.foreground : t.dim).child(label))
     .child(h_flex().flex_1().min_w(0).flex_wrap().gap(6).children(chips));
-  const button = (id, text, primary, click) => div().id(id).relative().flex_none().pl(13).pr(15).pt(5).pb(7).cursor_pointer()
-    .children(box(primary ? t.accent : t.input, primary ? t.solid : t.chrome, t.canvas)).text_color(primary ? t.solid_foreground : t.muted)
-    .text_size(11.5).font_semibold().when(!primary, (el) => el.hover((s) => s.text_color(t.foreground))).on_click(click).child(text.toUpperCase());
   return v_flex()
     .id("create")
     .track_focus(view.handle)
@@ -118,13 +113,13 @@ export function createRender(view) {
     .bg(t.popover)
     .text_size(12.5)
     .child(div().flex_none().font_semibold().text_color(t.foreground).child(`NEW TASK IN ${project}`))
-    .child(div().id("create-title").relative().flex_none().on_mouse_down("left", (_e, cx) => { view.stop = 0; cx.notify(); }).children(field(view.stop === 0 ? t.accent : t.input, t.background)).child(Input.new(view.title).h(30).px(11).flex_none().text_color(t.foreground)))
-    .child(v_flex().id("create-text").relative().flex_1().min_h(90).on_mouse_down("left", (_e, cx) => { view.stop = 1; cx.notify(); }).children(field(view.stop === 1 ? t.accent : t.input, t.background)).child(Textarea.new(view.text).flex_1().px(11).py(8).text_color(t.foreground)))
+    .child(div().id("create-title").flex_none().on_mouse_down("left", (_e, cx) => { view.stop = 0; cx.notify(); }).child(frame(Input.new(view.title), view.stop === 0 ? t.accent : t.input, t.background).h(30).px(11).flex_none().text_color(t.foreground)))
+    .child(v_flex().id("create-text").flex_1().min_h(90).on_mouse_down("left", (_e, cx) => { view.stop = 1; cx.notify(); }).child(frame(Textarea.new(view.text), view.stop === 1 ? t.accent : t.input, t.background).flex_1().px(11).py(8).text_color(t.foreground)))
     .child(row(2, "Assignee", ASSIGNEES.map((a, i) => chip(`create-who-${i}`, a, view.me === (i === 1), (_e, cx) => { view.me = i === 1; go(view, 2); cx.notify(); }))))
     .child(row(3, "Column", columns.map((c, i) => chip(`create-col-${i}`, c.name, view.col === i, (_e, cx) => { view.col = i; go(view, 3); cx.notify(); }))))
     .when(Boolean(view.note), (el) => el.child(div().flex_none().text_color(view.failed ? t.blocked : t.muted).child(view.note)))
     .child(h_flex().flex_none().gap(8).items_center()
       .child(div().flex_1().min_w(0).truncate().text_size(11).text_color(t.dim).child("tab next field · h l choose · ⌘↵ create · esc close"))
-      .child(button("create-cancel", "Cancel", false, () => closeOverlay(props().overlay)))
-      .child(button("create-ok", view.created ? "Close" : view.busy ? "Creating…" : "Create", true, (_e, cx) => create(view, cx))));
+      .child(action(t, "create-cancel", "Cancel", false, () => closeOverlay(props().overlay)))
+      .child(action(t, "create-ok", view.created ? "Close" : view.busy ? "Creating…" : "Create", true, (_e, cx) => create(view, cx))));
 }

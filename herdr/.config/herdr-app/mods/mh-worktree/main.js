@@ -4,7 +4,7 @@
 import { View, div } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, Scrollbar } from "gpui-base";
 import { run, props, closeOverlay, theme, spaces, panes, terminals, exec, home } from "herdr";
-import { field, spinner } from "./pixel.js";
+import { frame, spinner } from "./pixel.js";
 
 // Where a space is now: its first terminal's live folder, else where it was made.
 function place(s, all = panes()) {
@@ -286,7 +286,7 @@ export default class Worktree extends View {
         .h(44)
         .px(10)
         .justify_center()
-        .rounded(4)
+        .rounded(6)
         .cursor_pointer()
         .when(on, (el) => el.bg(t.selected))
         .when(!on, (el) => el.hover((s) => s.bg(t.hover)))
@@ -317,7 +317,7 @@ export default class Worktree extends View {
       .when(r === null, (el) => el.child(div().text_color(t.muted).child(`${this.folder ? tilde(this.folder, this.userHome ?? "") : "This folder"} is not in a git repository.`)))
       .when(Boolean(r && this.list), (el) =>
         el
-          .child(div().relative().flex_none().p(2).children(field(this.inputFocused ? t.accent : t.input, t.background)).child(Input.new(this.input).h(28).px(10).items_center().border_0().bg(t.background).text_color(t.foreground)))
+          .child(frame(Input.new(this.input), this.inputFocused ? t.accent : t.input, t.background).flex_none().h(32).px(10).items_center().text_color(t.foreground))
           .child(
             div()
               .relative()
@@ -369,14 +369,7 @@ export default class Worktree extends View {
       .when(remove && this.dirty, (el) => el.child(div().text_color(t.blocked).child("It has uncommitted changes: they will be lost.")))
       .when(remove && this.unpushed.length > 0, (el) => el.child(div().text_color(t.blocked).child(`Submodule ${this.unpushed.join(", ")} has commits that aren't pushed anywhere: they will be lost.`)))
       .when(!remove && !blocked, (el) =>
-        el.child(
-          div()
-            .relative()
-            .flex_none()
-            .p(2)
-            .children(field(this.inputFocused ? t.accent : t.input, t.background))
-            .child(Input.new(this.input).h(28).px(10).items_center().border_0().bg(t.background).text_color(t.foreground)),
-        ),
+        el.child(frame(Input.new(this.input), this.inputFocused ? t.accent : t.input, t.background).flex_none().h(32).px(10).items_center().text_color(t.foreground)),
       )
       .when(Boolean(this.error), (el) => el.child(div().text_color(t.blocked).child(this.error)))
       .child(div().flex_1())

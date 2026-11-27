@@ -4,6 +4,7 @@ import { div } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { terminals, panes, focused, exec, hc, home, readTextFile } from "herdr";
 import { parseContext } from "./report.js";
+import { frame } from "./pixel.js";
 
 export const tokens = (n) => (n >= 1e6 ? `${+(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${+(n / 1e3).toFixed(1)}k` : `${Math.round(n)}`);
 
@@ -40,7 +41,6 @@ export function shownSession() {
     machine: address.includes("/") ? address.split("/")[0] : null,
   };
 }
-
 
 // A terminal's Claude session from ~/.claude/sessions/<pid>.json: its
 // foreground process's, or a child's when a shell launched it.
@@ -104,14 +104,10 @@ export function contextPanel(t, s) {
       .child(div().flex_none().text_color(t.dim).child(tokens(count)))
       .child(h_flex().w(48).flex_none().justify_end().text_color(t.dim).child(`${pct.toFixed(1)}%`));
   const summary = d?.used != null ? `${tokens(d.used)} / ${tokens(d.size)} · ${Math.round(s.context)}%` : `${Math.round(s.context)}% of ${s.size ? tokens(s.size) : "the window"}`;
-  return v_flex()
+  return frame(v_flex(), t.border, t.raised)
     .w(280)
     .p(10)
     .gap(5)
-    .rounded(6)
-    .bg(t.raised)
-    .border_1()
-    .border_color(t.border)
     .shadow_md()
     .text_size(11.5)
     .child(h_flex().justify_between().items_center().child(div().font_semibold().text_color(t.foreground).child("CONTEXT")).child(div().text_color(t.dim).child(summary)))

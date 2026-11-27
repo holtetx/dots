@@ -8,9 +8,9 @@
 import { View, div } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input } from "gpui-base";
 import { spaces, panes, shared, props, run, hc, theme, notify, closeOverlay } from "herdr";
-import { field } from "./pixel.js";
+import { frame, ink } from "./pixel.js";
 
-const MARK = { ansi6: "#94e2d5", ansi3: "#fab387", ansi4: "#89b4fa", ansi5: "#cba6f7", ansi2: "#a6e3a1", ansi1: "#f5c2e7" };
+const MARK = { ansi6: "#6fc7bd", ansi3: "#8fa3f0", ansi4: "#7aa7e8", ansi5: "#b394f0", ansi2: "#8fcf94", ansi1: "#e49ac8" };
 
 const hex = () => Array.from({ length: 32 }, () => ((Math.random() * 16) | 0).toString(16)).join("");
 const machineOf = (id) => (id.includes("/") ? id.split("/")[0] : null);
@@ -126,7 +126,7 @@ export default class Panes extends View {
     const colors = shared("space.colors") ?? {};
     const avatar = (s) => {
       const c = colors[s.id] ?? "ansi6";
-      return h_flex().size(16).flex_none().rounded(4).bg(c.startsWith("#") ? c : (MARK[c] ?? t[c])).items_center().justify_center().text_size(9).font_bold().text_color("#11111b").child([...s.name][0]?.toUpperCase() ?? "?");
+      return h_flex().size(16).flex_none().rounded(4).bg(c.startsWith("#") ? c : (MARK[c] ?? t[c])).items_center().justify_center().text_size(9).font_bold().text_color(ink(c.startsWith("#") ? c : (MARK[c] ?? t[c]))).child([...s.name][0]?.toUpperCase() ?? "?");
     };
     const row = (choice, i) =>
       h_flex()
@@ -162,7 +162,7 @@ export default class Panes extends View {
       .bg(t.popover)
       .text_size(13)
       .child(div().font_semibold().text_color(t.foreground).child("MOVE PANE TO SPACE"))
-      .child(div().relative().flex_none().p(2).children(field(t.accent, t.background)).child(Input.new(this.input).h(28).px(10).items_center().border_0().bg(t.background).text_color(t.foreground)))
+      .child(frame(Input.new(this.input), t.accent, t.background).flex_none().h(32).px(10).items_center().text_color(t.foreground))
       .child(v_flex().flex_1().min_h(0).overflow_y_scrollbar().children(choices.map(row)))
       .child(h_flex().justify_end().text_size(11).text_color(t.dim).child(this.busy ? "moving…" : "↵ move · esc cancel"));
   }

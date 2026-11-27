@@ -6,10 +6,10 @@
 
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input } from "gpui-base";
-import { box, field, spinner } from "./pixel.js";
+import { button, frame, ink, mark, WORDS } from "./pixel.js";
 import { agents, spaces, terminals, run, hc, theme, settings, props, closeOverlay, shared, setShared } from "herdr";
 
-const MARK = { ansi6: "#94e2d5", ansi3: "#fab387", ansi4: "#89b4fa", ansi5: "#cba6f7", ansi2: "#a6e3a1", ansi1: "#f5c2e7" };
+const MARK = { ansi6: "#6fc7bd", ansi3: "#8fa3f0", ansi4: "#7aa7e8", ansi5: "#b394f0", ansi2: "#8fcf94", ansi1: "#e49ac8" };
 
 // Space colors, kept by space id in shared "space.colors": a theme
 // color name ("ansi6") or a picked #rrggbb. A space seen without one gets
@@ -121,12 +121,6 @@ export default class Picker extends View {
     else if (r.kind === "space") run("space.new", { machine: r.machine ?? "" });
   }
 
-  glyph(t, st) {
-    if (st === "working") return div().w(12).flex_none().flex().justify_center().text_color(t.working).child(spinner(12));
-    if (st === "blocked" || st === "done") return div().w(12).flex_none().flex().justify_center().text_color(t[st]).child(svg(`mods/mh-spaces/px-${st === "done" ? "tick" : "bang"}.svg`).size(st === "done" ? 11 : 9));
-    return div().w(12).flex_none().text_color(t[st] ?? t.dim).child(st === "idle" ? "○" : st ? "●" : "·");
-  }
-
   render() {
     const t = theme();
     const rows = this.rows();
@@ -169,7 +163,7 @@ export default class Picker extends View {
           .text_size(11)
           .font_semibold()
           .text_color(t.dim)
-          .child(h_flex().size(18).rounded(5).bg(spaceColor(t, r.w)).items_center().justify_center().text_size(10.5).font_bold().text_color("#11111b").child([...r.w.name][0]?.toUpperCase() ?? "?"))
+          .child(h_flex().size(18).rounded(5).bg(spaceColor(t, r.w)).items_center().justify_center().text_size(10.5).font_bold().text_color(ink(spaceColor(t, r.w))).child([...r.w.name][0]?.toUpperCase() ?? "?"))
           .child(r.w.name);
       }
       if (r.kind === "earlier") {
@@ -214,7 +208,7 @@ export default class Picker extends View {
         .id(`pk-${r.ctx.id}`)
         .mx(4)
         .px(10)
-.h(32)
+        .h(32)
         .rounded(6)
         .gap(10)
         .items_center()
@@ -222,10 +216,9 @@ export default class Picker extends View {
         .when(on, (el) => el.bg(t.hover))
         .hover((s) => s.bg(t.hover))
         .on_click(() => this.go(r))
-        .child(this.glyph(t, r.ctx.status))
+        .child(div().w(12).flex_none().flex().justify_center().text_color(t.dim).child(mark(r.ctx.status, t) ?? (r.ctx.status === "idle" ? "○" : "·")))
         .child(div().flex_1().truncate().text_color(t.foreground).when(here, (d) => d.font_semibold()).child(r.ctx.name))
-        .when(r.ctx.status === "blocked", (el) => el.child(div().text_size(11).text_color(t.blocked).child("needs you")))
-        .when(r.ctx.status === "done", (el) => el.child(div().text_size(11).text_color(t.done).child("finished")))
+        .when(r.ctx.status === "blocked" || r.ctx.status === "done", (el) => el.child(div().text_size(11).text_color(t[r.ctx.status]).child(WORDS[r.ctx.status])))
         .child(div().text_size(11).text_color(t.dim).child(who + (r.team ? `  +${r.team}` : "")));
     };
 
@@ -252,9 +245,9 @@ export default class Picker extends View {
         cx.stop_propagation();
         cx.notify();
       })
-      .child(h_flex().items_center().child(div().flex_1().text_size(15).font_semibold().text_color(t.foreground).child("GO TO…")).child(div().id("picker-esc").relative().pl(7).pr(9).pt(2).pb(4).children(box(t.input, t.raised, t.canvas)).text_size(11).text_color(t.dim).cursor_pointer().hover((s) => s.text_color(t.foreground)).on_click(() => this.close()).child("Esc")))
+      .child(h_flex().items_center().child(div().flex_1().text_size(15).font_semibold().text_color(t.foreground).child("GO TO…")).child(button(div(), t, false).bg(t.raised).id("picker-esc").px(7).py(2).text_size(11).text_color(t.dim).cursor_pointer().hover((s) => s.text_color(t.foreground)).on_click(() => this.close()).child("Esc")))
       .child(
-        h_flex().relative().h(36).flex_none().px(12).gap(8).items_center().children(field(t.accent, t.background))
+        frame(h_flex(), t.accent, t.background).h(36).flex_none().px(12).gap(8).items_center()
           .child(svg("mods/workspace-chrome/search.svg").size(15).text_color(t.dim))
           .child(Input.new(this.input).flex_1().h_full().text_size(12.8).text_color(t.foreground)),
       )

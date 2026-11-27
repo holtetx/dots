@@ -13,7 +13,7 @@ const NAME = "mh-folders";
 
 // What a stored color name looks like on an avatar (the same in every mod
 // that draws space avatars): one strong color per hue, light and dark alike.
-export const MARK = { ansi6: "#94e2d5", ansi3: "#fab387", ansi4: "#89b4fa", ansi5: "#cba6f7", ansi2: "#a6e3a1", ansi1: "#f5c2e7" };
+export const MARK = { ansi6: "#6fc7bd", ansi3: "#8fa3f0", ansi4: "#7aa7e8", ansi5: "#b394f0", ansi2: "#8fcf94", ansi1: "#e49ac8" };
 
 export const empty = () => ({ folders: {}, paths: {}, pins: {} });
 const shaped = (v) => ({ folders: v?.folders ?? {}, paths: v?.paths ?? {}, spaces: v?.spaces ?? {} });

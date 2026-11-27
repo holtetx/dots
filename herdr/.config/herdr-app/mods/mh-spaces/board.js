@@ -1,16 +1,4 @@
-// The board (ctrl-a T): the open PRs in its repos and those involving you, and the open
-// issues in its repos, both by repo. Each item shows how many
-// Claude sessions, PRs and issues it's linked to: GitHub's own links and the other links
-// of the sessions that had it.
-// hjkl moves (^D/^U half a page, ^J/^K five); ↵ picks one of its sessions or
-// starts one in its repo (mh-sessions' tasks list for that item), ⌃↵ opens
-// it, ⌥↵ lists what it's linked to, space previews it (preview.js), / searches the tab shown.
-// The Jira tab (jira-data.js, only with shared("mh-jira")): one Jira board as columns of cards; hl
-// moves between columns, z folds or opens one, s changes an issue's status (status.js), ↵ opens
-// it in the browser, space previews it.
-// It asks Jira only while it's shown.
-// What was fetched is kept for the next opening.
-// A mh-spaces overlay with props { board: true }.
+// The board (ctrl-a T), a mh-spaces overlay { board: true }: open PRs and issues by repo, and one Jira board (jira-data.js).
 
 import { asks, stacked } from "./stack.js";
 import { div, svg, image } from "gpui-kit";
@@ -20,12 +8,11 @@ import { GH, FINAL, markRead, open, prKey, unknown } from "./github.js";
 import { boardRepos, fetchIssues, fetchPrs } from "./board-data.js";
 import { fetchJira, jiraSettings } from "./jira-data.js";
 import { avatars, loadAvatars } from "./preview-data.js";
-import { BLUE, PRIORITY_COLOR, TYPE_COLOR, foldKey, hue, initials } from "./jira.js";
-import { box, field, outline, spinner } from "./pixel.js";
+import { BLUE, GREEN, PRIORITY_COLOR, RED, TYPE_COLOR, YELLOW, foldKey, hue, initials } from "./jira.js";
+import { button, chip, frame, spinner } from "./pixel.js";
 
 const FRESH = 2 * 60000;
 const ICON = (name) => `mods/workspace-chrome/${name}.svg`;
-const GREEN = ["#40a02b", "#a6e3a1"], RED = ["#d20f39", "#f38ba8"], YELLOW = ["#df8e1d", "#f9e2af"];
 const CHECKS = { SUCCESS: ["check", GREEN, "Checks passed"], FAILURE: ["x", RED, "Checks failed"], ERROR: ["x", RED, "Checks failed"], PENDING: [null, YELLOW, "Checks running"], EXPECTED: [null, YELLOW, "Checks expected"] };
 const KIND_ORDER = { pr: 0, issue: 1 };
 const ROW = 28;
@@ -471,21 +458,18 @@ function counts(url, view, t) {
   const { graph, items } = view.model;
   const k = { pr: 0, issue: 0 };
   for (const u of graph.links.get(url)?.keys() ?? []) k[kindOf(u, items)]++;
-  const chip = (icon, n) => (n ? [h_flex().flex_none().gap(3).items_center().child(svg(icon).size(11)).child(String(n))] : []);
+  const link = (icon, n) => (n ? [h_flex().flex_none().gap(3).items_center().child(svg(icon).size(11)).child(String(n))] : []);
   return h_flex()
     .flex_none()
     .gap(8)
     .items_center()
     .text_size(11)
     .text_color(t.dim)
-    .children([...chip(ICON("terminal"), graph.sessions.get(url) ?? 0), ...chip(GH.open.icon, k.pr), ...chip(GH["issue-open"].icon, k.issue)]);
+    .children([...link(ICON("terminal"), graph.sessions.get(url) ?? 0), ...link(GH.open.icon, k.pr), ...link(GH["issue-open"].icon, k.issue)]);
 }
 
 export const pick = (c, dark) => c[dark ? 1 : 0];
 
-// A Pixel HQ box with an accent underline when on, as mh-tabs draws its tabs.
-const pixel = (el, t, on) => el.relative().pl(9).pr(11).pt(3).pb(5)
-  .children(box(on ? t.muted : t.input, on ? t.raised : t.chrome));
 const stateIcon = (it, dark, t, size = 13) => {
   const s = GH[it.state];
   const fallback = it.kind === "issue" ? GH["issue-open"].icon : GH.open.icon;
@@ -514,8 +498,7 @@ function rowBase(id, on, t) {
     .when(!on, (el) => el.hover((s) => s.bg(t.hover)));
 }
 
-// One word for the review state: GitHub's review decision, else the latest reviews. A change request shows unless GitHub says approved.
-// "in review" when a person other than the author reviewed or commented; bots do not count.
+// "in review": a person other than the author reviewed or commented; bots do not count.
 function verdict(p, t, dark) {
   if (p.state === "draft") return ["draft", t.dim];
   if (p.state === "queued") return ["queued", pick(YELLOW, dark)];
@@ -524,8 +507,6 @@ function verdict(p, t, dark) {
   if (p.discussed) return ["in review", t.foreground];
   return ["needs review", pick(YELLOW, dark)];
 }
-
-const tag = (text, t) => h_flex().relative().flex_none().px(6).py(1).items_center().children(outline(t.ansi3)).text_size(10.5).text_color(t.ansi3).child(text);
 
 // Lines, not text: the font draws the └ and ├ characters with different weight.
 const branchMark = (last, t) =>
@@ -540,11 +521,11 @@ function prRow(view, p, i, on, t, dark) {
   return rowBase(`pr-${p.url}`, on, t)
     .on_click((e, cx) => select(view, "prs", { url: p.url, i }, e, cx, p))
     .when(p.depth > 0, (el) => el.child(h_flex().w(p.depth * 14).flex_none().justify_end().child(branchMark(p.last, t))))
-    .child(div().size(6).flex_none().rounded(3).when(Boolean(unread), (el) => el.bg(pick(["#1e66f5", "#89b4fa"], dark))))
+    .child(div().size(4).mx(1).flex_none().when(Boolean(unread), (el) => el.bg(t.ansi3)))
     .child(div().w(52).flex_none().text_size(11.5).text_color(t.dim).child(`#${p.number}`))
     .child(div().flex_1().min_w(0).truncate().text_color(t.foreground).when(p.state === "draft", (el) => el.text_color(t.muted)).child(p.title))
-    .when(asks(p), (el) => el.child(tag("review", t)))
-    .when(Boolean(p.behind), (el) => el.child(tag("behind", t)))
+    .when(asks(p), (el) => el.child(chip("review", t.ansi3)))
+    .when(Boolean(p.behind), (el) => el.child(chip("behind", t.ansi3)))
     .when(p.comments > 0, (el) => el.child(h_flex().flex_none().gap(3).items_center().text_size(11).text_color(t.dim).child(svg("mods/mh-spaces/comment.svg").size(11)).child(String(p.comments))))
     .child(counts(p.url, view, t))
     .child(div().w(140).flex_none().truncate().text_size(11.5).text_color(t.dim).child(p.mine ? "you" : p.author))
@@ -584,10 +565,9 @@ export const colorOf = (map, key, dark, t) => (map[key] ? pick(map[key], dark) :
 export const tint = (c, alpha = "26") => (/^#[0-9a-f]{6}([0-9a-f]{2})?$/i.test(c) ? c.slice(0, 7) + alpha : c);
 
 const STATUS_COLOR = { done: GREEN, indeterminate: BLUE };
-export const statusChip = (text, category, t, dark) => chip(text, STATUS_COLOR[category] ? pick(STATUS_COLOR[category], dark) : t.muted, t);
+export const statusChip = (text, category, t, dark) => chip(text, STATUS_COLOR[category] ? pick(STATUS_COLOR[category], dark) : t.muted);
 
-// s: the status dialog (status.js) for a Jira card or preview. back: the shared key it sets when it
-// closes, so the view under it takes the keyboard back.
+// back: the shared key the status dialog sets when it closes, so the view under it takes the keyboard back.
 export const openStatus = (it, back) => openOverlay({ mod: "mh-spaces", kind: "dialog", width: 420, height: 440, props: { status: it.key, url: it.url, title: it.title ?? "", from: { id: it.statusId, name: it.status, category: it.statusCategory }, back } });
 
 // n: the create dialog (create.js), the selected column chosen first.
@@ -597,19 +577,16 @@ function openCreate(view, md) {
   openOverlay({ mod: "mh-spaces", kind: "dialog", width: 520, height: 460, props: { create: project, columns: md.cols.map((c) => ({ name: c.name, statuses: c.statuses })), col: md.col, back: "board.focus" } });
 }
 
-// Pixel HQ chip: square corners, a tinted frame.
-export const chip = (text, color, t, dot) => h_flex().relative().flex_none().gap(5).px(7).h(18).items_center().children(outline(color)).text_size(10.5).font_medium()
-  .text_color(dot ? t.muted : color)
-  .when(Boolean(dot), (el) => el.child(div().size(6).flex_none().rounded(1).bg(color)))
-  .child(div().truncate().child(text));
+// An epic's chip: muted text after a dot in its color.
+export const epic = (text, color, t) => chip(text, color, div().size(6).flex_none().rounded(1).bg(color)).text_color(t.muted);
 
 function jiraCard(view, it, col, i, on, t, dark) {
   const done = it.statusCategory === "done";
   const p = it.parent;
   const priority = colorOf(PRIORITY_COLOR, it.priority, dark, t);
   const tags = [
-    it.blockedBy.length && div().id(`jb-${it.key}`).child(chip("blocked", pick(RED, dark), t)).tooltip(`blocked by ${it.blockedBy.join(", ")}`),
-    p && div().id(`jp-${it.key}`).min_w(0).child(chip(p.title, hue(p.key, t), t, true)).tooltip(p.key),
+    it.blockedBy.length && div().id(`jb-${it.key}`).child(chip("blocked", pick(RED, dark))).tooltip(`blocked by ${it.blockedBy.join(", ")}`),
+    p && div().id(`jp-${it.key}`).min_w(0).child(epic(p.title, hue(p.key, t), t)).tooltip(p.key),
   ].filter(Boolean);
   return v_flex()
     .id(`jira-${it.key}`)
@@ -653,9 +630,7 @@ function jiraColumns(view, t, dark) {
     cx.notify();
   };
   const red = pick(RED, dark);
-  const count = (c, over, short) => div().relative().flex_none().px(7).h(16).flex().items_center().children(outline(over ? red : t.muted)).text_size(10.5).font_medium()
-    .text_color(over ? red : t.muted)
-    .child(over && !short ? `${c.items.length} / ${c.max}` : String(c.items.length));
+  const count = (c, over, short) => chip(over && !short ? `${c.items.length} / ${c.max}` : String(c.items.length), over ? red : t.muted);
   return h_flex()
     .id("jira-cols")
     .on_size_change((size) => (view.listHeight = size.height))
@@ -779,7 +754,7 @@ export function boardRender(view) {
   const countOf = (x) => x.list()?.filter(shown).length;
   const bots = (tab.list() ?? []).filter(isBot).length;
   // Tabs in a fixed order, the shown one highlighted; the same text either way, so nothing moves.
-  const tabEl = (x, i) => pixel(h_flex(), t, x.id === tab.id).id(`tab-${x.id}`).flex_none().gap(6).items_center().cursor_pointer()
+  const tabEl = (x, i) => button(h_flex(), t, x.id === tab.id).id(`tab-${x.id}`).flex_none().px(9).py(3).gap(6).items_center().cursor_pointer()
     .text_size(11.5).font_semibold()
     .text_color(x.id === tab.id ? t.foreground : t.muted).hover((s) => s.text_color(t.foreground))
     .on_click((_e, cx) => { showTab(view, x.id, cx); view.note = ""; cx.notify(); })
@@ -822,12 +797,12 @@ export function boardRender(view) {
     .child(h_flex().flex_none().gap(10).items_center()
       .child(h_flex().flex_none().gap(4).items_center().children(tabs.map(tabEl)))
       .child(div().id("status").flex_none().text_size(11).text_color(t.dim).child(status).tooltip("r · refresh"))
-      .when(bots > 0, (el) => el.child(div().id("bots").relative().flex_none().pl(7).pr(9).pt(2).pb(4).children(box(t.input, t.chrome, t.canvas)).cursor_pointer().text_size(11).text_color(t.muted).hover((s) => s.text_color(t.foreground))
+      .when(bots > 0, (el) => el.child(button(div(), t, false).id("bots").flex_none().px(7).py(2).cursor_pointer().text_size(11).text_color(t.muted).hover((s) => s.text_color(t.foreground))
         .on_click((_e, cx) => { memory.bots = !memory.bots; view.reveal = true; cx.notify(); })
         .child(memory.bots ? `Dependabot shown ${bots}` : `Dependabot hidden ${bots}`).tooltip("b · show or hide Dependabot PRs")))
       .child(div().id("keys").flex_1().min_w(0).truncate().text_right().text_size(11).text_color(t.dim).child(hint).when(!view.searching, (el) => el.tooltip(allKeys))))
     .when(view.searching || Boolean(view.text), (el) => el.child(
-      h_flex().relative().h(30).flex_none().px(12).gap(8).items_center().children(field(view.searching ? t.accent : t.input, t.background))
+      frame(h_flex(), view.searching ? t.accent : t.input, t.background).h(30).flex_none().px(12).gap(8).items_center()
         .child(svg(ICON("search")).size(13).text_color(t.dim))
         .child(Input.new(view.input).flex_1().h_full().text_size(12.5).text_color(t.foreground))))
     .child(body)

@@ -1,13 +1,9 @@
-// GitHub PRs and issues for the sidebar: the ones Claude Code recorded in a
-// session (its transcript's "pr-link" lines, as Claude desktop reads them), the
-// PR of a branch, and the state of each, asked of GitHub with one GraphQL query.
-// Each comes with what it's linked to: a PR's issues and an issue's PRs. A PR's badge
-// marks its review (approved, changes requested) and, with a dot, GitHub's unread
-// notifications about it (shared("github").unread, by prKey).
+// GitHub PRs and issues for the sidebar (from transcripts' "pr-link" lines and branches), with their state from one GraphQL query.
 
 import { div, svg } from "gpui-kit";
 import { h_flex } from "gpui-base";
 import { exec, settings, shared, setShared } from "herdr";
+import { GRAY, GREEN, PURPLE, RED, YELLOW } from "./jira.js";
 export { githubRepo } from "./remote.js";
 
 export const PR = "__typename url number title state isDraft isInMergeQueue reviewDecision headRefName baseRefName repository { nameWithOwner }";
@@ -18,14 +14,13 @@ const NODE = `__typename ... on PullRequest { ${PR_LINKED} } ... on Issue { ${IS
 
 const linkedOf = (n) => (n.closingIssuesReferences ?? n.closedByPullRequestsReferences)?.nodes ?? [];
 
-// Catppuccin [Latte, Mocha]; merge-queued is the attention yellow.
-const GREEN = ["#40a02b", "#a6e3a1"], PURPLE = ["#8839ef", "#cba6f7"], GRAY = ["#7c7f93", "#9399b2"];
+// Merge-queued is the attention yellow.
 export const GH = {
   open: { icon: "mods/mh-spaces/git-pull-request.svg", color: GREEN, label: "Open" },
   draft: { icon: "mods/mh-spaces/git-pull-request-draft.svg", color: GRAY, label: "Draft" },
-  queued: { icon: "mods/mh-spaces/git-pull-request.svg", color: ["#df8e1d", "#f9e2af"], label: "Merge queued" },
+  queued: { icon: "mods/mh-spaces/git-pull-request.svg", color: YELLOW, label: "Merge queued" },
   merged: { icon: "mods/mh-spaces/git-merge.svg", color: PURPLE, label: "Merged" },
-  closed: { icon: "mods/mh-spaces/git-pull-request-closed.svg", color: ["#d20f39", "#f38ba8"], label: "Closed" },
+  closed: { icon: "mods/mh-spaces/git-pull-request-closed.svg", color: RED, label: "Closed" },
   "issue-open": { icon: "mods/mh-spaces/circle-dot.svg", color: GREEN, label: "Open" },
   "issue-done": { icon: "mods/workspace-chrome/circle-check.svg", color: PURPLE, label: "Closed" },
   "issue-skip": { icon: "mods/mh-spaces/circle-slash.svg", color: GRAY, label: "Not planned" },
@@ -34,9 +29,8 @@ export const FINAL = new Set(["merged", "closed", "issue-done", "issue-skip"]);
 // An open PR's review, and GitHub's unread blue.
 const REVIEW = {
   APPROVED: { icon: "mods/workspace-chrome/check.svg", color: GREEN, label: "Approved" },
-  CHANGES_REQUESTED: { icon: "mods/mh-spaces/file-diff.svg", color: ["#d20f39", "#f38ba8"], label: "Changes requested" },
+  CHANGES_REQUESTED: { icon: "mods/mh-spaces/file-diff.svg", color: RED, label: "Changes requested" },
 };
-const UNREAD = ["#1e66f5", "#89b4fa"];
 
 export const prKey = (it) => (it?.kind === "pr" && it.repo && it.number ? `${it.repo}#${it.number}`.toLowerCase() : null);
 const reviewOf = (it) => (it && GH[it.state] && !FINAL.has(it.state) ? REVIEW[it.review] ?? null : null);
@@ -96,7 +90,6 @@ export function expand(urls, items, { related = true } = {}) {
   if (related) for (const url of urls) for (const l of items[url]?.links ?? []) add(l, url);
   return out;
 }
-
 
 // A branch from the spaces list's label (git's branch), or null for main, master
 // and "(detached)".
@@ -210,7 +203,7 @@ function marks(el, it, s, news, t) {
   const review = reviewOf(it);
   return el
     .child(div().relative().flex_none().child(svg(iconOf(it, s)).size(11))
-      .when(news, (d) => d.child(div().absolute().top(-2).right(-3).size(6).rounded(3).bg(colorOf({ color: UNREAD }, t)))))
+      .when(news, (d) => d.child(div().absolute().top(-2).right(-3).size(4).bg(t.ansi3))))
     .when(Boolean(review), (el) => el.child(div().flex_none().text_color(colorOf(review, t)).child(svg(review.icon).size(10))));
 }
 

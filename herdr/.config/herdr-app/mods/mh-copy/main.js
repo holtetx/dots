@@ -8,7 +8,7 @@ import { View, div } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input } from "gpui-base";
 import { props, theme, settings, terminals, run, exec, hc, appHome, home, notify, closeOverlay, shared, setShared, readTextFile } from "herdr";
 import * as vim from "./vim.js";
-import { outline } from "./pixel.js";
+import { chip } from "./pixel.js";
 
 const HISTORY = "100000";
 const sleep = (cx, ms) => new Promise((resolve) => cx.timer.after(ms, () => resolve()));
@@ -422,7 +422,7 @@ export default class Copy extends View {
           .border_color(t.border)
           .text_size(11.5)
           .text_color(t.muted)
-          .child(h_flex().relative().flex_none().px(5).h(16).items_center().children(outline(tone)).text_size(10.5).font_semibold().text_color(tone).child(mode))
+          .child(chip(mode, tone))
           .when(Boolean(this.searching), (el) =>
             el.child(div().flex_none().text_color(t.foreground).child(this.searching > 0 ? "/" : "?")).child(Input.new(this.input).flex_1().h(20).text_color(t.foreground)),
           )

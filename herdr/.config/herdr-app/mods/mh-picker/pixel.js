@@ -1,25 +1,34 @@
-// Pixel HQ chrome as its preview shows it: soft rounded boxes with a thin frame, drawn as absolute blocks.
-// Mods can't import each other, so each mh-* mod that draws these has a copy of this file: keep them the same.
-import { div, svg } from "gpui-kit";
+// Pixel HQ chrome. Each mh-* mod has an identical copy of this file (mods can't import each other).
+import { svg } from "gpui-kit";
+import { h_flex } from "gpui-base";
 
-// A rounded block. Insets are [left, right, top, bottom].
-export const notch = (c, [l, r, t, b], radius = 4) => [div().absolute().left(l).right(r).top(t).bottom(b).rounded(radius).bg(c)];
+// A button, toggle or tab: rounded, a 1px frame, brighter when on.
+export const button = (el, t, on) => el.rounded(6).border_1().border_color(on ? t.muted : t.input).bg(on ? t.raised : t.chrome);
 
-// A button or tab: a 1px frame around a fill. Its element is relative() and takes these as its first
-// children. The 2px it leaves on the right and bottom keeps the old shadow's room, so callers keep their padding.
-export const box = (frame, fill, _shadow) => [
-  ...notch(frame, [0, 2, 0, 2], 6),
-  ...notch(fill, [1, 3, 1, 3], 5),
-];
+// An input or card frame.
+export const frame = (el, border, fill) => el.rounded(6).border_1().border_color(border).bg(fill);
 
-// A field (an input, a card): a 1px frame around a fill.
-export const field = (frame, fill) => [...notch(frame, [0, 0, 0, 0], 6), ...notch(fill, [1, 1, 1, 1], 5)];
-
-// A chip: a tinted pill with a 1px outline. Its element is relative() and takes these first.
-export const outline = (color) => {
+// A tinted pill; `icon` goes before the text.
+export const chip = (text, color, icon) => {
   const c = color.slice(0, 7);
-  return [div().absolute().left(0).right(0).top(0).bottom(0).rounded(6).border_1().border_color(c + "66").bg(c + "22")];
+  return h_flex().flex_none().gap(4).px(6).h(18).items_center().rounded(6).border_1().border_color(c + "66").bg(c + "22")
+    .text_size(10).font_bold().text_color(color).when(Boolean(icon), (el) => el.child(icon)).child(text);
 };
 
-// The working loader: a ring of pixels that turns.
 export const spinner = (size = 12) => svg("mods/mh-spaces/px-spinner.svg").size(size).flex_none().spin(900);
+
+// An agent's status: the spinner, a bang or a tick; nothing when idle.
+export const mark = (status, t, size = 12) =>
+  status === "working" ? spinner(size).text_color(t.working)
+  : status === "blocked" ? svg("mods/mh-spaces/px-bang.svg").size(Math.round(size * 0.75)).flex_none().text_color(t.blocked)
+  : status === "done" ? svg("mods/mh-spaces/px-tick.svg").size(Math.round(size * 0.9)).flex_none().text_color(t.done)
+  : null;
+
+// The words for a status, the same everywhere.
+export const WORDS = { blocked: "needs you", working: "working", done: "done", idle: "idle" };
+
+// Text that reads on a fill: dark on light colors, light on dark ones.
+export const ink = (fill) => {
+  const n = parseInt(fill.slice(1, 7), 16);
+  return 0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255) > 150 ? "#11111b" : "#ffffff";
+};
