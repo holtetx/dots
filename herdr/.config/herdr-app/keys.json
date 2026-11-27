@@ -93,6 +93,7 @@
     "ctrl-a k": "mod.open:mh-scroll",
     "ctrl-a t": "mh-spaces.tasks",
     "ctrl-a shift-t": "mh-spaces.board",
+    "ctrl-a c": "mh-tabs.checks",
     "ctrl-a g": "mh-spaces.link",
     "ctrl-a shift-g": "mh-spaces.link-space",
     "ctrl-a h": "mh-tabs.waiting",

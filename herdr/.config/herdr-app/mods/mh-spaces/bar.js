@@ -2,9 +2,9 @@
 
 import { div, svg } from "gpui-kit";
 import { h_flex } from "gpui-base";
-import { agents, exec, focused, run, shared, theme, window as appWindow } from "herdr";
+import { agents, exec, focused, run, setShared, shared, theme, window as appWindow } from "herdr";
 import { WORDS } from "./pixel.js";
-import { badge, branchPr, prsOf } from "./github.js";
+import { badge, branchPr, prsOf, spacePr } from "./github.js";
 
 // shortcut: polls the shown repo every 5 s instead of watching its files; switch to watchFolder if it lags.
 const EVERY = 5000;
@@ -91,9 +91,17 @@ function team(t) {
         .child(`${n} ${word}`)));
 }
 
+// The shown space's CI state for mh-tabs' CHECKS button: the checks panel's answer when it's newer than the sidebar's poll.
+function publishCi(id) {
+  const url = spacePr(id), it = shared("github")?.items?.[url], fresh = shared("checks.fresh");
+  const state = !url ? null : fresh?.url === url && fresh.at > (it?.at ?? 0) ? fresh.state : it?.ci ?? null;
+  if ((shared("checks.state") ?? null) !== state) setShared("checks.state", state);
+}
+
 export function barRender(view) {
   const t = theme();
   const id = focused()?.space;
+  publishCi(id);
   const g = shared("git.spaces")?.[id];
   const bar = h_flex().size_full().px(12).gap(16).items_center().overflow_hidden().bg(t.chrome).text_size(11.8).text_color(t.muted);
   const crew = team(t);

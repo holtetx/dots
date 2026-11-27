@@ -27,7 +27,27 @@ export function checksOf(n) {
 }
 
 // "1 failed, 2 running, 12 passed", or "" with no checks.
-export const countLine = (checks) => CHECK_STATES.map((s) => [s, checks.filter((c) => c.state === s).length]).filter(([, n]) => n).map(([s, n]) => `${n} ${s}`).join(", ");
+export const countLine = (checks, sep = ", ") => CHECK_STATES.map((s) => [s, checks.filter((c) => c.state === s).length]).filter(([, n]) => n).map(([s, n]) => `${n} ${s}`).join(sep);
+
+export const worst = (checks) => CHECK_STATES.find((s) => checks.some((c) => c.state === s)) ?? null;
+
+// GitHub's statusCheckRollup.state as a check state, or null.
+const ROLLUP = { SUCCESS: "passed", FAILURE: "failed", ERROR: "failed", PENDING: "running", EXPECTED: "running" };
+export const rollupState = (state) => ROLLUP[state] ?? null;
+
+// The checks by workflow: [{ name, state, checks }], the worst first. Status contexts have no workflow: Other, last of its state.
+export function groupsOf(checks) {
+  const by = new Map();
+  for (const c of checks) by.set(c.workflow || "Other", [...(by.get(c.workflow || "Other") ?? []), c]);
+  return [...by].map(([name, list]) => ({ name, state: worst(list), checks: list }))
+    .sort((a, b) => CHECK_STATES.indexOf(a.state) - CHECK_STATES.indexOf(b.state) || Number(a.name === "Other") - Number(b.name === "Other") || a.name.localeCompare(b.name));
+}
+
+// "Code Scan / codeql-analysis" -> ["Code Scan / ", "codeql-analysis"]: a reusable workflow's caller job, then its own.
+export function splitName(name) {
+  const i = name.lastIndexOf(" / ");
+  return i < 0 ? ["", name] : [name.slice(0, i + 3), name.slice(i + 3)];
+}
 
 // 42s, 3m 5s, 1h 2m.
 export function took(ms) {

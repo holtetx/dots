@@ -5,9 +5,10 @@ import { h_flex } from "gpui-base";
 import { exec, shared, setShared } from "herdr";
 import { GRAY, GREEN, PURPLE, RED, YELLOW } from "./jira.js";
 import { darkOf } from "./pixel.js";
+import { rollupState } from "./checks-data.js";
 export { githubRepo } from "./remote.js";
 
-export const PR = "__typename url number title state isDraft isInMergeQueue reviewDecision headRefName baseRefName repository { nameWithOwner }";
+export const PR = "__typename url number title state isDraft isInMergeQueue reviewDecision headRefName baseRefName repository { nameWithOwner } commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }";
 export const ISSUE = "__typename url number title state stateReason repository { nameWithOwner }";
 const PR_LINKED = `${PR} body closingIssuesReferences(first: 10) { nodes { ${ISSUE} body } }`;
 const ISSUE_LINKED = `${ISSUE} body closedByPullRequestsReferences(first: 10, includeClosedPrs: true) { nodes { ${PR} body } }`;
@@ -31,6 +32,14 @@ export const stateMarks = (t) => [
   [["open", "draft", "queued", "merged", "closed"], "PR: open, draft, merge queued, merged, closed"],
   [["issue-open", "issue-done", "issue-skip"], "issue: open, closed, not planned"],
 ].map(([states, text]) => [h_flex().gap(6).children(states.map((s) => svg(GH[s].icon).size(12).text_color(colorOf(GH[s], t)))), text]);
+// A check state's icon and color, for the CI mark and the checks panel.
+export const CHECK_LOOK = {
+  failed: { icon: "mods/pr/circle-x.svg", color: RED, label: "CI failed" },
+  running: { icon: "mods/pr/circle-dot.svg", color: YELLOW, label: "CI running" },
+  passed: { icon: "mods/pr/circle-check.svg", color: GREEN, label: "CI passed" },
+  skipped: { icon: "mods/pr/circle-minus.svg", color: GRAY, label: "Skipped" },
+};
+const ciOf = (it) => (it?.kind === "pr" && !FINAL.has(it.state) ? CHECK_LOOK[it.ci] ?? null : null);
 const REVIEW = {
   APPROVED: { icon: "mods/workspace-chrome/check.svg", color: GREEN, label: "Approved" },
   CHANGES_REQUESTED: { icon: "mods/mh-spaces/file-diff.svg", color: RED, label: "Changes requested" },
@@ -56,7 +65,7 @@ export function stateOf(n) {
 const parseUrl = (url) => url.match(/github\.com\/([^/]+\/[^/]+)\/(pull|issues)\/(\d+)/);
 
 export function itemOf(n, at) {
-  return { kind: n.__typename === "Issue" ? "issue" : "pr", url: n.url, repo: n.repository?.nameWithOwner ?? "", number: n.number, title: n.title ?? "", state: stateOf(n), review: n.reviewDecision ?? null, at, links: linkedOf(n).map((l) => l.url), ...(n.__typename === "Issue" ? {} : { branch: n.headRefName ?? null, base: n.baseRefName ?? null }) };
+  return { kind: n.__typename === "Issue" ? "issue" : "pr", url: n.url, repo: n.repository?.nameWithOwner ?? "", number: n.number, title: n.title ?? "", state: stateOf(n), review: n.reviewDecision ?? null, at, links: linkedOf(n).map((l) => l.url), ...(n.__typename === "Issue" ? {} : { branch: n.headRefName ?? null, base: n.baseRefName ?? null, ci: rollupState(n.commits?.nodes?.[0]?.commit?.statusCheckRollup?.state) }) };
 }
 
 // A node and those it's linked to, into `items`. Those come without `links` of their
@@ -77,7 +86,7 @@ export function unknown(url, at) {
 }
 
 function tipOf(it, s) {
-  return [`${it.repo}#${it.number ?? "?"}`, s?.label, reviewOf(it)?.label, unreadOf(it) && "New activity", it.title].filter(Boolean).join(" · ");
+  return [`${it.repo}#${it.number ?? "?"}`, s?.label, reviewOf(it)?.label, ciOf(it)?.label, unreadOf(it) && "New activity", it.title].filter(Boolean).join(" · ");
 }
 
 // The PR URLs a space's sidebar row shows.
@@ -87,6 +96,13 @@ export const prsOf = (id, gh) => (gh.shown?.spaces?.[id] ?? []).filter((u) => (g
 export function branchPr(id, g, gh) {
   const mine = prsOf(id, gh).map((u) => gh.items?.[u]).filter((it) => it?.branch === g.branch && it.base && it.repo?.toLowerCase() === g.gh?.toLowerCase());
   return mine.find((it) => it.state === "open") ?? mine[0] ?? null;
+}
+
+// The PR the checks panel and the CHECKS button show for a space: its branch's, else its first open one.
+export function spacePr(id) {
+  const gh = shared("github") ?? {};
+  const g = shared("git.spaces")?.[id];
+  return (g && branchPr(id, g, gh)?.url) || (prsOf(id, gh).find((u) => gh.items?.[u]?.state === "open") ?? null);
 }
 
 // `urls`, then what they bring along: a PR's issues and an issue's PRs (`related`).
@@ -211,13 +227,14 @@ export const open = (url, cx) => /^https:\/\//.test(url ?? "") && cx.spawn(async
 const iconOf = (it, s) => s?.icon ?? (it.kind === "issue" ? GH["issue-open"].icon : GH.open.icon);
 const colorOf = (s, t) => (s ? s.color[darkOf(t) ? 1 : 0] : t.dim);
 
-// The icon, with a yellow square when there's news, and the lead PR's review after it.
+// The icon, with a yellow square when there's news, and the lead PR's review and CI after it.
 function marks(el, it, s, news, t) {
-  const review = reviewOf(it);
+  const review = reviewOf(it), ci = ciOf(it);
   return el
     .child(div().relative().flex_none().child(svg(iconOf(it, s)).size(11))
       .when(news, (d) => d.child(div().absolute().top(-2).right(-3).size(4).bg(t.ansi3))))
-    .when(Boolean(review), (el) => el.child(div().flex_none().text_color(colorOf(review, t)).child(svg(review.icon).size(10))));
+    .when(Boolean(review), (el) => el.child(div().flex_none().text_color(colorOf(review, t)).child(svg(review.icon).size(10))))
+    .when(Boolean(ci), (el) => el.child(div().flex_none().text_color(colorOf(ci, t)).child(svg(ci.icon).size(10))));
 }
 
 // A state-colored icon with its number, for the link dialog; a click opens the link.

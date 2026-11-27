@@ -17,7 +17,7 @@ export function boardRepos() {
   });
 }
 
-const PR_FIELDS = `${PR} body updatedAt headRefOid isCrossRepository author { login } totalCommentsCount additions deletions latestReviews(first: 30) { nodes { state author { login __typename } } } comments(last: 30) { nodes { author { login __typename } } } closingIssuesReferences(first: 10) { nodes { url } } commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }`;
+const PR_FIELDS = `${PR} body updatedAt headRefOid isCrossRepository author { login } totalCommentsCount additions deletions latestReviews(first: 30) { nodes { state author { login __typename } } } comments(last: 30) { nodes { author { login __typename } } } closingIssuesReferences(first: 10) { nodes { url } }`;
 const ISSUE_FIELDS = `${ISSUE} body updatedAt author { login } assignees(first: 3) { nodes { login } } labels(first: 6) { nodes { name color } } closedByPullRequestsReferences(first: 5) { nodes { url } }`;
 const repoArgs = (repo) => {
   const [owner, name] = repo.split("/");

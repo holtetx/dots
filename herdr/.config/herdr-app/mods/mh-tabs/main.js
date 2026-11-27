@@ -3,6 +3,15 @@ import { h_flex, ScrollHandle } from "gpui-base";
 import { button } from "./pixel.js";
 import { spaces, panes, agents, run, openOverlay, theme, window, shared, setShared, layout, settings, focused, nextCommand, exec, home, notify, setBadge } from "herdr";
 
+const CI = { failed: ["circle-x", "ansi1"], running: ["circle-dot", "ansi3"], passed: ["circle-check", "ansi2"] };
+
+// Shows that side panel, or hides the panel when it already shows it.
+function togglePanel(id) {
+  const root = layout(), panel = find(root, "panel"), body = find(root, "panel-body");
+  if (panel && !panel.hidden && body?.active === id) run("layout.hide", { id: "panel" });
+  else { run("layout.select", { stack: "panel-body", child: id }); run("layout.show", { id: "panel" }); }
+}
+
 function find(node, id) {
   if (node?.id === id) return node;
   for (const child of node?.children ?? []) {
@@ -111,6 +120,10 @@ export default class Tabs extends View {
         if (nth) {
           const id = spaceOrder()[Number(nth[1]) - 1];
           if (id) run("space.select", { id });
+          continue;
+        }
+        if (command === "checks") {
+          togglePanel("checks");
           continue;
         }
         if (command === "test-toast") {
@@ -245,16 +258,16 @@ export default class Tabs extends View {
     // CHECKS (mh-spaces) is ours, so Herdr's panel list doesn't name it.
     const enabled = [...(shared("workspace.panels") ?? ["files", "changes"]), "checks"];
     this.syncPanel(space, panel, body, enabled);
-    const panelButton = (id, label, icon) => {
+    const panelButton = (id, label, icon, color) => {
       const on = panel && !panel.hidden && body?.active === id;
       return button(h_flex(), t, on).id(`panel-${id}`).h(24).px(9).gap(5).flex_none().items_center()
         .text_size(10.5).font_bold().text_color(on ? t.foreground : t.muted)
         .hover(s => s.text_color(t.foreground)).on_mouse_down("left", stop)
-        .on_click(() => {
-          if (on) run("layout.hide", { id: "panel" });
-          else { run("layout.select", { stack: "panel-body", child: id }); run("layout.show", { id: "panel" }); }
-        }).child(svg(icon).size(13)).child(label);
+        .on_click(() => togglePanel(id))
+        .child(svg(icon).size(13).when(Boolean(color), el => el.text_color(color))).child(label);
     };
+    // The shown space's PR CI, from mh-spaces' git bar.
+    const ci = CI[shared("checks.state")];
     return h_flex().size_full().min_w(0).px(10).pl(lightsPadding).gap(6).items_center().bg(t.chrome)
       .on_mouse_up("left", () => { this.pressed = null; })
       .on_scroll_wheel(e => this.wheel(e))
@@ -264,7 +277,7 @@ export default class Tabs extends View {
       .child(square("tab-new", "+", () => openOverlay({ mod: "mh-new-menu", kind: "popup", width: 250, height: 512 })))
       .when(enabled.includes("files"), el => el.child(panelButton("files", "FILES", "mods/files/file.svg")))
       .when(enabled.includes("changes"), el => el.child(panelButton("changes", "CHANGES", "mods/changes/changes.svg")))
-      .child(panelButton("checks", "CHECKS", "mods/pr/circle-check.svg"))
+      .child(panelButton("checks", "CHECKS", ci ? `mods/pr/${ci[0]}.svg` : "mods/pr/circle-check.svg", ci && t[ci[1]]))
       .when(w?.buttons, el => el.child(square("minimize", w.platform === "windows" ? svg("mods/mh-tabs/win-min.svg").size(16) : "−", () => run("window.minimize")))
         .child(square("maximize", w.platform === "windows" ? svg(`mods/mh-tabs/${w.maximized ? "win-restore" : "win-max"}.svg`).size(16) : "□", () => run("window.maximize")))
         .child(square("close-window", w.platform === "windows" ? svg("mods/mh-tabs/win-close.svg").size(16) : svg("mods/pane/close.svg").size(13), () => run("window.close"))));

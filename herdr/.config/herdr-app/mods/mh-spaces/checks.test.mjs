@@ -1,6 +1,6 @@
 // Run: node mods/mh-spaces/checks.test.mjs
 import assert from "node:assert";
-import { checksOf, countLine, took } from "./checks-data.js";
+import { checksOf, countLine, groupsOf, rollupState, splitName, took } from "./checks-data.js";
 
 const run = (name, workflow, status, conclusion, startedAt, completedAt = null) =>
   ({ __typename: "CheckRun", name, status, conclusion, detailsUrl: `u/${name}/${startedAt}`, startedAt, completedAt, checkSuite: { workflowRun: { workflow: { name: workflow } } } });
@@ -22,4 +22,10 @@ assert.equal(countLine(list), "1 failed, 2 running, 1 passed, 1 skipped");
 assert.equal(countLine([]), "");
 assert.deepEqual(checksOf({}), []);
 assert.deepEqual([took(42000), took(125000), took(3720000)], ["42s", "2m 5s", "1h 2m"]);
+// By workflow, the worst first; status contexts in Other.
+assert.deepEqual(groupsOf(list).map((g) => `${g.name}:${g.state}:${g.checks.length}`), ["Nightly:failed:1", "CI:running:3", "Other:running:1"]);
+assert.equal(countLine(list.filter((c) => c.workflow === "CI"), " · "), "1 running · 1 passed · 1 skipped");
+assert.deepEqual(splitName("Code Scan / codeql-analysis"), ["Code Scan / ", "codeql-analysis"]);
+assert.deepEqual(splitName("build"), ["", "build"]);
+assert.deepEqual(["FAILURE", "ERROR", "PENDING", "SUCCESS", undefined].map(rollupState), ["failed", "failed", "running", "passed", null]);
 console.log("ok");

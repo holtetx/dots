@@ -1,35 +1,22 @@
-// The side panel's CHECKS tab: CI checks of the shown space's PR, and FIX, which asks the space's Claude to fix a failed one.
+// The side panel's CHECKS tab: CI checks of the shown space's PR by workflow, and FIX, which asks the space's Claude to fix a failed one.
 // In mh-spaces, as the git bar, to reuse the PR lookup and badge().
 
 import { div, svg } from "gpui-kit";
 import { h_flex, v_flex } from "gpui-base";
-import { agents, focused, hc, layout, notify, shared, theme, window as appWindow } from "herdr";
-import { badge, branchPr, graphql, open, prsOf } from "./github.js";
-import { CHECKS, checksOf, countLine, fixPrompt, took } from "./checks-data.js";
+import { agents, focused, hc, layout, notify, setShared, shared, theme, window as appWindow } from "herdr";
+import { CHECK_LOOK, badge, graphql, open, spacePr } from "./github.js";
+import { CHECKS, checksOf, countLine, fixPrompt, groupsOf, splitName, took, worst } from "./checks-data.js";
 import { find } from "./find.js";
-import { GREEN, RED, YELLOW } from "./jira.js";
+import { RED } from "./jira.js";
 import { button, darkOf } from "./pixel.js";
 import { pick } from "./board.js";
 
 const EVERY = 30000;
-const LOOK = {
-  failed: ["mods/pr/circle-x.svg", RED],
-  running: ["mods/pr/circle-dot.svg", YELLOW],
-  passed: ["mods/pr/circle-check.svg", GREEN],
-  skipped: ["mods/pr/circle-minus.svg", null],
-};
 
 const shown = () => {
   const root = layout();
   return appWindow()?.visible !== false && !find(root, "panel")?.hidden && find(root, "panel-body")?.active === "checks";
 };
-
-// The space's PR: its branch's, else its first open one.
-function prOf(id) {
-  const gh = shared("github") ?? {};
-  const g = shared("git.spaces")?.[id];
-  return (g && branchPr(id, g, gh)?.url) || (prsOf(id, gh).find((u) => gh.items?.[u]?.state === "open") ?? null);
-}
 
 // Where FIX goes: the focused Claude in the space, else the one that changed last.
 function claudeIn(id) {
@@ -40,13 +27,14 @@ function claudeIn(id) {
 export function checksInit(view, cx) {
   view.prs = {}; // PR url -> { checks, at, error }
   view.sent = new Set(); // runs FIX was sent for (sentKey)
+  view.open = new Map(); // "url\0workflow" -> folded or open by a click
   view.busy = false;
   cx.timer.every(1000, (cx) => tick(view, cx));
 }
 
 function tick(view, cx) {
   if (!shown()) return;
-  const url = prOf(focused()?.space);
+  const url = spacePr(focused()?.space);
   const d = url ? view.prs[url] : null;
   if (url && !view.busy && Date.now() - (d?.at ?? 0) >= EVERY) load(view, url, cx);
   // A running check's time goes up.
@@ -59,7 +47,10 @@ function load(view, url, cx) {
     try {
       const n = (await graphql(`r: resource(url: ${JSON.stringify(url)}) { ... on PullRequest { ${CHECKS} } }`))?.r;
       if (!n) throw new Error("GitHub did not answer: is gh logged in, and can it see the repo?");
-      view.prs[url] = { checks: checksOf(n), at: Date.now() };
+      const checks = checksOf(n);
+      view.prs[url] = { checks, at: Date.now() };
+      // Newer than the sidebar's poll: the CHECKS button and git bar take it (bar.js).
+      setShared("checks.fresh", { url, state: worst(checks), at: Date.now() });
     } catch (e) {
       view.prs[url] = { ...view.prs[url], error: String(e?.message ?? e), at: Date.now() };
     }
@@ -82,9 +73,9 @@ function fix(view, c, prUrl, agent, cx) {
   });
 }
 
-function fixButton(view, c, i, prUrl, agent, t) {
+function fixButton(view, c, id, prUrl, agent, t) {
   const sent = view.sent.has(sentKey(c));
-  return button(div(), t, sent).id(`check-fix-${i}`).flex_none().h(22).px(8).flex().items_center()
+  return button(div(), t, sent).id(`check-fix-${id}`).flex_none().h(22).px(8).flex().items_center()
     .text_size(10.5).font_bold().text_color(agent ? t.foreground : t.dim)
     .when(Boolean(agent), (el) => el.cursor_pointer().hover((s) => s.border_color(t.muted)))
     .when(!agent, (el) => el.opacity(0.5))
@@ -94,24 +85,41 @@ function fixButton(view, c, i, prUrl, agent, t) {
     .child(sent ? "SENT" : "FIX");
 }
 
-function row(view, c, i, prUrl, agent, t, dark) {
-  const [icon, color] = LOOK[c.state];
+const mark = (state, t, dark) => svg(CHECK_LOOK[state].icon).size(14).flex_none().text_color(pick(CHECK_LOOK[state].color, dark));
+
+function row(view, c, id, prUrl, agent, t, dark) {
   const end = c.ended ?? (c.state === "running" ? Date.now() : null);
-  return h_flex().id(`check-${i}`).flex_none().min_h(36).px(8).py(4).gap(10).items_center().rounded(6)
+  const [caller, own] = splitName(c.name);
+  return h_flex().id(`check-${id}`).flex_none().h(30).px(8).gap(10).items_center().rounded(6)
     .when(c.state === "skipped", (el) => el.opacity(0.6))
-    .when(Boolean(c.url), (el) => el.cursor_pointer().hover((s) => s.bg(t.raised)).tooltip("Open the log").on_click((_e, cx) => open(c.url, cx)))
-    .child(svg(icon).size(14).flex_none().text_color(color ? pick(color, dark) : t.dim))
-    .child(v_flex().flex_1().min_w(0)
-      .child(div().truncate().text_color(t.foreground).child(c.name))
-      .when(Boolean(c.workflow), (el) => el.child(div().truncate().text_size(11).text_color(t.dim).child(c.workflow))))
+    .when(Boolean(c.url), (el) => el.cursor_pointer().hover((s) => s.bg(t.raised)).tooltip(`${c.name} · open the log`).on_click((_e, cx) => open(c.url, cx)))
+    .child(mark(c.state, t, dark))
+    .child(h_flex().flex_1().min_w(0).overflow_hidden()
+      .when(Boolean(caller), (el) => el.child(div().flex_shrink(1).min_w(0).truncate().text_color(t.dim).child(caller)))
+      .child(div().flex_none().max_w_full().truncate().text_color(t.foreground).child(own)))
     .when(Boolean(c.started && end) && c.state !== "skipped", (el) => el.child(div().flex_none().text_size(11).text_color(t.dim).child(took(end - c.started))))
-    .when(c.state === "failed", (el) => el.child(fixButton(view, c, i, prUrl, agent, t)));
+    .when(c.state === "failed", (el) => el.child(fixButton(view, c, id, prUrl, agent, t)));
+}
+
+// A workflow: its header (a click folds or opens it), then its checks on a tree line. All passed or skipped starts folded.
+function group(view, g, gi, prUrl, agent, t, dark) {
+  const key = `${prUrl}\0${g.name}`;
+  const opened = view.open.get(key) ?? (g.state === "failed" || g.state === "running");
+  return v_flex().flex_none()
+    .child(h_flex().id(`check-group-${gi}`).h(30).px(8).gap(8).items_center().rounded(6).cursor_pointer().hover((s) => s.bg(t.raised))
+      .on_click((_e, cx) => { view.open.set(key, !opened); cx.notify(); })
+      .child(svg(`mods/workspace-chrome/chevron-${opened ? "down" : "right"}.svg`).size(12).flex_none().text_color(t.dim))
+      .child(mark(g.state, t, dark))
+      .child(div().flex_1().min_w(0).truncate().text_size(11.5).font_semibold().text_color(t.foreground).child(g.name.toUpperCase()))
+      .child(div().flex_none().text_size(11).text_color(t.dim).child(countLine(g.checks, " · "))))
+    .when(opened, (el) => el.child(v_flex().ml(14).pl(4).mb(4).border_l_1().border_color(t.border).gap(2)
+      .children(g.checks.map((c, i) => row(view, c, `${gi}-${i}`, prUrl, agent, t, dark)))));
 }
 
 export function checksRender(view) {
   const t = theme(), dark = darkOf(t);
   const id = focused()?.space;
-  const url = prOf(id);
+  const url = spacePr(id);
   const d = url ? view.prs[url] : null;
   const gh = shared("github") ?? {};
   const note = (text, color = t.dim) => div().px(16).py(6).text_color(color).child(text);
@@ -130,5 +138,5 @@ export function checksRender(view) {
     .when(!d, (el) => el.child(note("Loading…")))
     .when(Boolean(d?.checks && !d.checks.length), (el) => el.child(note("No checks on the newest commit.")))
     .child(v_flex().id("checks-list").flex_1().min_h(0).px(8).pb(8).gap(2).overflow_y_scrollbar()
-      .children((d?.checks ?? []).map((c, i) => row(view, c, i, url, agent, t, dark))));
+      .children(groupsOf(d?.checks ?? []).map((g, gi) => group(view, g, gi, url, agent, t, dark))));
 }
