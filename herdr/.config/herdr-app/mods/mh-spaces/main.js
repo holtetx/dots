@@ -102,6 +102,13 @@ const checkoutBranch = (rows) => {
   return Object.keys(n).sort((a, b) => n[b] - n[a])[0] ?? null;
 };
 
+// A line color softened toward the sidebar's; solid, so the overlapping track pieces show no seams.
+const soften = (c, base) => {
+  const rgb = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+  const [a, b] = [rgb(c), rgb(base)];
+  return "#" + a.map((x, i) => Math.round(x * 0.55 + b[i] * 0.45).toString(16).padStart(2, "0")).join("");
+};
+
 const urgent = (rows) => rows.map((r) => r.w.status).reduce((m, st) => ((URGENT[st] ?? 0) > (URGENT[m] ?? 0) ? st : m), null);
 
 function loadState() {
@@ -1241,9 +1248,11 @@ export default class Spaces extends View {
       )
       // Pixel HQ's metro line: a track down the section, a station per space in its status color.
       .when(metro, (el) => el
-        .child(div().absolute().left(13).top(-8).bottom(r.last ? height - 15 : -8).w(2).bg(r.line ? r.line.slice(0, 7) + "99" : t.raised))
-        .child(div().absolute().left(9).top(10).size(10).rounded(4).bg(w.status && w.status !== "idle" ? t[w.status] : t.input)
-          .when(on, (d) => d.child(div().absolute().left(3).top(3).size(4).bg(t.foreground)))
+        .child(div().absolute().left(13).top(-8).bottom(r.last ? height - 15 : -8).w(2).bg(r.line ? soften(r.line, t.chrome) : t.raised))
+        // As Pixel HQ's stations: a frame in the line's color, filled with the status while an agent is busy.
+        .child(h_flex().absolute().left(9).top(10).size(10).items_center().justify_center().rounded(3).border_2().border_color(r.line ?? t.input)
+          .bg(w.status && w.status !== "idle" ? t[w.status] : t.chrome)
+          .when(on, (d) => d.child(div().size(4).rounded(1).bg(t.foreground)))
           .when(w.status === "working", (d) => d.loop("opacity", { from: 0.5, to: 1, period: 1400 }))
           .when(w.status === "blocked", (d) => d.loop("opacity", { from: 0.3, to: 1, period: 700 }))))
       .when(line, (el) => el.child(h_flex().min_w(0).gap(5).items_center().pl(indent).text_size(11).text_color(t.dim)
@@ -1260,9 +1269,10 @@ export default class Spaces extends View {
   // The folder checkout's branch on a faint tint of the folder's color, on the metro line between its name and its spaces.
   branchLine(id, branch, color, t) {
     return h_flex().id(`folder-branch-${id}`).relative().h(24).flex_none().pl(27).pr(8).items_center().tooltip(branch)
-      .child(div().absolute().left(13).top(2).bottom(0).w(2).bg(color.slice(0, 7) + "99"))
-      .child(chip(div().min_w(0).truncate().child(branch), color, svg("mods/workspace-chrome/git-branch.svg").size(10).flex_none().text_color(color))
-        .flex_shrink(1).min_w(0).text_color(t.muted));
+      .child(div().absolute().left(13).top(2).bottom(0).w(2).bg(soften(color, t.chrome)))
+      .child(h_flex().min_w(0).h(18).px(6).gap(4).items_center().rounded(6).bg(color.slice(0, 7) + "14").text_size(10.5).text_color(t.muted)
+        .child(svg("mods/workspace-chrome/git-branch.svg").size(10).flex_none().text_color(color))
+        .child(div().min_w(0).truncate().child(branch)));
   }
 
   // One line per subagent (↳) and background shell ($) of the space's agents, under its row.
@@ -1287,7 +1297,7 @@ export default class Spaces extends View {
       .tooltip(it.kind === "shell" ? `Background shell: ${it.detail}` : `Subagent (${it.detail})`)
       .on_click((_e, cx) => this.follow(w, it, cx))
       // The metro track runs on past them to the next station; after the last station it has ended.
-      .when(track, (el) => el.child(div().absolute().left(13).top(-4).bottom(-4).w(2).bg(r.line ? r.line.slice(0, 7) + "99" : t.raised)))
+      .when(track, (el) => el.child(div().absolute().left(13).top(-4).bottom(-4).w(2).bg(r.line ? soften(r.line, t.chrome) : t.raised)))
       .child(div().flex_none().w(10).text_color(t.dim).child(it.kind === "shell" ? "$" : "↳"))
       .child(div().flex_1().min_w(0).truncate().text_color(t.muted).child(it.name))
       .child(spinner(12).text_color(t.working)));
