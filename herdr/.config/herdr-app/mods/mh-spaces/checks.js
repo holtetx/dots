@@ -8,7 +8,7 @@ import { CHECK_LOOK, badge, graphql, open, spacePr } from "./github.js";
 import { CHECKS, checksOf, countLine, fixPrompt, groupsOf, splitName, took, worst } from "./checks-data.js";
 import { find } from "./find.js";
 import { RED } from "./jira.js";
-import { button, darkOf, helpKey, keyPanel } from "./pixel.js";
+import { button, darkOf, helpKey } from "./pixel.js";
 import { pick } from "./board.js";
 
 const EVERY = 30000;
@@ -183,7 +183,21 @@ function key(view, e, cx) {
   return false;
 }
 
-const KEYS = [["CHECKS", [["j k  ↓ ↑", "next or previous row"], ["l  →", "open a workflow, or go to its first check"], ["h  ←", "fold a workflow, or go up to it"], ["z  space", "fold or open the workflow"], ["↵", "open the check's log"], ["f", "FIX: ask the space's Claude to fix a failed check"], ["r", "ask GitHub now"], ["esc  alt-hjkl", "leave the panel"]]]];
+const KEYS = [["j k  ↓ ↑", "next or previous row"], ["l  →", "open a workflow, or go to its first check"], ["h  ←", "fold a workflow, or go up to it"], ["z  space", "fold or open the workflow"], ["↵", "open the check's log"], ["f", "FIX: ask the space's Claude to fix a failed check"], ["r", "ask GitHub now"], ["esc", "back to the terminal"], ["alt-hjkl", "leave the panel"]];
+
+// ? in the panel: the keys and marks in place of the list (keyPanel() is for dialogs, too wide here).
+function helpList(t, dark) {
+  const line = (left, text) => h_flex().gap(12).items_start()
+    .child(h_flex().w(76).flex_none().h(18).items_center().child(left))
+    .child(div().flex_1().min_w(0).text_color(t.muted).child(text));
+  const title = (text) => div().pt(8).text_size(11).font_semibold().text_color(t.dim).child(text);
+  return v_flex().id("checks-help").flex_1().min_h(0).px(16).pb(12).gap(6).overflow_y_scrollbar()
+    .child(title("KEYS"))
+    .children(KEYS.map(([k, text]) => line(div().font_semibold().text_color(t.foreground).child(k), text)))
+    .child(title("MARKS"))
+    .children(["failed", "running", "passed", "skipped"].map((st) => line(mark(st, t, dark), st)))
+    .child(div().pt(8).text_size(11).text_color(t.dim).child("? or esc closes"));
+}
 
 export function checksRender(view) {
   const t = theme(), dark = darkOf(t);
@@ -197,7 +211,7 @@ export function checksRender(view) {
   view.rows = url ? rowsOf(view, url, d?.checks ?? []) : [];
   if (view.rows.length && !view.rows.some((r) => r.key === view.sel)) view.sel = view.rows[0].key;
   const agent = url ? claudeIn(id) : null;
-  return v_flex().id("checks").relative().size_full().min_h(0).bg(t.chrome).text_size(12).text_color(t.muted)
+  return v_flex().id("checks").size_full().min_h(0).bg(t.chrome).text_size(12).text_color(t.muted)
     .track_focus(view.handle)
     .on_key_down((e, cx) => {
       if (!key(view, e, cx)) return;
@@ -209,7 +223,7 @@ export function checksRender(view) {
       .child(div().font_semibold().child("CHECKS"))
       .child(div().flex_1())
       .when(Boolean(d?.checks), (el) => el.child(div().truncate().child(countLine(d.checks) || "no checks")))
-      .when(hasKeys, (el) => el.child(div().flex_none().child("? keys"))))
+      .when(hasKeys, (el) => el.child(div().flex_none().pl(4).child("· ? keys"))))
     .when(!url, (el) => el.child(note("No PR for this space.")))
     .when(Boolean(url), (el) => el
       .child(h_flex().flex_none().px(16).pb(8).gap(8).items_center()
@@ -218,10 +232,10 @@ export function checksRender(view) {
       .when(Boolean(d?.error), (el) => el.child(note(d.error, pick(RED, dark))))
       .when(!d, (el) => el.child(note("Loading…")))
       .when(Boolean(d?.checks && !d.checks.length), (el) => el.child(note("No checks on the newest commit."))))
-    .child(v_flex().id("checks-list").flex_1().min_h(0).px(8).pb(8).overflow_y_scrollbar().track_scroll(view.scroll)
+    .when(Boolean(view.help), (el) => el.child(helpList(t, dark)))
+    .when(!view.help, (el) => el.child(v_flex().id("checks-list").flex_1().min_h(0).px(8).pb(8).overflow_y_scrollbar().track_scroll(view.scroll)
       .children(view.rows.map((r, i) => {
         const on = hasKeys && r.key === view.sel;
         return r.check ? row(view, r.check, i, url, agent, t, dark, on) : header(view, r.group, i, t, dark, on);
-      })))
-    .when(Boolean(view.help), (el) => el.child(keyPanel(t, KEYS)));
+      }))));
 }
