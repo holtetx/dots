@@ -1,10 +1,9 @@
 [
-  { "f": "mh-sessions.search", "key": "⌘K", "text": "search sessions: running, Waiting and ended ones" },
+  { "f": "mh-sessions.search", "key": "⌘K", "text": "search sessions: running and ended ones" },
   { "f": "mh-picker", "key": "⌘P", "text": "go to any tab by name" },
   { "f": "mh-open", "key": "⌘O", "text": "open a recent folder as a space; ⌘↵ as a tab, ⇧↵ as a pane" },
   { "f": "mh-open.claude", "key": "⌘⇧C in ⌘O", "text": "open the folder with a Claude session" },
   { "f": "mh-tabs.agent-next", "key": "⌘] / ⌘[", "text": "next and previous agent, in sidebar order" },
-  { "f": "mh-tabs.wait", "key": "^A ⇧H", "text": "put the space in Waiting; ^A H shows or hides the Waiting section" },
   { "f": "mh-tabs.space-1", "key": "^1 to ^9", "text": "go to space 1 to 9, as the sidebar shows them" },
   { "f": "mh-tabs.fingers", "key": "^A F", "text": "hints: copy a hash, path or URL from the screen" },
   { "f": "mh-tabs.copy-mode", "key": "^A V", "text": "copy mode: vim keys over the screen and history" },

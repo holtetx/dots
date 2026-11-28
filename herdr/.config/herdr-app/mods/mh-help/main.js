@@ -21,13 +21,11 @@ const ORDER = [SESSIONS, SPACES, PANES, COPY, BOARD, APP, TERMINAL, OPEN, OTHER]
 
 // By action, or by "section|action" outside the global section. # is 1-9, * a direction.
 const DESCRIBE = {
-  "mod.open:mh-sessions": [SESSIONS, "Search sessions: running, Waiting and ended ones"],
+  "mod.open:mh-sessions": [SESSIONS, "Search sessions: running and ended ones"],
   "mh-tabs.new-session": [SESSIONS, "New space with a Claude session, in a folder you pick"],
   '{"command":"tab.new","args":{"name":"Claude","argv":["claude","--worktree"]}}': [SESSIONS, "New tab with a Claude session in its own worktree"],
   "mh-tabs.agent-next": [SESSIONS, "Next agent, in sidebar order"],
   "mh-tabs.agent-prev": [SESSIONS, "Previous agent"],
-  "mh-tabs.wait": [SESSIONS, "Put the space in Waiting, or take it out"],
-  "mh-tabs.waiting": [SESSIONS, "Show or hide the Waiting section"],
   "mod.open:mh-picker": [SESSIONS, "Go to a tab"],
   "mh-tabs.usage": [APP, "Usage: what I use in Herdr, live, last 7 days"],
   "mh-tabs.test-toast": [APP, "Show a sample toast; again for the next kind"],

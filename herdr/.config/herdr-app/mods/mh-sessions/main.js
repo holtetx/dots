@@ -148,25 +148,16 @@ export default class Sessions extends View {
     }));
     const skip = new Set((this.open ?? []).map((s) => s.id));
     const past = (this.history ?? []).filter((s) => !skip.has(s.id) && match(s));
-    // Spaces in Waiting (mh-spaces' shared("spaces.waiting")) and their open sessions
-    // have a section of their own: each space, then its sessions.
-    const parked = new Set(shared("spaces.waiting") ?? []);
-    const open = this.open ?? [];
     const recent = [...all].sort((a, b) => (this.rank.get(a.id) ?? all.length) - (this.rank.get(b.id) ?? all.length));
-    const waiting = all.filter((w) => parked.has(w.id)).flatMap((w) => {
-      const mine = open.filter((s) => s.space === w.id && match(s)).map((s) => ({ ...s, kind: "open" }));
-      return match(w) || mine.length ? [{ ...w, kind: "space" }, ...mine] : [];
-    });
     return [
-      { name: "Open", kind: "open", list: open.filter((s) => !parked.has(s.space) && match(s)), loading: this.open === undefined },
-      { name: "Spaces", kind: "space", list: recent.filter((w) => !parked.has(w.id) && match(w)), loading: false },
-      { name: "Waiting", kind: "waiting", list: waiting, loading: false },
+      { name: "Open", kind: "open", list: (this.open ?? []).filter(match), loading: this.open === undefined },
+      { name: "Spaces", kind: "space", list: recent.filter(match), loading: false },
       { name: "History", kind: "history", list: past.slice(0, 100), total: past.length, loading: this.history === undefined },
     ];
   }
 
   items() {
-    return this.sections().flatMap(({ kind, list }) => list.map((s) => ({ kind: kind === "waiting" ? s.kind : kind, s })));
+    return this.sections().flatMap(({ kind, list }) => list.map((s) => ({ kind, s })));
   }
 
   go(it, cx, here = false) {
@@ -222,7 +213,7 @@ export default class Sessions extends View {
       children.push(h_flex().h(26).px(10).pt(6).flex_none().items_center().text_size(11).font_semibold().text_color(t.dim).child(loading ? `${name.toUpperCase()} · loading…` : `${name.toUpperCase()} · ${total > list.length ? `${list.length} of ${total}` : list.length}`));
       for (const s of list) {
         this.childOf[n] = children.length;
-        children.push(row(kind === "waiting" ? s.kind : kind, s, n++));
+        children.push(row(kind, s, n++));
       }
     }
     const empty = items.length === 0 && !sections.some((s) => s.loading);

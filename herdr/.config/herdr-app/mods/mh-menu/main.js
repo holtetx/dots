@@ -25,17 +25,6 @@ async function checkout(folder, on) {
   return common.stdout.trim() === `${top.stdout.trim()}/.git` ? "main" : "linked";
 }
 
-// Moves a space in or out of Waiting: shown at once, and kept on its machine by mh-spaces.
-function askWaiting(id, waiting) {
-  const now = shared("spaces.waiting") ?? [];
-  setShared("spaces.waiting", waiting ? [...new Set([...now, id])] : now.filter((x) => x !== id));
-  setShared("spaces.waiting.ask", [...(shared("spaces.waiting.ask") ?? []), { id, waiting }]);
-}
-const waitingItem = (space) => {
-  const on = (shared("spaces.waiting") ?? []).includes(space);
-  return [on ? "Back from Waiting" : "Move to Waiting", "waiting", { space, waiting: !on }];
-};
-
 // A folder change, made by the spaces sidebar (mh-spaces), which keeps the folders.
 function askFolders(op) {
   setShared("space-folders.ask", [...(shared("space-folders.ask") ?? []), op]);
@@ -107,7 +96,6 @@ function items(p, git) {
         ["Link PR or issue\u2026", "mh-spaces", { link: tg.id }],
         ["New folder from here\u2026", "folder-dialog", { from: tg.id }],
         ...(tg.id in (shared("space-folders")?.pins ?? {}) ? [["Back to its own folder", "folder-op", { op: "unpin", space: tg.id }]] : []),
-        waitingItem(tg.id),
         ["Close", "space.close", { id: tg.id }],
       ];
     case "new":
@@ -144,7 +132,7 @@ function menuIcon(command, args) {
   if (command === "mh-spaces") return "mods/mh-spaces/git-pull-request.svg";
   if (command === "folder-dialog") return `mods/workspace-chrome/${args?.id ? "folder" : "folder-plus"}.svg`;
   if (command === "folder-op") return `mods/workspace-chrome/${args?.op === "delete" ? "x" : "folder"}.svg`;
-  const name = command === "waiting" ? "clock" : command.endsWith(".close") ? "x" : command.endsWith(".rename") ? "square-pen" : command.endsWith(".new") ? "plus" : command === "worktree" ? "git-branch" : command === "mh-panes" ? "layers" : command === "mh-copy" ? "file-text" : command === "app.theme" ? "settings" : command === "pane.split" ? "panel-right" : command === "pane.zoom" ? "square" : "terminal";
+  const name = command.endsWith(".close") ? "x" : command.endsWith(".rename") ? "square-pen" : command.endsWith(".new") ? "plus" : command === "worktree" ? "git-branch" : command === "mh-panes" ? "layers" : command === "mh-copy" ? "file-text" : command === "app.theme" ? "settings" : command === "pane.split" ? "panel-right" : command === "pane.zoom" ? "square" : "terminal";
   return `mods/workspace-chrome/${name}.svg`;
 }
 
@@ -179,7 +167,6 @@ export default class Menu extends View {
     track(`mh-menu.${props()?.tab}.${[it[1], it[2]?.action].filter(Boolean).join(".")}`, "menu");
     closeOverlay(props()?.overlay);
     if (it[1] === "worktree") openOverlay({ mod: "mh-worktree", kind: "dialog", ...(it[2].action === "open" ? { width: 560, height: 480 } : { width: 440, height: 260 }), props: it[2] });
-    else if (it[1] === "waiting") askWaiting(it[2].space, it[2].waiting);
     else if (it[1] === "folder-dialog") folderDialog(it[2]);
     else if (it[1] === "folder-op") askFolders(it[2]);
     else if (it[1] === "mh-spaces") openOverlay({ mod: "mh-spaces", kind: "dialog", width: 560, height: 0.7, props: it[2] });
