@@ -19,6 +19,18 @@ assert.deepStrictEqual(got, [
 // A url match is not also a path, and a hash needs a digit and a letter.
 assert.ok(!got.some(([k, t]) => k === "path" && t.includes("github.com")));
 
+// Skill commands keep their issue number, beat path and github, and aren't found inside paths.
+const skills = find(
+  ["run /mattpocock-skills:to-tickets 227 now", "/mattpocock-skills:implement #198", "/mattpocock-skills:retro of x", "~/dots/keys.json:12"],
+  patterns(["skill", "path", "github"]),
+).map((m) => [m.kind, m.text]);
+assert.deepStrictEqual(skills, [
+  ["skill", "/mattpocock-skills:to-tickets 227"],
+  ["skill", "/mattpocock-skills:implement #198"],
+  ["skill", "/mattpocock-skills:retro"],
+  ["path", "~/dots/keys.json:12"],
+]);
+
 // The same text gets one label; the lowest line is labelled first.
 const labels = hints([{ row: 0, start: 0, text: "a" }, { row: 2, start: 0, text: "b" }, { row: 1, start: 0, text: "a" }]);
 assert.deepStrictEqual([...labels], [["b", "s"], ["a", "d"]]);

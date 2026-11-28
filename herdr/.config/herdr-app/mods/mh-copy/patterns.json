@@ -15,6 +15,13 @@
     "regex": "\\b([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})\\b"
   },
   {
+    "id": "skill",
+    "label": "Skill commands",
+    "example": "/mattpocock-skills:implement 227",
+    "on": true,
+    "regex": "(?<![\\w/.~-])(/[\\w-]+:[\\w-]+(?: #?\\d+\\b)?)"
+  },
+  {
     "id": "diff",
     "label": "Paths in diffs",
     "example": "+++ b/src/main.js",
