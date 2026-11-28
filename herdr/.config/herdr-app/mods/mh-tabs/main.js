@@ -35,26 +35,17 @@ function label(tab, lead) {
 }
 
 // Space and agent next/prev, as the sidebar lists them (shared("spaces.order"): folders'
-// spaces, but those folded away, and Waiting's only while its section is open).
+// spaces, but those folded away).
 function spaceOrder() {
   const ids = spaces().map((s) => s.id);
   const listed = shared("spaces.order");
-  if (Array.isArray(listed) && listed.length) return listed.filter((id) => ids.includes(id));
-  const parked = new Set(shared("spaces.waiting") ?? []);
-  return [...ids.filter((id) => !parked.has(id)), ...(shared("waiting.open") ? ids.filter((id) => parked.has(id)) : [])];
+  return Array.isArray(listed) && listed.length ? listed.filter((id) => ids.includes(id)) : ids;
 }
 
 function step(order, current, by) {
   if (!order.length) return null;
   const i = order.indexOf(current);
   return i === -1 ? (by > 0 ? order[0] : order.at(-1)) : order[(i + by + order.length) % order.length];
-}
-
-// Moves a space in or out of Waiting: shown at once, and kept on its machine by mh-spaces.
-function askWaiting(id, waiting) {
-  const now = shared("spaces.waiting") ?? [];
-  setShared("spaces.waiting", waiting ? [...new Set([...now, id])] : now.filter((x) => x !== id));
-  setShared("spaces.waiting.ask", [...(shared("spaces.waiting.ask") ?? []), { id, waiting }]);
 }
 
 // ctrl-a N: a sample of each kind of toast in turn, to see how they look.
@@ -138,20 +129,11 @@ export default class Tabs extends View {
           testToast();
           continue;
         }
-        if (command === "waiting") {
-          setShared("waiting.open", !shared("waiting.open"));
-          continue;
-        }
         // Another window onto the same spaces (new-window.sh, in the main app home).
         if (command === "new-window") {
           exec("sh", [`${home()}/.config/herdr-app/new-window.sh`])
             .then((r) => r.code === 0 || notify({ title: "Couldn't open a window", body: (r.stderr || r.stdout).trim(), level: "error" }))
             .catch((e) => notify({ title: "Couldn't open a window", body: String(e?.message ?? e), level: "error" }));
-          continue;
-        }
-        if (command === "wait") {
-          const space = focused()?.space;
-          if (space) askWaiting(space, !(shared("spaces.waiting") ?? []).includes(space));
           continue;
         }
         const terminal = focused()?.terminal;

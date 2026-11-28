@@ -1,4 +1,4 @@
-// The sidebar: every machine's spaces in folders (folders.js), Other, SSH and Waiting. This copy also shares GitHub,
+// The sidebar: every machine's spaces in folders (folders.js), Other and SSH. This copy also shares GitHub,
 // board and git state (shared("github"), "board.repos", "board.places", "git.spaces") with the other mh-spaces views.
 
 import { View, div, svg } from "gpui-kit";
@@ -9,7 +9,7 @@ import { spaces, machines, panes, terminals, agents, focused, props, nextCommand
 import { branchName, expand, kinds, scanAgent, spacePr } from "./github.js";
 import { githubDue, unreadDue } from "./github-poll.js";
 import { refreshGit, sameRepo } from "./git-poll.js";
-import { backfillHistory, canon, editLinks, edited, forgetHistory, setWaiting, split, updateHistory, updateLinks } from "./docs.js";
+import { backfillHistory, canon, editLinks, edited, forgetHistory, split, updateHistory, updateLinks } from "./docs.js";
 import { linkInit, linkRender } from "./links.js";
 import { MARK, applyChange, empty, folderOf, foldersOf, live, matchOf, merge, nextRank, ownPaths, pathsOn, tidy, tilde, updateFolders, writeChange } from "./folders.js";
 import { folderInit, folderRender } from "./folder-dialog.js";
@@ -227,7 +227,6 @@ export default class Spaces extends View {
     unreadDue(this, now, cx);
     watchDue(this, now, cx);
     this.linksDue(now, cx);
-    this.waitingDue(cx);
     this.forgetDue(cx);
     this.backfillDue(now, cx);
     this.foldersDue(now, cx);
@@ -315,28 +314,6 @@ export default class Spaces extends View {
       return false;
     });
     if (left.length !== asks.length) setShared("board.link.ask", left);
-  }
-
-  // Spaces moved in or out of Waiting by the other mods (mh-menu, mh-tabs), which show it
-  // at once in shared("spaces.waiting") and ask here, in shared("spaces.waiting.ask"),
-  // for it to be kept on the space's machine.
-  waitingDue(cx) {
-    const asks = shared("spaces.waiting.ask") ?? [];
-    if (!asks.length || this.asking) return;
-    setShared("spaces.waiting.ask", []);
-    this.asking = true;
-    cx.spawn(async (cx) => {
-      for (const ask of asks) {
-        try {
-          await setWaiting(ask.id, ask.waiting);
-        } catch (e) {
-          notify({ title: "Couldn't move the space", body: String(e?.message ?? e), level: "error" });
-        }
-      }
-      this.asking = false;
-      this.linksAt = 0;
-      cx.notify();
-    });
   }
 
   // Links the tasks list (mh-sessions) asked ended sessions to forget, in
@@ -572,7 +549,7 @@ export default class Spaces extends View {
   // A space dropped on row r goes into r's folder.
   files(from, r) {
     const source = this.rowsById?.get(from);
-    return Boolean(this.filed && source && !source.waiting && !r.waiting && !source.ssh && !r.ssh && source.folder !== r.folder);
+    return Boolean(this.filed && source && !source.ssh && !r.ssh && source.folder !== r.folder);
   }
 
   // A folder dragged onto another: it goes where that one is.
@@ -614,8 +591,8 @@ export default class Spaces extends View {
     run("space.new", { folder: rootOf(this.git[where(s, panes())]) ?? s.folder, machine: s.machine ?? "", argv: ["claude"] });
   }
 
-  // Hand-made links and Waiting marks from each machine's core into shared("github.links"),
-  // shared("github.hidden"), shared("github.agent-links") and shared("spaces.waiting"),
+  // Hand-made links from each machine's core into shared("github.links"),
+  // shared("github.hidden") and shared("github.agent-links"),
   // where the rows and the dialog read them. A space or agent missing at two syncs in a row on a
   // machine whose layout is in loses its links there; the first time per machine, what
   // this screen kept itself is moved in. Its live Claude sessions' links go in its
@@ -631,7 +608,6 @@ export default class Spaces extends View {
       const cache = { "github.links": {}, "github.hidden": {}, "github.agent-links": {} };
       for (const [key, into] of Object.entries(cache))
         for (const [id, urls] of Object.entries(shared(key) ?? {})) if (urls?.length && names.has(machineOf(id))) into[id] = urls;
-      let waiting = (shared("spaces.waiting") ?? []).filter((id) => names.has(machineOf(id)));
       const tasks = Object.fromEntries(Object.entries(shared("tasks.sessions") ?? {}).filter(([id]) => names.has(machineOf(id))));
       const moved = new Set(shared("github.links.moved") ?? []);
       const missing = new Set();
@@ -670,7 +646,6 @@ export default class Spaces extends View {
             if (e.hidden?.length) cache["github.hidden"][full(bare)] = e.hidden;
           }
           for (const [bare, e] of Object.entries(doc.agents)) if (e.links?.length) cache["github.agent-links"][full(bare)] = e.links;
-          waiting = [...waiting.filter((id) => !mine(id)), ...Object.entries(doc.spaces).filter(([, e]) => e.waiting).map(([bare]) => full(bare))];
           moved.add(on ?? "");
         } catch {}
         try {
@@ -684,8 +659,6 @@ export default class Spaces extends View {
         for (const [key, value] of Object.entries(cache)) if (JSON.stringify(value) !== JSON.stringify(shared(key) ?? {})) setShared(key, value);
         if (moved.size !== (shared("github.links.moved") ?? []).length) setShared("github.links.moved", [...moved]);
         if (canon(tasks) !== canon(shared("tasks.sessions") ?? {})) setShared("tasks.sessions", tasks);
-        const asked = this.asking || (shared("spaces.waiting.ask") ?? []).length > 0;
-        if (!asked && JSON.stringify(waiting) !== JSON.stringify(shared("spaces.waiting") ?? [])) setShared("spaces.waiting", waiting);
       } else this.linksAt = 0;
       this.syncing = false;
       cx.notify();
@@ -887,21 +860,18 @@ export default class Spaces extends View {
     openOverlay({ mod: "mh-menu", kind: "popup", width: 220, height: 380, props: { tab: "space", target: { id: w.id } } });
   }
 
-  // Where each space goes: Waiting, SSH (mh-ssh labels its ssh terminal), a folder
+  // Where each space goes: SSH (mh-ssh labels its ssh terminal), a folder
   // (by hand, else by path), or Other.
   tree(sp, ps, ts) {
     const st = this.folderState;
     const list = live(st);
-    const parked = new Set(shared("spaces.waiting") ?? []);
     const remote = new Set(ts.filter((k) => k.labels?.["mh.ssh"]).map((k) => k.labels["herdr.space"]));
     const inside = new Map(list.map((f) => [f.id, []]));
     const other = [];
     const ssh = [];
-    const waiting = [];
     sp.forEach((w) => {
       const g = this.git[where(w, ps)] ?? null;
-      const r = { w, g, folder: null, waiting: parked.has(w.id) };
-      if (r.waiting) return waiting.push(r);
+      const r = { w, g, folder: null };
       if (!w.machine && remote.has(w.id)) return ssh.push({ ...r, ssh: true });
       r.folder = folderOf(st, this.homes, w.machine ?? "", split(w.id)[1], [place(w, ps), rootOf(g)]);
       const bucket = inside.get(r.folder);
@@ -910,11 +880,11 @@ export default class Spaces extends View {
     });
     const recent = (a, b) => activity(b.w) - activity(a.w);
     for (const members of [...inside.values(), other, ssh]) members.sort(recent);
-    return { list, inside, other, ssh, waiting };
+    return { list, inside, other, ssh };
   }
 
-  // Folders, each with its spaces (folded: only the shown one), then Other, SSH, machines
-  // that need you, and Waiting. Publishes the order next/prev and ctrl-1..9 go by
+  // Folders, each with its spaces (folded: only the shown one), then Other, SSH and machines
+  // that need you. Publishes the order next/prev and ctrl-1..9 go by
   // (shared("spaces.order")) and every space in list order (shared("spaces.listed")).
   grouped(t, collapsed) {
     const sp = spaces();
@@ -925,7 +895,7 @@ export default class Spaces extends View {
     const tree = this.tree(sp, ps, ts);
     this.panesOf = new Map();
     for (const p of ps) this.panesOf.set(p.tab, [...(this.panesOf.get(p.tab) ?? []), p]);
-    this.rowsById = new Map([...tree.inside.values(), tree.other, tree.ssh, tree.waiting].flat().map((r) => [r.w.id, r]));
+    this.rowsById = new Map([...tree.inside.values(), tree.other, tree.ssh].flat().map((r) => [r.w.id, r]));
     this.filed = tree.list.length > 0;
     this.agentsOf = new Map();
     // A title a skill gave the session (hc label <terminal> mh.description=<title>).
@@ -940,7 +910,7 @@ export default class Spaces extends View {
     const hidden = new Set();
     const indent = pref("icon") !== "hidden" ? 27 : 0;
     const draw = (r) => {
-      Object.assign(r, { metro: this.filed || r.ssh || r.waiting, indent, track: r.track ?? t.raised });
+      Object.assign(r, { metro: this.filed || r.ssh, indent, track: r.track ?? t.raised });
       return collapsed ? [this.compact(r, t)] : [this.row(r, t), ...this.runningRows(r, t)];
     };
     // Where the active space's row lands among the list's children: it scrolls by them.
@@ -980,14 +950,6 @@ export default class Spaces extends View {
     }
     if (!sp.length) out.push(machines().find((m) => m.name === null)?.layout === "loading" ? this.loadingRow(t, collapsed) : this.emptyRow(t, collapsed));
     out.push(...this.machineRows(t, collapsed));
-    const open = Boolean(shared("waiting.open"));
-    for (const r of tree.waiting) {
-      listed.push(r.w.id);
-      if (open) r.n = order.push(r.w.id);
-    }
-    const parked = open ? tree.waiting.findIndex((r) => r.w.active) : -1;
-    if (parked >= 0) this.activeAt = out.length + 1 + parked;
-    out.push(...this.waitingSection(t, collapsed, tree.waiting, draw));
     this.hidden = hidden;
     for (const [key, value] of [["spaces.order", order], ["spaces.listed", listed]]) if (JSON.stringify(value) !== JSON.stringify(shared(key) ?? [])) setShared(key, value);
     return out;
@@ -1103,20 +1065,6 @@ export default class Spaces extends View {
           .child(svg("mods/workspace-chrome/plus.svg").size(10))))
       .when(!collapsed, (el) => el.child(svg("mods/workspace-chrome/plus.svg").size(12)).child("New space"));
     return collapsed ? railCell(el) : el;
-  }
-
-  waitingSection(t, collapsed, waiting, draw) {
-    if (!waiting.length) return [];
-    const open = Boolean(shared("waiting.open"));
-    const top = urgent(waiting);
-    const head = h_flex().id("waiting-head").h(26).mt(6).flex_none().px(collapsed ? 0 : 8).gap(7).items_center().rounded(6)
-      .text_size(11).font_semibold().text_color(t.dim).cursor_pointer().hover((st) => st.bg(t.hover).text_color(t.foreground))
-      .when(collapsed, (el) => el.w(RAIL_CELL).justify_center().tooltip(`Waiting · ${waiting.length}`))
-      .on_click((_e, cx) => { track("mh-spaces.sidebar.waiting", "click"); setShared("waiting.open", !open); cx.notify(); })
-      .when(!collapsed, (el) => el.child(div().flex_1().child("WAITING")))
-      .child(chevron(!open, top, t));
-    waiting.forEach((r, i) => (r.last = i === waiting.length - 1));
-    return [collapsed ? railCell(head) : head, ...(open ? waiting.flatMap(draw) : [])];
   }
 
   // A row per machine that needs you: asleep, a login, rebuilt or loading.
@@ -1238,7 +1186,7 @@ export default class Spaces extends View {
           const source = spaces().find(s => s.id === this.pressed);
           const same = Boolean(source) && (source.machine ?? null) === (w.machine ?? null);
           const over = same ? w.id : null;
-          const overFolder = same || !this.filed || r.waiting || r.ssh ? null : (r.folder ?? "other");
+          const overFolder = same || !this.filed || r.ssh ? null : (r.folder ?? "other");
           if (this.over !== over || this.overFolder !== overFolder) {
             this.over = over;
             this.overFolder = overFolder;

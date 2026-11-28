@@ -35,7 +35,7 @@ All `mh-state.json` keys, their shape and which Mac needs them: README.md in dot
 |---|---|---|
 | Spacing dialog settings | `mh-settings.json` (in dots) | `mods/mh-footer/settings.js`, synced with `shared()` |
 | Space colors, folded folders, board repos (`mh-board`) | `mh-state.json` (this Mac, not in dots) | same file. `new-window.sh` makes it. |
-| Links added by hand, the Waiting mark | herdr-core doc `mh-links` | `mods/mh-spaces/docs.js`, `~/.claude/skills/herdr-link/herdr-link.mjs` |
+| Links added by hand | herdr-core doc `mh-links` | `mods/mh-spaces/docs.js`, `~/.claude/skills/herdr-link/herdr-link.mjs` |
 | Which Claude session had which links | herdr-core doc `mh-tasks`, shared as `shared("tasks.sessions")` | mh-spaces (`history.mjs` reads the transcripts) |
 | Watched PRs (`{ prs: { url: { seen?, snooze? } } }`) | herdr-core doc `mh-watch` on this Mac | `mods/mh-spaces/watch.js`. Other copies ask through `shared("watch.ask")`. |
 | Space folders | herdr-core doc `mh-folders` | mh-spaces only. Other mods ask through `shared("space-folders.ask")`. |
