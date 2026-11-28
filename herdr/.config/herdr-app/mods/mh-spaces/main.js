@@ -6,7 +6,7 @@ import { v_flex, h_flex, ScrollHandle } from "gpui-base";
 import { WORDS, action, button, chip, ink, mark, spinner } from "./pixel.js";
 import { track } from "./stats.js";
 import { spaces, machines, panes, terminals, agents, focused, props, nextCommand, run, openOverlay, closeOverlay, exec, hc, home, appHome, readTextFile, theme, shared, setShared, window, layout, notify } from "herdr";
-import { branchName, expand, kinds, scanAgent } from "./github.js";
+import { branchName, expand, kinds, scanAgent, spacePr } from "./github.js";
 import { githubDue, unreadDue } from "./github-poll.js";
 import { refreshGit, sameRepo } from "./git-poll.js";
 import { backfillHistory, canon, editLinks, edited, forgetHistory, setWaiting, split, updateHistory, updateLinks } from "./docs.js";
@@ -22,6 +22,7 @@ import { prInit, prRender } from "./pr.js";
 import { find } from "./find.js";
 import { telling } from "./title.js";
 import { discoverRepos } from "./board-data.js";
+import { toggleWatch, watchDue, watchInit, watchSection } from "./watch.js";
 
 
 // The sidebar's rail goes by its width, not a flag: dragging its edge narrows it too.
@@ -176,6 +177,7 @@ export default class Spaces extends View {
     this.boardRepos = {}; // machine ("" here) -> the GitHub repos in its sidebar folders: [{ repo, path }]
     this.reposAt = 0;
     this.reposOf = null; // shared("space-folders") they were looked for in
+    watchInit(this);
     this.refreshMachines(cx);
     cx.timer.every(15000, cx => window()?.visible !== false && this.refreshMachines(cx));
     // Since mh-spaces is focusable, Herdr gives its commands only to a copy with the keyboard: keys go to mh-tabs, which hands them on.
@@ -205,6 +207,7 @@ export default class Spaces extends View {
     // The tasks list (mh-sessions) clears shared("tasks.overlay") when it closes.
     if (command === "tasks") setShared("tasks.overlay", shared("tasks.overlay") ? closeOverlay(shared("tasks.overlay")) : openOverlay({ mod: "mh-sessions", kind: "dialog", width: 680, height: 0.7, props: { tasks: true } }));
     if (command === "new-session") this.newSession();
+    if (command === "watch") toggleWatch(spacePr(focused()?.space ?? spaces().find((s) => s.active)?.id));
     if (command !== "link" && command !== "link-space") return;
     const space = focused()?.space ?? spaces().find((s) => s.active)?.id;
     openLinks(space, command === "link" ? agents().find((a) => a.focused && a.space === space)?.address : null);
@@ -222,6 +225,7 @@ export default class Spaces extends View {
     this.claudeDue(cx);
     githubDue(this, now, sp, ps, cx);
     unreadDue(this, now, cx);
+    watchDue(this, now, cx);
     this.linksDue(now, cx);
     this.waitingDue(cx);
     this.forgetDue(cx);
@@ -232,7 +236,7 @@ export default class Spaces extends View {
 
   close() {
     if (props()?.board) setShared("board.overlay", null);
-    if (props()?.preview || props()?.status || props()?.create) setShared(props().back, Date.now());
+    if ((props()?.preview || props()?.status || props()?.create) && props().back) setShared(props().back, Date.now());
   }
 
   // The GitHub repos in the sidebar folders on every machine that answers (one that doesn't
@@ -1409,6 +1413,7 @@ export default class Spaces extends View {
         // A block above growing, or the window resizing, shrinks this list and can push the active space out.
         .on_size_change((_size, cx) => { if (this.activeAt >= 0) { this.scroll.scroll_to_item(this.activeAt); cx.notify(); } })
         .on_mouse_up("left", (_e, cx) => { this.endDrag(); cx.notify(); })
-        .children(list));
+        .children(list))
+      .children([watchSection(this, t, collapsed)].filter(Boolean));
   }
 }

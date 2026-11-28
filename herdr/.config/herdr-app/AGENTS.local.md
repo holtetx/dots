@@ -37,6 +37,7 @@ All `mh-state.json` keys, their shape and which Mac needs them: README.md in dot
 | Space colors, folded folders, board repos (`mh-board`) | `mh-state.json` (this Mac, not in dots) | same file. `new-window.sh` makes it. |
 | Links added by hand, the Waiting mark | herdr-core doc `mh-links` | `mods/mh-spaces/docs.js`, `~/.claude/skills/herdr-link/herdr-link.mjs` |
 | Which Claude session had which links | herdr-core doc `mh-tasks`, shared as `shared("tasks.sessions")` | mh-spaces (`history.mjs` reads the transcripts) |
+| Watched PRs (`{ prs: { url: { seen?, snooze? } } }`) | herdr-core doc `mh-watch` on this Mac | `mods/mh-spaces/watch.js`. Other copies ask through `shared("watch.ask")`. |
 | Space folders | herdr-core doc `mh-folders` | mh-spaces only. Other mods ask through `shared("space-folders.ask")`. |
 | Session title | label `mh.description` | skills, with `hc label` |
 | SSH: 1Password reference, Claude's folder (`mh-ssh`) | `mh-state.json` | by hand, on the work Mac only |
@@ -61,6 +62,15 @@ All `mh-state.json` keys, their shape and which Mac needs them: README.md in dot
 ## Sidebar
 
 One list: folders (projects), then spaces. A space is one session. Its row shows its name when someone renamed it, else its most urgent agent's `mh.description` label or title (`mods/mh-spaces/title.js`), and that agent's status. The folder `+` and `cmd-shift-c` start a space with `claude`. Each folder, Other and SSH list their spaces by recent activity: the newest `changed_at` of their tabs (an agent's state change), so there is no order by hand. `cmd-k` (`mh-sessions`) lists Spaces the same way and Open sessions by agent `seq`. `cmd-[` / `cmd-]` (`mh-tabs`) go through the agents of the spaces the sidebar shows, in its order.
+
+## Watching (`w` or the pin on the board and in the PR panel, `ctrl-a w`)
+
+- Add or stop with the mouse too: the pin (`watchButton()`) at the end of each board PR row and next to the PR panel's title, lit while watched.
+- `mods/mh-spaces/watch.js`: a WATCHING section under the sidebar's list, outside its scroll, so it shows for every folder and space. Not in the rail. PRs only, added by hand. More than 8 rows scroll inside it. A click on the header folds it (kept in the mod's `localStorage`, `watch.folded`); folded, its chevron is yellow while a PR waits on you.
+- Each row: state icon, number, title (without a `feat(x):` prefix), and whose move it is (`moveOf()` in `watch-data.js`, test: `node mods/mh-spaces/watch.test.mjs`). Your move is a chip, each with its own color and icon (`BADGE`): `CI` (red), `CHANGES` (orange, until you comment or push), `REPLY` (blue), `MERGE` (green: yours, approved, CI not running) or `REVIEW` (purple: you are asked by name; team requests do not count). Else dim: `in review`, `draft`, `queued`, `their move`, `not found` (GitHub gives nothing for the URL: stop watching it by hand). Your move comes first.
+- `REPLY`: the newest comment, review or commit by another person is newer than your own last one and than your last click on the row. Bots never count (GraphQL `Bot` or a login ending in `[bot]`: Sonar, the Slack notice, Dependabot, Copilot). Not GitHub notifications: the owner can't keep up with them. A commit counts at its `committedDate` (GitHub gives no push time), so a rebase shows `REPLY` once. An approval is not news: `MERGE` shows it. A commit whose email is linked to no GitHub user counts as the PR author's.
+- Click: the space that has the PR, else its preview; ⌘-click GitHub; both mark it seen. Right-click: snooze till the next 8:00, or stop watching. Merged and closed PRs leave the list and the `mh-watch` doc 24 h after `closedAt`.
+- One GraphQL query for all watched PRs every 2 min while the window is active (`WATCH_FIELDS`). No toasts or nudges: decided against.
 
 ## SSH (`ctrl-a s`)
 

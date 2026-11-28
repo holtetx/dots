@@ -235,7 +235,7 @@ export async function fetchGitHub(urls, branches) {
 // Only https: links come from GitHub, Jira and hand-added docs, and `open` runs files and apps too.
 export const open = (url, cx) => /^https:\/\//.test(url ?? "") && cx.spawn(async () => { await exec("open", [url]).catch(() => null); });
 const iconOf = (it, s) => s?.icon ?? (it.kind === "issue" ? GH["issue-open"].icon : GH.open.icon);
-const colorOf = (s, t) => (s ? s.color[darkOf(t) ? 1 : 0] : t.dim);
+export const colorOf = (s, t) => (s ? s.color[darkOf(t) ? 1 : 0] : t.dim);
 
 // The icon, with a yellow square when there's news, and the lead PR's review and CI after it.
 function marks(el, it, s, news, t) {
