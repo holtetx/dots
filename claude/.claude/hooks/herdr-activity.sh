@@ -60,7 +60,7 @@ PostToolUse)
   case "$log" in "~/"*) log="$HOME/${log#\~/}" ;; /*) ;; ?*) log="$cwd/$log" ;; esac
   [ -n "$log" ] && [ -f "$log" ] && out=$log
   mkdir -p "$run"
-  jq -c --arg f "$out"'{kind: "shell", name: (.tool_input.description // .tool_input.command | .[0:200]), detail: (.tool_input.command | .[0:500]), file: $f}' <<<"$input" >"$run/shell-$task"
+  jq -c --arg f "$out" '{kind: "shell", name: (.tool_input.description // .tool_input.command | .[0:200]), detail: (.tool_input.command | .[0:500]), file: $f}' <<<"$input" >"$run/shell-$task"
   relabel
   nohup bash -c 'for p in $1; do while kill -0 "$p" 2>/dev/null; do sleep 2; done; done; rm -f "$2"; echo "{\"hook_event_name\":\"Relabel\"}" | bash "$3"' _ "$pids" "$run/shell-$task" "${BASH_SOURCE[0]}" </dev/null >/dev/null 2>&1 &
   ;;
