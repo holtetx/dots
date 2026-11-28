@@ -6,7 +6,7 @@ import { watchUsage } from "./usage.js";
 import { find } from "./usage-data.js";
 import { spaces, panes, agents, run, openOverlay, theme, window, shared, setShared, layout, settings, focused, nextCommand, exec, home, notify, setBadge } from "herdr";
 
-const CI = { failed: ["circle-x", "ansi1"], running: ["circle-dot", "ansi3"], passed: ["circle-check", "ansi2"] };
+const CI = { failed: ["circle-x", "ansi1"], running: ["circle-dashed", "ansi3"], passed: ["circle-check", "ansi2"] };
 
 // Shows that side panel, or hides the panel when it already shows it. True when it shows it.
 function togglePanel(id) {

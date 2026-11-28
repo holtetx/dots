@@ -312,7 +312,7 @@ function helpPanel(d, t, dark) {
       [text("changes", pick(REVIEW_COLOR.CHANGES_REQUESTED, dark)), "a review asks for changes"],
       [text("failed", pick(CHECK_COLOR.failed, dark)), "a check failed; a click opens it"],
       [text("running", pick(CHECK_COLOR.running, dark)), "a check is running"],
-      ...[["ready to merge", "GitHub can merge it"], ["conflicts", "conflicts with the base branch"], ["checks failing", "required checks fail"],
+      ...[["ready to merge", "GitHub can merge it"], ["conflicts", "conflicts with the base branch"], ["checks failing", "required checks fail"], ["checks running", "checks have not finished"],
         ["behind base", "the base has newer commits"], ["blocked", "a rule blocks the merge"]].map(([w, x]) => [mergeChip(w, t, dark), x]),
       [chip("behind", t.ansi3), "your checkout is behind the PR"],
       [chip("label", t.dim), "label"],

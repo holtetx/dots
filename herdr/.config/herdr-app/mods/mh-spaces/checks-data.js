@@ -29,6 +29,9 @@ export function checksOf(n) {
 export const countLine = (checks, sep = ", ") => CHECK_STATES.map((s) => [s, checks.filter((c) => c.state === s).length]).filter(([, n]) => n).map(([s, n]) => `${n} ${s}`).join(sep);
 
 export const worst = (checks) => CHECK_STATES.find((s) => checks.some((c) => c.state === s)) ?? null;
+// GitHub's mergeStateStatus in words. UNSTABLE also means checks still running, not only failed.
+const MERGE = { BEHIND: "behind base", DIRTY: "conflicts", BLOCKED: "blocked", UNSTABLE: "checks failing", CLEAN: "ready to merge", HAS_HOOKS: "ready to merge" };
+export const mergeOf = (status, checks) => (status === "UNSTABLE" && worst(checks) === "running" ? "checks running" : MERGE[status] ?? null);
 
 const ROLLUP = { SUCCESS: "passed", FAILURE: "failed", ERROR: "failed", PENDING: "running", EXPECTED: "running" };
 export const rollupState = (state) => ROLLUP[state] ?? null;

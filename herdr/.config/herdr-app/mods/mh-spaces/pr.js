@@ -4,14 +4,13 @@ import { div, svg } from "gpui-kit";
 import { h_flex, v_flex, ScrollHandle } from "gpui-base";
 import { agents, focused, hc, layout, nextCommand, notify, run, setShared, shared, terminals, theme, window as appWindow } from "herdr";
 import { CHECK_LOOK, FINAL, GH, REVIEW_FIELDS, badge, graphql, open, reviewsOf, spacePr, stateOf } from "./github.js";
-import { CHECKS, checksOf, countLine, fixPrompt, groupsOf, splitName, took, worst } from "./checks-data.js";
+import { CHECKS, checksOf, countLine, mergeOf, fixPrompt, groupsOf, splitName, took, worst } from "./checks-data.js";
 import { find } from "./find.js";
 import { GREEN, RED } from "./jira.js";
 import { button, chip, darkOf, helpKey } from "./pixel.js";
 import { track, trackKey } from "./stats.js";
 import { toggleWatch, watchButton } from "./watch.js";
 import { pick, verdict } from "./board.js";
-import { MERGE } from "./preview-data.js";
 import { mergeChip } from "./preview.js";
 
 const EVERY = 30000;
@@ -19,7 +18,7 @@ const PR_STATUS = `state isDraft isInMergeQueue reviewDecision mergeStateStatus 
 
 function statusOf(n) {
   const state = stateOf(n);
-  return { state, review: n.reviewDecision ?? null, ...reviewsOf(n), merge: MERGE[n.mergeStateStatus] ?? null, branch: n.headRefName, base: n.baseRefName, added: n.additions ?? 0, deleted: n.deletions ?? 0 };
+  return { state, review: n.reviewDecision ?? null, ...reviewsOf(n), merge: mergeOf(n.mergeStateStatus, checksOf(n)), branch: n.headRefName, base: n.baseRefName, added: n.additions ?? 0, deleted: n.deletions ?? 0 };
 }
 
 function statusLines(st, t, dark) {

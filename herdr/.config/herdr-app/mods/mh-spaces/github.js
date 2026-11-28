@@ -35,7 +35,7 @@ export const stateMarks = (t) => [
 ].map(([states, text]) => [h_flex().gap(6).children(states.map((s) => svg(GH[s].icon).size(12).text_color(colorOf(GH[s], t)))), text]);
 export const CHECK_LOOK = {
   failed: { icon: "mods/mh-spaces/circle-x.svg", color: RED, label: "CI failed" },
-  running: { icon: "mods/mh-spaces/circle-dot.svg", color: YELLOW, label: "CI running" },
+  running: { icon: "mods/mh-spaces/circle-dashed.svg", color: YELLOW, label: "CI running" },
   passed: { icon: "mods/mh-spaces/circle-check.svg", color: GREEN, label: "CI passed" },
   skipped: { icon: "mods/mh-spaces/circle-minus.svg", color: GRAY, label: "Skipped" },
 };

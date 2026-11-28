@@ -1,6 +1,6 @@
 // Run: node mods/mh-spaces/checks.test.mjs
 import assert from "node:assert";
-import { checksOf, countLine, fixPrompt, groupsOf, rollupState, splitName, took } from "./checks-data.js";
+import { checksOf, countLine, fixPrompt, groupsOf, mergeOf, rollupState, splitName, took } from "./checks-data.js";
 
 const run = (name, workflow, status, conclusion, startedAt, completedAt = null) =>
   ({ __typename: "CheckRun", name, status, conclusion, detailsUrl: `u/${name}/${startedAt}`, startedAt, completedAt, checkSuite: { workflowRun: { workflow: { name: workflow } } } });
@@ -33,3 +33,9 @@ assert.equal(checksOf(pr([run("x", "CI", "COMPLETED", "CANCELLED", "2026-01-01T1
 // A status context with no link gets no "(null)".
 assert.equal(fixPrompt({ workflow: "", name: "ci/x", url: null }, "https://example.test/pull/1"), 'The CI check "ci/x" failed on https://example.test/pull/1. Read its log, find the cause and fix it.');
 console.log("ok");
+
+// UNSTABLE while a check runs is not a failure yet.
+assert.strictEqual(mergeOf("UNSTABLE", [{ state: "running" }, { state: "passed" }]), "checks running");
+assert.strictEqual(mergeOf("UNSTABLE", [{ state: "running" }, { state: "failed" }]), "checks failing");
+assert.strictEqual(mergeOf("CLEAN", []), "ready to merge");
+assert.strictEqual(mergeOf("UNKNOWN", []), null);

@@ -1,7 +1,7 @@
 import { appHome, exec, readTextFile } from "herdr";
 import * as fs from "fs/promises";
 import { graphql, stateOf } from "./github.js";
-import { CHECKS, checksOf } from "./checks-data.js";
+import { CHECKS, checksOf, mergeOf } from "./checks-data.js";
 
 const WHO = "author { login __typename }";
 const TEXT = `${WHO} body bodyHTML url createdAt`;
@@ -15,7 +15,6 @@ const PR = `${COMMON} isDraft isInMergeQueue reviewDecision mergeStateStatus hea
   ${CHECKS}`;
 const ISSUE = `${COMMON} stateReason closedByPullRequestsReferences(first: 10, includeClosedPrs: true) { nodes { url number title } }`;
 
-export const MERGE = { BEHIND: "behind base", DIRTY: "conflicts", BLOCKED: "blocked", UNSTABLE: "checks failing", CLEAN: "ready to merge", HAS_HOOKS: "ready to merge" };
 export const REVIEW_WORD = { APPROVED: "approved", CHANGES_REQUESTED: "changes", COMMENTED: "commented", DISMISSED: "dismissed", PENDING: "pending" };
 
 const unescape = (s) => s.replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, "<").replace(/&gt;/g, ">");
@@ -64,7 +63,7 @@ export async function fetchPreview(url) {
     pr, url: n.url, ref: `${n.repository.nameWithOwner}#${n.number}`, title: n.title, state: stateOf(n), author: who(n), created: at(n.createdAt),
     branch: pr ? `${n.headRefName} → ${n.baseRefName}` : null,
     size: pr ? `+${n.additions} -${n.deletions} · ${n.changedFiles} file${n.changedFiles === 1 ? "" : "s"}` : null,
-    merge: pr ? MERGE[n.mergeStateStatus] ?? null : null,
+    merge: pr ? mergeOf(n.mergeStateStatus, checksOf(n)) : null,
     reviewers: pr ? n.latestReviews.nodes.map((r) => ({ who: who(r), state: r.state })) : [],
     checks: pr ? checksOf(n) : [],
     labels: n.labels.nodes.map((l) => l.name),
