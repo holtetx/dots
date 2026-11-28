@@ -271,7 +271,7 @@ export default class Tabs extends View {
       .child(square("tab-new", "+", () => openOverlay({ mod: "mh-new-menu", kind: "popup", width: 250, height: 512 })))
       .when(enabled.includes("files"), el => el.child(panelButton("files", "FILES", "mods/files/file.svg")))
       .when(enabled.includes("changes"), el => el.child(panelButton("changes", "CHANGES", "mods/changes/changes.svg")))
-      .child(panelButton("pr", "PR", ci ? `mods/pr/${ci[0]}.svg` : "mods/pr/circle-check.svg", ci && t[ci[1]]))
+      .child(panelButton("pr", "PR", ci ? `mods/mh-spaces/${ci[0]}.svg` : "mods/mh-spaces/circle-check.svg", ci && t[ci[1]]))
       .when(w?.buttons, el => el.child(square("minimize", w.platform === "windows" ? svg("mods/mh-tabs/win-min.svg").size(16) : "−", () => run("window.minimize")))
         .child(square("maximize", w.platform === "windows" ? svg(`mods/mh-tabs/${w.maximized ? "win-restore" : "win-max"}.svg`).size(16) : "□", () => run("window.maximize")))
         .child(square("close-window", w.platform === "windows" ? svg("mods/mh-tabs/win-close.svg").size(16) : svg("mods/pane/close.svg").size(13), () => run("window.close"))));

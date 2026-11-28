@@ -17,10 +17,10 @@ const ROW = 26;
 const shape = (stored) => ({ prs: stored?.prs ?? {} });
 // One color and icon per reason, so they tell apart at a glance.
 const BADGE = {
-  "CI failed": ["CI", RED, "mods/pr/circle-x.svg"],
+  "CI failed": ["CI", RED, "mods/mh-spaces/circle-x.svg"],
   "changes asked": ["CHANGES", ORANGE, "mods/mh-spaces/file-diff.svg"],
   "new reply": ["REPLY", BLUE, "mods/mh-spaces/comment.svg"],
-  "merge it": ["MERGE", GREEN, "mods/pr/git-merge.svg"],
+  "merge it": ["MERGE", GREEN, "mods/mh-spaces/git-merge.svg"],
   "review asked": ["REVIEW", PURPLE, "mods/workspace-chrome/git-compare.svg"],
 };
 const badge = (why, dark) => {

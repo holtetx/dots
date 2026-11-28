@@ -34,10 +34,10 @@ export const stateMarks = (t) => [
   [["issue-open", "issue-done", "issue-skip"], "issue: open, closed, not planned"],
 ].map(([states, text]) => [h_flex().gap(6).children(states.map((s) => svg(GH[s].icon).size(12).text_color(colorOf(GH[s], t)))), text]);
 export const CHECK_LOOK = {
-  failed: { icon: "mods/pr/circle-x.svg", color: RED, label: "CI failed" },
-  running: { icon: "mods/pr/circle-dot.svg", color: YELLOW, label: "CI running" },
-  passed: { icon: "mods/pr/circle-check.svg", color: GREEN, label: "CI passed" },
-  skipped: { icon: "mods/pr/circle-minus.svg", color: GRAY, label: "Skipped" },
+  failed: { icon: "mods/mh-spaces/circle-x.svg", color: RED, label: "CI failed" },
+  running: { icon: "mods/mh-spaces/circle-dot.svg", color: YELLOW, label: "CI running" },
+  passed: { icon: "mods/mh-spaces/circle-check.svg", color: GREEN, label: "CI passed" },
+  skipped: { icon: "mods/mh-spaces/circle-minus.svg", color: GRAY, label: "Skipped" },
 };
 const ciOf = (it) => (it?.kind === "pr" && !FINAL.has(it.state) ? CHECK_LOOK[it.ci] ?? null : null);
 const REVIEW = {
